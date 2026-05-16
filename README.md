@@ -132,7 +132,7 @@ python3 src/voice_pipeline.py validate --config config.json
 
 Install the Memnon shortcut with one tap:
 
-**→ [Add Memnon Shortcut to iPhone](#)** *(iCloud link — replace with yours)*
+**→ [Add Memnon Shortcut to iPhone](https://www.icloud.com/shortcuts/cab77846ad984a23b50b1c38029565f9)**
 
 This sets up an automation that fires whenever you close Voice Memos — the latest recording is automatically saved to iCloud Drive for the pipeline to pick up. No second tap needed.
 
