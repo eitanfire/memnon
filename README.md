@@ -130,16 +130,29 @@ python3 src/voice_pipeline.py validate --config config.json
 
 ## iPhone Shortcut
 
-Install the Memnon shortcut with one tap:
+There are two options depending on your needs:
+
+### Option A — Basic shortcut (one-tap install)
 
 **→ [Add Memnon Shortcut to iPhone](https://www.icloud.com/shortcuts/cab77846ad984a23b50b1c38029565f9)**
 
-This sets up an automation that fires whenever you close Voice Memos — the latest recording is automatically saved to iCloud Drive for the pipeline to pick up. No second tap needed.
+Tap to record, tap to finish. Simple and works well for short notes. 
 
-**Manual setup** (if you prefer to build it yourself):
-1. Shortcuts → Automation → + → App → Voice Memos → Is Closed
-2. Turn off "Ask Before Running"
-3. Add: **Get Latest Voice Memo** → **Save File** → iCloud Drive → `Voice Inbox/raw`
+> **Limitation:** The screen must stay on during recording. If your phone locks mid-recording, the recording stops.
+
+### Option B — Voice Memos automation (recommended)
+
+This is the better long-term setup. It records correctly even with the screen locked, and fires automatically — no second tap needed.
+
+**Setup (one time, ~2 minutes):**
+1. Open **Shortcuts** → **Automation** tab → **+**
+2. Choose **App** → select **Voice Memos** → set to **"Is Closed"**
+3. Turn off **"Ask Before Running"**
+4. Add two actions:
+   - **Get Latest Voice Memo**
+   - **Save File** → iCloud Drive → `Voice Inbox/raw` → disable "Ask Where to Save"
+
+**Workflow:** Open Voice Memos → record → close the app → note appears in Obsidian within ~60 seconds. Screen can lock at any point during recording.
 
 ---
 
