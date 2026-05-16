@@ -1,0 +1,9 @@
+config.json
+runtime/*
+!runtime/.gitkeep
+*.log
+.DS_Store
+memnon/
+docs/
+.claude/
+.vscode/

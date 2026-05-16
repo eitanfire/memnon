@@ -1,0 +1,56 @@
+{
+  "runtime_dir": "./runtime",
+  "state_file": "./runtime/state.json",
+  "raw_audio_dir": "/Users/your-username/Library/Mobile Documents/com~apple~CloudDocs/Voice Inbox/raw",
+  "archive_audio_dir": "/Users/your-username/Library/Mobile Documents/com~apple~CloudDocs/Voice Inbox/processed",
+  "failed_audio_dir": "/Users/your-username/Library/Mobile Documents/com~apple~CloudDocs/Voice Inbox/failed",
+  "obsidian_inbox_dir": "/Users/your-username/Documents/Obsidian/YourVault/Inbox/Voice",
+  "tag_reference_dirs": [
+    "/Users/your-username/Documents/Obsidian/YourVault"
+  ],
+  "note_template_path": "./templates/voice-note.md",
+  "poll_seconds": 30,
+  "min_stable_age_seconds": 90,
+  "archive_subdirs_by_date": true,
+  "audio_extensions": [
+    ".m4a",
+    ".mp3",
+    ".wav",
+    ".mp4",
+    ".mpeg",
+    ".mpga",
+    ".webm",
+    ".aac",
+    ".flac"
+  ],
+  "transcription": {
+    "backend": "command",
+    "command_template": [
+      "./src/transcribe.sh",
+      "{input_path}",
+      "{output_prefix}",
+      "/opt/homebrew/share/whisper-cpp/models/ggml-base.en.bin",
+      "{language}"
+    ],
+    "transcript_file_template": "{output_prefix}.txt",
+    "language": "en"
+  },
+  "ai": {
+    "enabled": false,
+    "_comment_backend": "Options: openai_http | ollama_http | mock",
+    "backend": "openai_http",
+    "model": "gpt-4o-mini",
+    "api_key": "sk-...",
+    "temperature": 0.2,
+    "timeout_seconds": 60,
+    "max_tags": 5
+  },
+  "gpt_handoff": {
+    "enabled": true,
+    "audio_dir": "/Users/your-username/Library/Mobile Documents/com~apple~CloudDocs/Voice Inbox/gpt-now",
+    "export_dir": "./runtime/gpt-handoff",
+    "template_path": "./templates/gpt-handoff.md",
+    "copy_to_clipboard": true,
+    "instructions": "Continue the active conversation using the transcript as source of truth. Answer the user's latest question first, then add any useful follow-up or clarifying questions."
+  }
+}
