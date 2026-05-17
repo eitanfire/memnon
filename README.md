@@ -1,6 +1,6 @@
 # Memnon
 
-<img src="memnon_logo.png" alt="Memnon logo" width="120" />
+<img src="memnon_logo.png" alt="Memnon logo" width="100%" />
 
 **A local-first voice pipeline that turns iPhone recordings into structured knowledge.**
 
