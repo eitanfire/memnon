@@ -8,6 +8,10 @@ Speak into your phone. A formatted, AI-summarized Markdown note appears in your 
 
 ```
 iPhone mic  →  iCloud sync  →  whisper.cpp  →  OpenAI/Ollama  →  Obsidian note
+                                                                        ↓
+                                                               TypeScript MCP server
+                                                                        ↓
+                                                            Claude can query your notes
 ```
 
 > **Quick start:** `git clone` → `./setup.sh` → speak → note appears.
@@ -22,8 +26,9 @@ Memnon is a reference architecture for a local AI knowledge pipeline — small e
 
 - **Private by default** — audio is transcribed locally by whisper.cpp, never uploaded
 - **No always-on server** — a macOS launchd agent wakes the script once per minute
-- **No dependencies** — one Python file, pure stdlib
+- **Readable** — one Python file, pure stdlib, no pip install
 - **Composable** — swap the transcriber, the AI backend, the note format, the destination
+- **AI-queryable** — a TypeScript MCP server lets Claude search and reason over your notes
 
 ---
 
@@ -55,6 +60,16 @@ Memnon is a reference architecture for a local AI knowledge pipeline — small e
 │                              Obsidian Inbox/Voice/note.md       │
 │                                                                 │
 │  audio → processed/2026/05/recording.m4a                       │
+└─────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ TypeScript MCP Server (mcp/)                                    │
+│                                                                 │
+│  Exposes your note knowledge base to Claude and other          │
+│  MCP-compatible AI tools                                        │
+│                                                                 │
+│  Tools: list_notes · search_notes · get_note · get_action_items│
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -101,13 +116,14 @@ thing is going to bite us if we deploy Friday without fixing it...
 - **whisper.cpp** — `brew install whisper-cpp && whisper-cpp --download-model base.en`
 - **Obsidian** with a vault already created
 - **iPhone** with the Memnon Shortcut installed (link below)
+- **Node.js 18+** — for the MCP server (optional)
 
 ---
 
 ## Installation
 
 ```bash
-git clone https://github.com/your-username/memnon.git
+git clone https://github.com/eitanfire/memnon.git
 cd memnon
 ./setup.sh
 ```
@@ -138,7 +154,7 @@ There are two options depending on your needs:
 
 **→ [Add Memnon Shortcut to iPhone](https://www.icloud.com/shortcuts/bddfcee377de4cbdbad12deeb20228d6)**
 
-Tap to record, tap to finish. Simple and works well for short notes. 
+Tap to record, tap to finish. Simple and works well for short notes.
 
 > **Limitation:** The screen must stay on during recording. If your phone locks mid-recording, the recording stops.
 
@@ -207,6 +223,49 @@ ollama pull llama3
 
 ---
 
+## TypeScript MCP Server
+
+The `mcp/` directory contains a TypeScript [Model Context Protocol](https://modelcontextprotocol.io) server that exposes your voice note knowledge base to Claude and other MCP-compatible AI tools.
+
+Once connected, you can ask Claude things like:
+- *"What action items do I have from this week's notes?"*
+- *"Search my notes for anything about the auth middleware"*
+- *"Summarize what I've been thinking about this week"*
+
+### Setup
+
+```bash
+cd mcp
+npm install
+npm run build
+```
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "memnon": {
+      "command": "node",
+      "args": ["/path/to/memnon/mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. You'll see a hammer icon in the chat input confirming the tools are connected.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_notes` | Recent notes with title, date, tags, summary |
+| `search_notes` | Full-text search by keyword or tag |
+| `get_note` | Full content of a specific note |
+| `get_action_items` | All open action items across every note |
+
+---
+
 ## Transcription
 
 The default `command` backend pipes audio through `src/transcribe.sh`:
@@ -260,7 +319,7 @@ The pipeline is intentionally minimal. Here are the natural next layers:
 | **Team knowledge inbox** | Shared iCloud or Dropbox folder, shared Obsidian vault |
 | **Semantic search** | Index note content into a local vector DB (e.g. ChromaDB) |
 | **Auto-reminders** | Parse action items and push them to Apple Reminders or Todoist via AppleScript |
-| **Web UI** | A simple Flask/FastAPI dashboard showing recent notes and pipeline status |
+| **Web UI** | A TypeScript/Next.js dashboard showing recent notes and pipeline status |
 | **Mobile trigger** | Expand the iOS Shortcut to support different recording types routing to different lanes |
 | **Local-only mode** | Replace OpenAI with a larger Ollama model for zero-cloud operation |
 
@@ -274,6 +333,8 @@ Pull requests welcome.
 |------|---------|
 | `src/voice_pipeline.py` | Main pipeline — pure Python stdlib, no pip install |
 | `src/transcribe.sh` | ffmpeg + whisper-cli wrapper for m4a/mp3 input |
+| `mcp/src/index.ts` | TypeScript MCP server — exposes notes to Claude |
+| `mcp/package.json` | MCP server dependencies |
 | `config.example.json` | Annotated config template |
 | `setup.sh` | One-command install script |
 | `templates/voice-note.md` | Obsidian note template |
@@ -297,6 +358,8 @@ This is a working reference architecture, not production software. Known rough e
 | **Tag scanning is O(n)** | `collect_preferred_tags()` rescans all vault files every run. Fine for small vaults. |
 
 Pull requests welcome on any of these.
+
+---
 
 ## License
 
