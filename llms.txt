@@ -1,0 +1,31 @@
+# Memnon
+
+> A local-first voice pipeline that turns iPhone recordings into structured knowledge.
+
+Memnon converts iPhone voice recordings into structured Obsidian markdown notes using local transcription (whisper.cpp) and optional AI summarization (OpenAI or Ollama). Audio is never sent to the cloud for transcription. The pipeline runs as a macOS launchd agent, processing new recordings every 60 seconds.
+
+A TypeScript MCP (Model Context Protocol) server exposes the note knowledge base to Claude and other AI tools — enabling queries like "what action items do I have this week?" or "search my notes for anything about auth."
+
+## Key Facts
+
+- Language: Python (pipeline, zero pip dependencies) + TypeScript (MCP server)
+- Platform: macOS + iPhone
+- Transcription: whisper.cpp via Homebrew (local, private)
+- AI backends: OpenAI (openai_http), Ollama (ollama_http), or disabled
+- Storage: iCloud Drive (audio sync) + Obsidian vault (markdown notes)
+- Automation: macOS launchd agent (no always-on server)
+- License: MIT
+
+## Use Cases
+
+- Capturing voice notes that automatically become searchable knowledge
+- Building a personal AI knowledge pipeline without cloud dependencies
+- Reference architecture for local-first AI workflows
+- Foundation for semantic modeling with tools like Malloy
+
+## Docs
+
+- [README](https://github.com/eitanfire/memnon/blob/main/README.md)
+- [MCP Server](https://github.com/eitanfire/memnon/blob/main/mcp/README.md)
+- [Config Example](https://github.com/eitanfire/memnon/blob/main/config.example.json)
+- [Setup Script](https://github.com/eitanfire/memnon/blob/main/setup.sh)

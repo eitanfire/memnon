@@ -37,7 +37,7 @@ Memnon is a reference architecture for a local AI knowledge pipeline — small e
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ iPhone                                                          │
-│  Voice Memos app → iOS Shortcut → iCloud Drive/Voice Inbox/raw │
+│  Voice Memos app → iOS Shortcut → iCloud Drive/Voice Inbox/raw  │
 └────────────────────────────┬────────────────────────────────────┘
                              │ iCloud sync (~seconds)
                              ▼
@@ -47,7 +47,7 @@ Memnon is a reference architecture for a local AI knowledge pipeline — small e
 │  raw/recording.m4a                                              │
 │       │                                                         │
 │       ▼                                                         │
-│  ffmpeg → 16kHz WAV → whisper.cpp → transcript.txt             │
+│  ffmpeg → 16kHz WAV → whisper.cpp → transcript.txt              │
 │                                          │                      │
 │                                          ▼                      │
 │                              OpenAI gpt-4o-mini (optional)      │
@@ -59,7 +59,7 @@ Memnon is a reference architecture for a local AI knowledge pipeline — small e
 │                                          ▼                      │
 │                              Obsidian Inbox/Voice/note.md       │
 │                                                                 │
-│  audio → processed/2026/05/recording.m4a                       │
+│  audio → processed/2026/05/recording.m4a                        │
 └─────────────────────────────────────────────────────────────────┘
                              │
                              ▼
