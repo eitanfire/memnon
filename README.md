@@ -318,6 +318,7 @@ The pipeline is intentionally minimal. Here are the natural next layers:
 | **Meeting summaries** | Use a stereo-aware transcriber and add speaker diarization |
 | **Team knowledge inbox** | Shared iCloud or Dropbox folder, shared Obsidian vault |
 | **Semantic search** | Index note content into a local vector DB (e.g. ChromaDB) |
+| **Semantic modeling** | Use [Malloy](https://www.malloydata.dev) to build a queryable semantic layer over your note metadata — ask questions like "what topics came up most this month?" |
 | **Auto-reminders** | Parse action items and push them to Apple Reminders or Todoist via AppleScript |
 | **Web UI** | A TypeScript/Next.js dashboard showing recent notes and pipeline status |
 | **Mobile trigger** | Expand the iOS Shortcut to support different recording types routing to different lanes |
