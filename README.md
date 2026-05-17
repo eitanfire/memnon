@@ -280,6 +280,22 @@ Pull requests welcome.
 
 ---
 
+## Known Limitations (v1)
+
+This is a working reference architecture, not production software. Known rough edges:
+
+| Limitation | Notes |
+|------------|-------|
+| **macOS + iPhone only** | launchd and iCloud Drive are Apple-specific. Linux/Windows port would need a different watcher and sync mechanism. |
+| **Single file pipeline** | `voice_pipeline.py` is ~1000 lines. A production version would split into modules. |
+| **No retries** | If the OpenAI API call fails, the note lands in `failed/`. Re-drop the audio to retry. |
+| **No structured logging** | Uses print/stderr. A production version would use Python's `logging` module. |
+| **No test suite** | No automated tests. The `mock` backends exist specifically to make testing easier to add. |
+| **Sequential processing** | Files are processed one at a time. Fine for personal use, slow for bulk imports. |
+| **Tag scanning is O(n)** | `collect_preferred_tags()` rescans all vault files every run. Fine for small vaults. |
+
+Pull requests welcome on any of these.
+
 ## License
 
 MIT
