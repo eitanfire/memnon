@@ -134,7 +134,7 @@ There are two options depending on your needs:
 
 ### Option A — Basic shortcut (one-tap install)
 
-**→ [Add Memnon Shortcut to iPhone](https://www.icloud.com/shortcuts/cab77846ad984a23b50b1c38029565f9)**
+**→ [Add Memnon Shortcut to iPhone](https://www.icloud.com/shortcuts/bddfcee377de4cbdbad12deeb20228d6)**
 
 Tap to record, tap to finish. Simple and works well for short notes. 
 
