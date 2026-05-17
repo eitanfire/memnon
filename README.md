@@ -1,5 +1,7 @@
 # Memnon
 
+<img src="memnon_logo.png" alt="Memnon logo" width="120" />
+
 **A local-first voice pipeline that turns iPhone recordings into structured knowledge.**
 
 Speak into your phone. A formatted, AI-summarized Markdown note appears in your knowledge base within 60 seconds — transcribed on your own machine, no audio sent to the cloud.
