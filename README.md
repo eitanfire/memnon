@@ -66,10 +66,10 @@ Memnon is a reference architecture for a local AI knowledge pipeline — small e
 ┌─────────────────────────────────────────────────────────────────┐
 │ TypeScript MCP Server (mcp/)                                    │
 │                                                                 │
-│  Exposes your note knowledge base to Claude and other          │
+│  Exposes your note knowledge base to Claude and other           │
 │  MCP-compatible AI tools                                        │
 │                                                                 │
-│  Tools: list_notes · search_notes · get_note · get_action_items│
+│  Tools: list_notes · search_notes · get_note · get_action_items │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
