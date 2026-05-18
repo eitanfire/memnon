@@ -207,9 +207,11 @@ Cost: roughly $0.001–0.003 per note with `gpt-4o-mini`.
 
 ### Ollama (fully local, free)
 
+Any model available via Ollama works. `llama3` is a solid default; `gemma3` is a great alternative — Google's open model, excellent at structured output like the JSON this pipeline expects.
+
 ```bash
 brew install ollama
-ollama pull llama3
+ollama pull llama3      # or: ollama pull gemma3
 ```
 
 ```json
@@ -220,6 +222,8 @@ ollama pull llama3
   "base_url": "http://127.0.0.1:11434"
 }
 ```
+
+Swap `"model": "llama3"` for `"model": "gemma3"` to use Gemma locally with zero API costs.
 
 ---
 
