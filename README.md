@@ -329,22 +329,35 @@ python3 src/voice_pipeline.py process-file /path/to/audio.m4a --config config.js
 
 ## Ways to Extend This
 
-The pipeline is intentionally minimal. Here are the natural next layers:
+Memnon has a deliberate product boundary:
+
+**Core repo** — ingestion, transcription, note generation, lane routing, metadata, status. This is what belongs here and what pull requests should target.
+
+**Companion tools** — things that sit on top of the pipeline without changing it. Build these in your own repo, pointed at the same Obsidian vault and `runtime/last-run.json`.
+
+### Core extensions (pull requests welcome)
 
 | Extension | What to build |
 |-----------|---------------|
-| **Topic routing** | Read the AI tags and move notes to different Obsidian folders automatically |
+| **Speaker diarization** | Optional conversation mode using a stereo-aware transcriber — useful for interview and meeting lanes |
 | **Slack/email ingestion** | Add a watcher for other ingest sources beyond the raw folder |
-| **Meeting summaries** | Use a stereo-aware transcriber and add speaker diarization |
 | **Team knowledge inbox** | Shared iCloud or Dropbox folder, shared Obsidian vault |
-| **Semantic search** | Index note content into a local vector DB (e.g. ChromaDB) |
-| **Semantic modeling** | Use [Malloy](https://www.malloydata.dev) to build a queryable semantic layer over your note metadata — ask questions like "what topics came up most this month?" |
-| **Auto-reminders** | Parse action items and push them to Apple Reminders or Todoist via AppleScript |
-| **Web UI** | A TypeScript/Next.js dashboard showing recent notes and pipeline status |
-| **Mobile trigger** | Expand the iOS Shortcut to support different recording types routing to different lanes |
-| **Local-only mode** | Replace OpenAI with a larger Ollama model for zero-cloud operation |
+| **Local-only mode** | Replace OpenAI with a larger Ollama or Gemma model for zero-cloud operation |
+| **Lane correction feedback** | Edited `workflow` frontmatter updates a local rules file the router consults next time |
 
-Pull requests welcome.
+### Companion tools (build in your own repo)
+
+| Tool | What to build |
+|------|---------------|
+| **Menu bar app** | Reads `runtime/last-run.json` — shows a status indicator without touching the pipeline |
+| **Auto-reminders** | Parse action items and push to Apple Reminders or Todoist via AppleScript |
+| **Calendar events** | Extract dates from transcripts and create Calendar entries via AppleScript |
+| **Mobile query UI** | Search your vault from iPhone — a companion service, not part of ingest |
+| **Micro-podcast generator** | Reflect lane notes → script → ambient audio → personal podcast episode |
+| **Semantic modeling** | Use [Malloy](https://www.malloydata.dev) to build a queryable semantic layer over your note metadata |
+| **Web dashboard** | A TypeScript/Next.js view of recent notes and pipeline status, reads `last-run.json` |
+
+> **The core principle:** the pipeline outputs plain Markdown to Obsidian. Every companion tool consumes from there. No tool should need to change the pipeline to add a feature — if it does, the boundary is in the wrong place.
 
 ---
 
