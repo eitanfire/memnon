@@ -12,6 +12,8 @@
   "poll_seconds": 30,
   "min_stable_age_seconds": 90,
   "archive_subdirs_by_date": true,
+  "min_audio_bytes": 4096,
+  "min_transcript_words": 3,
   "audio_extensions": [
     ".m4a",
     ".mp3",

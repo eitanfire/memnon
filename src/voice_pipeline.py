@@ -131,6 +131,8 @@ def load_config(path: Path) -> Dict[str, Any]:
     resolved.setdefault("poll_seconds", 30)
     resolved.setdefault("min_stable_age_seconds", 90)
     resolved.setdefault("archive_subdirs_by_date", True)
+    resolved.setdefault("min_transcript_words", 3)
+    resolved.setdefault("min_audio_bytes", 4096)
 
     transcription = dict(resolved.get("transcription", {}))
     transcription.setdefault("backend", "whisper_cpp")
@@ -947,6 +949,20 @@ def write_metadata(
     return destination
 
 
+def write_last_run(config: Dict[str, Any], results: List[ProcessResult]) -> None:
+    """Write runtime/last-run.json after every poll cycle for observability."""
+    runtime_dir = Path(config["runtime_dir"])
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "timestamp": iso_now(),
+        "files_processed": len(results),
+        "last_status": results[-1].status if results else "idle",
+        "last_error": next((r.error for r in reversed(results) if r.error), None),
+        "results": [r.__dict__ for r in results],
+    }
+    write_json(runtime_dir / "last-run.json", payload)
+
+
 def move_to_archive(source_path: Path, destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     return Path(shutil.move(str(source_path), str(destination)))
@@ -972,7 +988,29 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
     gpt_packet_path: Optional[Path] = None
 
     try:
+        # Minimum audio size check — reject obvious accidental recordings before transcription
+        min_bytes = int(config.get("min_audio_bytes", 4096))
+        try:
+            audio_bytes = source_path.stat().st_size
+        except FileNotFoundError:
+            audio_bytes = 0
+        if audio_bytes < min_bytes:
+            raise RuntimeError(
+                f"Audio file too small ({audio_bytes} bytes < {min_bytes} minimum). "
+                "Likely an accidental or empty recording."
+            )
+
         transcript = transcribe_audio(config, source_path)
+
+        # Minimum transcript length check — reject near-silent or noise-only recordings
+        min_words = int(config.get("min_transcript_words", 3))
+        word_count = len(transcript.split()) if transcript else 0
+        if word_count < min_words:
+            raise RuntimeError(
+                f"Transcript too short ({word_count} words < {min_words} minimum). "
+                "Likely an accidental or empty recording."
+            )
+
         workflow = "default"
         routing_reason = "fallback"
         if transcript:
@@ -1094,6 +1132,7 @@ def process_pending(config: Dict[str, Any]) -> List[ProcessResult]:
     if needs_state_save:
         save_state(config, state)
 
+    write_last_run(config, results)
     return results
 
 
