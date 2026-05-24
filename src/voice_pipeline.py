@@ -240,6 +240,15 @@ def source_key(path: Path) -> str:
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
+def content_hash(path: Path) -> str:
+    """SHA-256 of file contents — used to detect duplicate exports."""
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def unique_path(path: Path) -> Path:
     if not path.exists():
         return path
@@ -902,9 +911,43 @@ def process_pending(config: Dict[str, Any]) -> List[ProcessResult]:
     ensure_runtime_dirs(config)
     state = load_state(config)
     processed = state.setdefault("processed", {})
+    # size_snapshots: path -> size from previous poll, used to confirm file is stable
+    size_snapshots = state.setdefault("size_snapshots", {})
+    # content_hashes: set of SHA-256 digests of already-processed files for dedup
+    seen_hashes: set = set(state.setdefault("content_hashes", []))
+
+    # Prune stale size snapshot entries for files that no longer exist
+    stale_keys = [k for k in size_snapshots if not Path(k).exists()]
+    for k in stale_keys:
+        del size_snapshots[k]
+
+    candidates = candidate_files(config)
+    needs_state_save = bool(stale_keys)
 
     results: List[ProcessResult] = []
-    for candidate in candidate_files(config):
+    for candidate in candidates:
+        path_key = str(candidate.path)
+        try:
+            current_size = candidate.path.stat().st_size
+        except FileNotFoundError:
+            continue
+
+        # Size-stability check: skip if size differs from last poll snapshot
+        last_size = size_snapshots.get(path_key)
+        size_snapshots[path_key] = current_size
+        if last_size != current_size:
+            # First time seen, or still growing — revisit next poll
+            needs_state_save = True
+            continue
+
+        # Content-hash deduplication: skip if we have already processed this exact file
+        try:
+            chash = content_hash(candidate.path)
+        except OSError:
+            continue
+        if chash in seen_hashes:
+            continue
+
         key = source_key(candidate.path)
         existing = processed.get(key)
         if existing and existing.get("status") == "done":
@@ -922,8 +965,14 @@ def process_pending(config: Dict[str, Any]) -> List[ProcessResult]:
             "error": result.error,
             "recorded_at": iso_now(),
         }
+        if result.status == "done":
+            seen_hashes.add(chash)
+            state["content_hashes"] = list(seen_hashes)
         save_state(config, state)
         results.append(result)
+
+    if needs_state_save:
+        save_state(config, state)
 
     return results
 
