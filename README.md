@@ -146,21 +146,27 @@ python3 src/voice_pipeline.py validate --config config.json
 
 ---
 
-## iPhone Shortcut
+## iPhone Capture
 
-There are two options depending on your needs:
+The pipeline watches `Voice Inbox/raw` on iCloud Drive for new audio files. Getting recordings into that folder is the capture layer — and how you do it depends on your iOS version.
 
-### Option A — Basic shortcut (one-tap install)
+### Option A — Manual handoff (works on all devices)
 
-**→ [Add Memnon Shortcut to iPhone](https://www.icloud.com/shortcuts/bddfcee377de4cbdbad12deeb20228d6)**
+Record in Voice Memos (the screen can lock mid-recording), then share the file when done:
 
-Tap to record, tap to finish. Simple and works well for short notes.
+1. Open **Voice Memos** and record
+2. Tap the recording → tap the **Share** icon
+3. Choose **Save to Files** → iCloud Drive → `Voice Inbox` → `raw`
 
-> **Limitation:** The screen must stay on during recording. If your phone locks mid-recording, the recording stops.
+That's the only manual step. Once the file lands in `raw`, Memnon processes it automatically within ~60 seconds.
 
-### Option B — Voice Memos automation (recommended)
+> **Tip:** Pin the `Voice Inbox/raw` folder in the Files app sidebar so the save destination is one tap away.
 
-This is the better long-term setup. It records correctly even with the screen locked, and fires automatically — no second tap needed.
+### Option B — Automated via Shortcuts (works on some iOS versions)
+
+Apple's "Get Latest Voice Memo" Shortcuts action can automate the handoff entirely — no manual save needed. It fires when Voice Memos closes and saves the recording straight to `raw`.
+
+> **Availability:** This action is not present on all devices. It varies by iOS version and is not documented by Apple. Try the setup below and check whether the action appears in your search results. If it does not, use Option A.
 
 **Setup (one time, ~2 minutes):**
 1. Open **Shortcuts** → **Automation** tab → **+**
@@ -171,6 +177,14 @@ This is the better long-term setup. It records correctly even with the screen lo
    - **Save File** → iCloud Drive → `Voice Inbox/raw` → disable "Ask Where to Save"
 
 **Workflow:** Open Voice Memos → record → close the app → note appears in Obsidian within ~60 seconds. Screen can lock at any point during recording.
+
+### Option C — Basic shortcut (one-tap install)
+
+**→ [Add Memnon Shortcut to iPhone](https://www.icloud.com/shortcuts/bddfcee377de4cbdbad12deeb20228d6)**
+
+Tap to record, tap to finish. Saves directly to `Voice Inbox/raw` without opening Voice Memos.
+
+> **Limitation:** The screen must stay on during recording. If your phone locks mid-recording, the recording stops.
 
 ---
 
