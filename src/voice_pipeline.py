@@ -306,6 +306,92 @@ def clean_transcript(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text.strip())
 
 
+# ---------------------------------------------------------------------------
+# Workflow lane detection
+# ---------------------------------------------------------------------------
+
+BUILTIN_LANE_KEYWORDS: Dict[str, List[str]] = {
+    "reflect": [
+        "feeling", "feelings", "insight", "insights", "pattern", "patterns",
+        "gratitude", "philosophical", "meditation", "mindset", "emotion",
+        "awareness", "therapy", "intention", "journal",
+    ],
+    "professional": [
+        "meeting", "networking", "opportunity", "career", "colleague",
+        "client", "hire", "interview", "salary", "resume", "linkedin",
+        "contract", "proposal", "follow up", "follow-up",
+    ],
+    "build": [
+        "code", "bug", "feature", "deploy", "refactor", "architecture",
+        "engineering", "sprint", "pull request", "github", "function",
+        "api", "database", "frontend", "backend", "typescript", "python",
+    ],
+}
+
+
+def detect_workflow(transcript: str, config: Dict[str, Any]) -> tuple:
+    """Return (workflow_name, routing_reason, cleaned_transcript).
+
+    Priority:
+    1. Voice label — first word(s) of transcript match a lane name or alias
+    2. Keyword heuristics — configurable threshold of keyword hits
+    3. Default fallback
+    """
+    lanes: Dict[str, Any] = config.get("lanes", {})
+    text = transcript.strip()
+    first_line = text.splitlines()[0] if text else ""
+
+    # Build label → lane_name map from config, falling back to lane name itself
+    label_map: Dict[str, str] = {}
+    for lane_name, lane_cfg in lanes.items():
+        label = lane_cfg.get("label", lane_name).lower()
+        label_map[label] = lane_name
+    # Always include builtin lane names as valid labels
+    for lane_name in BUILTIN_LANE_KEYWORDS:
+        label_map.setdefault(lane_name, lane_name)
+
+    # 1. Voice label: "professional:" / "build —" / "reflect" at line start
+    label_pattern = re.compile(
+        r"^(" + "|".join(re.escape(k) for k in sorted(label_map, key=len, reverse=True)) + r")[\s:,.\-—]?",
+        re.IGNORECASE,
+    )
+    match = label_pattern.match(first_line)
+    if match:
+        detected_label = match.group(1).lower()
+        lane_name = label_map[detected_label]
+        # Strip the label prefix from the transcript
+        stripped = text[match.end():].lstrip(" \t:,.—-")
+        if not stripped:
+            stripped = text  # label only, keep full text
+        return lane_name, "voice_label", stripped
+
+    # 2. Keyword heuristics
+    text_lower = text.lower()
+    best_lane: Optional[str] = None
+    best_count = 0
+    for lane_name, lane_cfg in lanes.items():
+        keywords = lane_cfg.get("keywords", BUILTIN_LANE_KEYWORDS.get(lane_name, []))
+        threshold = int(lane_cfg.get("keyword_threshold", 2))
+        matched = [kw for kw in keywords if kw.lower() in text_lower]
+        if len(matched) >= threshold and len(matched) > best_count:
+            best_lane = lane_name
+            best_count = len(matched)
+
+    # Also check builtin keywords for lanes not explicitly configured
+    for lane_name, keywords in BUILTIN_LANE_KEYWORDS.items():
+        if lane_name in lanes:
+            continue  # already checked above
+        matched = [kw for kw in keywords if kw.lower() in text_lower]
+        if len(matched) >= 2 and len(matched) > best_count:
+            best_lane = lane_name
+            best_count = len(matched)
+
+    if best_lane:
+        return best_lane, f"keywords({best_count})", text
+
+    return "default", "fallback", text
+
+
 def parse_frontmatter_tags(text: str) -> List[str]:
     lines = text.splitlines()
     if len(lines) < 3 or lines[0].strip() != "---":
@@ -497,13 +583,33 @@ def transcribe_audio(config: Dict[str, Any], source_path: Path) -> str:
     return transcript
 
 
-def ai_prompt(transcript: str, max_tags: int, preferred_tags: List[str]) -> str:
+LANE_AI_INSTRUCTIONS: Dict[str, str] = {
+    "reflect": (
+        "This is a personal reflection or philosophical note. "
+        "Focus on insights, recurring patterns, emotional themes, and any intentions or realisations expressed."
+    ),
+    "professional": (
+        "This is a professional note. "
+        "Extract people mentioned, companies, opportunities, relationship context, and concrete next steps."
+    ),
+    "build": (
+        "This is a software or product development note. "
+        "Extract technical decisions, open questions, blockers, ideas, and specific action items."
+    ),
+    "default": "",
+}
+
+
+def ai_prompt(transcript: str, max_tags: int, preferred_tags: List[str], workflow: str = "default") -> str:
     preferred_tags_block = ""
     if preferred_tags:
         preferred_tags_block = (
             "Prefer these existing tags when they genuinely fit the transcript:\n"
             f"{', '.join(preferred_tags)}\n\n"
         )
+
+    lane_instruction = LANE_AI_INSTRUCTIONS.get(workflow, "")
+    lane_block = f"Lane context: {lane_instruction}\n\n" if lane_instruction else ""
 
     return (
         "You organize personal voice notes for Obsidian.\n"
@@ -520,18 +626,19 @@ def ai_prompt(transcript: str, max_tags: int, preferred_tags: List[str]) -> str:
         "- If there are no action items, return an empty array.\n"
         "- Tags should describe likely future retrieval, not every topic.\n"
         "- Make the title specific but concise.\n\n"
+        f"{lane_block}"
         f"{preferred_tags_block}"
         "Transcript:\n"
         f"{transcript}\n"
     )
 
 
-def run_ai_ollama_http(config: Dict[str, Any], transcript: str) -> Dict[str, Any]:
+def run_ai_ollama_http(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
     ai = config["ai"]
     preferred_tags = collect_preferred_tags(config)
     payload = {
         "model": ai["model"],
-        "prompt": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags),
+        "prompt": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow),
         "stream": False,
         "format": "json",
         "options": {
@@ -560,7 +667,7 @@ def run_ai_ollama_http(config: Dict[str, Any], transcript: str) -> Dict[str, Any
     return normalize_ai_payload(parsed)
 
 
-def run_ai_openai_http(config: Dict[str, Any], transcript: str) -> Dict[str, Any]:
+def run_ai_openai_http(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
     ai = config["ai"]
     preferred_tags = collect_preferred_tags(config)
     api_key = ai.get("api_key") or os.environ.get("OPENAI_API_KEY", "")
@@ -572,7 +679,7 @@ def run_ai_openai_http(config: Dict[str, Any], transcript: str) -> Dict[str, Any
     payload = {
         "model": ai.get("model", "gpt-4o-mini"),
         "messages": [
-            {"role": "user", "content": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags)}
+            {"role": "user", "content": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow)}
         ],
         "temperature": ai.get("temperature", 0.2),
         "response_format": {"type": "json_object"},
@@ -644,7 +751,7 @@ def normalize_ai_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def run_ai(config: Dict[str, Any], transcript: str) -> Dict[str, Any]:
+def run_ai(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
     ai = config["ai"]
     if not ai.get("enabled", True):
         return {
@@ -656,9 +763,9 @@ def run_ai(config: Dict[str, Any], transcript: str) -> Dict[str, Any]:
 
     backend = ai.get("backend", "ollama_http")
     if backend == "ollama_http":
-        return run_ai_ollama_http(config, transcript)
+        return run_ai_ollama_http(config, transcript, workflow)
     if backend == "openai_http":
-        return run_ai_openai_http(config, transcript)
+        return run_ai_openai_http(config, transcript, workflow)
     if backend == "mock":
         return run_ai_mock(config, transcript)
     raise RuntimeError(f"Unsupported AI backend: {backend}")
@@ -678,6 +785,8 @@ def build_note_content(
     archived_audio_path: Path,
     transcript: str,
     ai_payload: Dict[str, Any],
+    workflow: str = "default",
+    routing_reason: str = "fallback",
 ) -> str:
     template_path = Path(config["note_template_path"])
     template = template_path.read_text(encoding="utf-8")
@@ -690,6 +799,8 @@ def build_note_content(
         "created_at": created_at.isoformat(),
         "processed_at": processed_at,
         "status": "inbox",
+        "workflow": workflow,
+        "routing_reason": routing_reason,
         "source_audio_name": source_path.name,
         "source_audio_path": str(archived_audio_path),
         "transcript_backend": config["transcription"]["backend"],
@@ -724,10 +835,14 @@ def write_note(
     archived_audio_path: Path,
     transcript: str,
     ai_payload: Dict[str, Any],
+    workflow: str = "default",
+    routing_reason: str = "fallback",
 ) -> Path:
     title = note_title(source_path, ai_payload)
     destination = note_destination(config, title, source_path)
-    content = build_note_content(config, source_path, archived_audio_path, transcript, ai_payload)
+    content = build_note_content(
+        config, source_path, archived_audio_path, transcript, ai_payload, workflow, routing_reason
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(content, encoding="utf-8")
     return destination
@@ -858,9 +973,14 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
 
     try:
         transcript = transcribe_audio(config, source_path)
+        workflow = "default"
+        routing_reason = "fallback"
         if transcript:
-            ai_payload = run_ai(config, transcript)
-        note_path = write_note(config, source_path, archive_path, transcript, ai_payload)
+            workflow, routing_reason, transcript = detect_workflow(transcript, config)
+            ai_payload = run_ai(config, transcript, workflow)
+        note_path = write_note(
+            config, source_path, archive_path, transcript, ai_payload, workflow, routing_reason
+        )
         if lane == "gpt" and config["gpt_handoff"].get("enabled"):
             gpt_packet_path = write_gpt_packet(
                 config=config,
