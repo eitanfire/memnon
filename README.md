@@ -150,6 +150,8 @@ python3 src/voice_pipeline.py validate --config config.json
 
 The pipeline watches `Voice Inbox/raw` on iCloud Drive for new audio files. Getting recordings into that folder is the capture layer — and how you do it depends on your iOS version.
 
+On iPhone 15 Pro and later (and all iPhone 16 models), the Action Button can be configured to open Voice Memos directly — replacing the old camera shortcut. Combined with Option A or B below, this gives you a one-press capture workflow: press the button, record, lock your screen, finish when ready. No dedicated hardware, no subscription. This is the workflow that makes Memnon a real alternative to devices like Plaud and Pocket AI.
+
 ### Option A — Manual handoff (works on all devices)
 
 Record in Voice Memos (the screen can lock mid-recording), then share the file when done:
