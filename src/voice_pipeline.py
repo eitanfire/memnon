@@ -970,11 +970,17 @@ def run_lane_actions(
     transcript: str,
     ai_payload: Dict[str, Any],
     note_path: Path,
+    entry_id: str = "",
+    archived_audio_path: Optional[Path] = None,
 ) -> None:
     """Execute any downstream actions configured for a workflow lane.
 
     Currently supports:
-      append_jsonl: path — appends a formatted entry to a JSONL intake file.
+      append_jsonl: path — appends a structured entry to a JSONL intake file.
+
+    Schema (v1):
+      schema_version, id, timestamp, workflow, title, summary,
+      action_items, tags, transcript, note_path, source_audio_path
     """
     lane_actions = config.get("lane_actions", {})
     actions = lane_actions.get(workflow, {})
@@ -987,21 +993,21 @@ def run_lane_actions(
         append_path.parent.mkdir(parents=True, exist_ok=True)
         title = note_title(source_path, ai_payload)
         created_at = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone().replace(microsecond=0)
-        action_items = ai_payload.get("action_items", [])
-        action_items_text = "\n".join(f"- {item}" for item in action_items) if action_items else "None"
-        content = (
-            f"Voice note ({workflow}) — {created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
-            f"Title: {title}\n\n"
-            f"Summary: {ai_payload.get('summary', '').strip() or 'None'}\n\n"
-            f"Action items:\n{action_items_text}\n\n"
-            f"Transcript:\n{transcript.strip()}"
-        )
-        entry = json.dumps(
-            {"role": "user", "content": content, "source": "memnon", "created": created_at.isoformat()},
-            ensure_ascii=False,
-        )
+        entry = {
+            "schema_version": 1,
+            "id": entry_id or source_key(source_path),
+            "timestamp": created_at.isoformat(),
+            "workflow": workflow,
+            "title": title,
+            "summary": ai_payload.get("summary", "").strip(),
+            "action_items": ai_payload.get("action_items", []),
+            "tags": ai_payload.get("suggested_tags", []),
+            "transcript": transcript.strip(),
+            "note_path": str(note_path),
+            "source_audio_path": str(archived_audio_path) if archived_audio_path else "",
+        }
         with append_path.open("a", encoding="utf-8") as f:
-            f.write(entry + "\n")
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def move_to_archive(source_path: Path, destination: Path) -> Path:
@@ -1060,17 +1066,23 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
         note_path = write_note(
             config, source_path, archive_path, transcript, ai_payload, workflow, routing_reason
         )
-        run_lane_actions(config, workflow, source_path, transcript, ai_payload, note_path)
+        # Compute source_key before moving the file — stat is unavailable after move
+        entry_id = source_key(source_path)
+        archived_audio_path = move_to_archive(source_path, archive_path)
+        run_lane_actions(
+            config, workflow, source_path, transcript, ai_payload, note_path,
+            entry_id=entry_id,
+            archived_audio_path=archived_audio_path,
+        )
         if lane == "gpt" and config["gpt_handoff"].get("enabled"):
             gpt_packet_path = write_gpt_packet(
                 config=config,
                 source_path=source_path,
-                archived_audio_path=archive_path,
+                archived_audio_path=archived_audio_path,
                 transcript=transcript,
                 ai_payload=ai_payload,
                 note_path=note_path,
             )
-        archived_audio_path = move_to_archive(source_path, archive_path)
         metadata_path = write_metadata(
             config,
             lane=lane,
