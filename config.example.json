@@ -47,6 +47,9 @@
     "timeout_seconds": 60,
     "max_tags": 5
   },
+  "_comment_wisdom": "Optional. Point to a directory of corpus .md files (Plato, Torah, Stoics, etc.). Reflect lane notes will trigger a second AI pass that selects resonant passages and generates a podcast script + guided meditation.",
+  "wisdom_corpus_dir": "./corpus",
+  "wisdom_template_path": "./templates/wisdom-note.md",
   "_comment_lanes": "Optional. Define workflow lanes for post-ingest routing. Say the lane name as the first word of your recording to force a lane (e.g. 'Professional: just met Sarah...'). Falls back to keyword matching, then default.",
   "lanes": {
     "reflect": {
@@ -63,6 +66,15 @@
       "label": "build",
       "keywords": ["code", "bug", "feature", "deploy", "refactor", "architecture", "engineering", "sprint", "pull request", "api"],
       "keyword_threshold": 2
+    }
+  },
+  "_comment_lane_actions": "Optional per-lane downstream actions. append_jsonl writes a structured JSONL entry. generate_wisdom_note triggers corpus-based synthesis for reflect notes.",
+  "lane_actions": {
+    "professional": {
+      "append_jsonl": "/Users/your-username/.codex/professional/memnon-intake.jsonl"
+    },
+    "reflect": {
+      "generate_wisdom_note": true
     }
   },
   "gpt_handoff": {

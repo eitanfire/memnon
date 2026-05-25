@@ -968,6 +968,233 @@ def write_metadata(
     return destination
 
 
+# ---------------------------------------------------------------------------
+# Wisdom corpus and reflect synthesis
+# ---------------------------------------------------------------------------
+
+def load_corpus_passages(config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Load all passages from the wisdom corpus directory.
+
+    Each .md file should have YAML frontmatter (author, work, tradition) and
+    sections marked with '## Passage: <title>' headings.
+    """
+    corpus_dir_raw = config.get("wisdom_corpus_dir", "")
+    if not corpus_dir_raw:
+        return []
+    config_dir = Path(config.get("_config_dir", "."))
+    raw = Path(os.path.expanduser(corpus_dir_raw))
+    corpus_dir = raw if raw.is_absolute() else (config_dir / raw).resolve()
+    if not corpus_dir.exists():
+        return []
+
+    passages: List[Dict[str, Any]] = []
+    for md_file in sorted(corpus_dir.rglob("*.md")):
+        try:
+            text = md_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        author = tradition = work = ""
+        lines = text.splitlines()
+        body_start = 0
+        if lines and lines[0].strip() == "---":
+            i = 1
+            while i < len(lines) and lines[i].strip() != "---":
+                line = lines[i]
+                if line.startswith("author:"):
+                    author = line.split(":", 1)[1].strip()
+                elif line.startswith("work:"):
+                    work = line.split(":", 1)[1].strip()
+                elif line.startswith("tradition:"):
+                    tradition = line.split(":", 1)[1].strip()
+                i += 1
+            body_start = i + 1
+        body = "\n".join(lines[body_start:])
+
+        for section in re.split(r"^## Passage:", body, flags=re.MULTILINE):
+            section = section.strip()
+            if not section:
+                continue
+            section_lines = section.splitlines()
+            passage_title = section_lines[0].strip() if section_lines else ""
+            passage_body = "\n".join(section_lines[1:]).strip()
+            if passage_body:
+                passages.append({
+                    "author": author,
+                    "work": work,
+                    "tradition": tradition,
+                    "title": passage_title,
+                    "text": passage_body,
+                })
+
+    return passages
+
+
+def wisdom_synthesis_prompt(transcript: str, passages: List[Dict[str, Any]]) -> str:
+    corpus_lines = []
+    for p in passages:
+        source = f"{p['author']}, {p['work']}" if p.get("work") else p.get("author", "Unknown")
+        corpus_lines.append(f"[{source}]\n{p['text']}")
+    corpus_block = "\n\n---\n\n".join(corpus_lines)
+
+    return (
+        "You are a personal wisdom synthesizer. You receive a voice reflection "
+        "from someone about their life, and a library of passages from philosophical "
+        "and sacred texts.\n\n"
+        "Return strict JSON only. Do not wrap in markdown fences.\n"
+        "Schema:\n"
+        "{\n"
+        '  "title": "a short evocative title for this wisdom note",\n'
+        '  "selected_passages": [\n'
+        '    {"source": "Author, Work", "quote": "exact verbatim quote", '
+        '"why": "one sentence on why this resonates with the reflection"}\n'
+        "  ],\n"
+        '  "podcast_script": "3-5 paragraphs. Warm, personal voice. Weave the person\'s '
+        "themes with the selected wisdom. Speak to the person directly — not about them. "
+        'No academic tone.\",\n'
+        '  "meditation_script": "Three parts clearly separated by blank lines: '
+        "OPENING (ground and arrive, 1 paragraph), BODY (weave the day's themes with "
+        "the passages, 2-3 paragraphs), CLOSING (integration and intention, 1 paragraph). "
+        'Use present tense. Gentle, unhurried pace.",\n'
+        '  "traditions": ["list", "of", "traditions", "drawn", "from"]\n'
+        "}\n\n"
+        "Rules:\n"
+        "- Select 3 to 5 passages that most resonate with what the person is going through right now\n"
+        "- Quote verbatim — do not paraphrase the quotes themselves\n"
+        "- The podcast script should feel like a thoughtful friend speaking, not a lecturer\n"
+        "- The meditation should be practical and grounded, not generic spa music copy\n"
+        "- If the reflection is short or unclear, err toward stillness and acceptance themes\n\n"
+        "--- VOICE REFLECTION ---\n"
+        f"{transcript}\n\n"
+        "--- WISDOM CORPUS ---\n"
+        f"{corpus_block}\n"
+    )
+
+
+def run_ai_wisdom_synthesis(
+    config: Dict[str, Any], transcript: str, passages: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Call the AI to select passages and generate podcast + meditation scripts."""
+    ai = config["ai"]
+    if not ai.get("enabled", True) or not passages:
+        return {}
+
+    prompt = wisdom_synthesis_prompt(transcript, passages)
+    backend = ai.get("backend", "ollama_http")
+
+    if backend == "openai_http":
+        api_key = ai.get("api_key") or os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("OpenAI API key not set for wisdom synthesis.")
+        payload = {
+            "model": ai.get("model", "gpt-4o-mini"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.5,  # slightly more creative than summarization
+            "response_format": {"type": "json_object"},
+        }
+        encoded = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=encoded,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=ai.get("timeout_seconds", 90)) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"OpenAI API error {exc.code}: {exc.read().decode()}") from exc
+        outer = json.loads(body)
+        content = outer["choices"][0]["message"]["content"]
+        return parse_json_object(content)
+
+    if backend == "ollama_http":
+        payload = {
+            "model": ai["model"],
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.5},
+        }
+        encoded = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            f"{ai['base_url'].rstrip('/')}/api/generate",
+            data=encoded,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=ai.get("timeout_seconds", 120)) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Could not reach Ollama: {exc}") from exc
+        outer = parse_json_object(body)
+        return parse_json_object(outer.get("response", "{}"))
+
+    return {}
+
+
+def write_wisdom_note(
+    config: Dict[str, Any],
+    source_note_path: Path,
+    transcript: str,
+    file_mtime: datetime,
+    synthesis: Dict[str, Any],
+) -> Optional[Path]:
+    """Render and write the wisdom synthesis note to Obsidian."""
+    if not synthesis:
+        return None
+
+    template_path = Path(config.get("wisdom_template_path", "./templates/wisdom-note.md"))
+    if not template_path.is_absolute():
+        template_path = (Path(config["_config_dir"]) / template_path).resolve()
+    if not template_path.exists():
+        return None
+
+    template = template_path.read_text(encoding="utf-8")
+    title = synthesis.get("title", "Wisdom Note")
+    processed_at = iso_now()
+
+    # Format selected passages as blockquotes
+    passages_md_lines = []
+    for p in synthesis.get("selected_passages", []):
+        quote = p.get("quote", "").strip()
+        source = p.get("source", "").strip()
+        why = p.get("why", "").strip()
+        if quote:
+            passages_md_lines.append(f"> {quote}\n>\n> — *{source}*")
+            if why:
+                passages_md_lines.append(f"\n{why}\n")
+    passages_md = "\n\n".join(passages_md_lines) if passages_md_lines else "_No passages selected._"
+
+    traditions = synthesis.get("traditions", [])
+    traditions_str = ", ".join(traditions) if traditions else ""
+
+    tags = [slugify(t) for t in traditions if t]
+    tags_yaml = yaml_list(tags)
+
+    values = {
+        "title": title,
+        "source_note": str(source_note_path),
+        "created_at": file_mtime.isoformat(),
+        "processed_at": processed_at,
+        "traditions": traditions_str,
+        "suggested_tags_yaml": tags_yaml,
+        "selected_passages": passages_md,
+        "podcast_script": synthesis.get("podcast_script", "").strip(),
+        "meditation_script": synthesis.get("meditation_script", "").strip(),
+    }
+    content = render_template(template, values)
+
+    inbox_dir = Path(config.get("wisdom_obsidian_dir") or config["obsidian_inbox_dir"])
+    inbox_dir.mkdir(parents=True, exist_ok=True)
+    slug = slugify(title)
+    filename = f"{file_mtime.strftime('%Y-%m-%d %H%M%S')} wisdom-{slug}.md"
+    dest = unique_path(inbox_dir / filename)
+    dest.write_text(content, encoding="utf-8")
+    return dest
+
+
 def write_last_run(config: Dict[str, Any], results: List[ProcessResult]) -> None:
     """Write runtime/last-run.json after every poll cycle for observability."""
     runtime_dir = Path(config["runtime_dir"])
@@ -1033,6 +1260,19 @@ def run_lane_actions(
         }
         with append_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    # Wisdom synthesis — only for reflect lane, only when corpus is configured
+    if actions.get("generate_wisdom_note") and workflow == "reflect":
+        passages = load_corpus_passages(config)
+        if passages:
+            synthesis = run_ai_wisdom_synthesis(config, transcript, passages)
+            write_wisdom_note(
+                config,
+                source_note_path=note_path,
+                transcript=transcript,
+                file_mtime=file_mtime or datetime.now().astimezone().replace(microsecond=0),
+                synthesis=synthesis,
+            )
 
 
 def is_locally_readable(path: Path) -> bool:
