@@ -47,9 +47,9 @@
     "timeout_seconds": 60,
     "max_tags": 5
   },
-  "_comment_wisdom": "Optional. Point to a directory of corpus .md files (Plato, Torah, Stoics, etc.). Reflect lane notes will trigger a second AI pass that selects resonant passages and generates a podcast script + guided meditation.",
-  "wisdom_corpus_dir": "./corpus",
-  "wisdom_template_path": "./templates/wisdom-note.md",
+  "_comment_wisdom": "Optional. Point to a directory of corpus .md files (Plato, Torah, Stoics, etc.) — keep this outside the repo alongside your other private config. Reflect lane notes will trigger a second AI pass that selects resonant passages and generates a podcast script + guided meditation.",
+  "wisdom_corpus_dir": "~/.codex/wisdom/corpus",
+  "wisdom_template_path": "~/.codex/wisdom/wisdom-note.md",
   "_comment_lanes": "Optional. Define workflow lanes for post-ingest routing. Say the lane name as the first word of your recording to force a lane (e.g. 'Professional: just met Sarah...'). Falls back to keyword matching, then default.",
   "lanes": {
     "reflect": {
