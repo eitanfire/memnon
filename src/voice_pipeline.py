@@ -264,13 +264,24 @@ def unique_path(path: Path) -> Path:
         index += 1
 
 
-def archive_destination(config: Dict[str, Any], source_path: Path) -> Path:
+def archive_destination(config: Dict[str, Any], source_path: Path, title: str = "") -> Path:
+    """Return the destination path for an archived audio file.
+
+    When *title* is provided (the AI-generated note title), the archived
+    filename becomes a slug of that title — making the audio archive as
+    readable as the Obsidian note. Falls back to the original filename.
+    """
     archive_root = Path(config["archive_audio_dir"])
     if config.get("archive_subdirs_by_date", True):
         timestamp = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone()
         archive_root = archive_root / timestamp.strftime("%Y") / timestamp.strftime("%m")
     archive_root.mkdir(parents=True, exist_ok=True)
-    return unique_path(archive_root / source_path.name)
+    if title:
+        slug = slugify(title)
+        filename = f"{slug}{source_path.suffix.lower()}"
+    else:
+        filename = source_path.name
+    return unique_path(archive_root / filename)
 
 
 def fail_destination(config: Dict[str, Any], source_path: Path) -> Path:
@@ -1056,7 +1067,9 @@ def move_to_failed(config: Dict[str, Any], source_path: Path) -> Path:
 
 
 def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch") -> ProcessResult:
-    archive_path = archive_destination(config, source_path)
+    # archive_path is computed after AI summarization so the filename reflects
+    # the note title rather than the original (often meaningless) iPhone filename.
+    archive_path: Optional[Path] = None
     transcript: Optional[str] = None
     ai_payload: Dict[str, Any] = {
         "title": "",
@@ -1098,6 +1111,10 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
         if transcript:
             workflow, routing_reason, transcript = detect_workflow(transcript, config)
             ai_payload = run_ai(config, transcript, workflow)
+        # Compute archive path now that we have the AI title — audio file gets
+        # a slug filename that matches the Obsidian note instead of the iPhone name.
+        title = note_title(source_path, ai_payload)
+        archive_path = archive_destination(config, source_path, title=title)
         note_path = write_note(
             config, source_path, archive_path, transcript, ai_payload, workflow, routing_reason
         )
