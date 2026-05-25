@@ -323,23 +323,9 @@ def clean_transcript(text: str) -> str:
 # Workflow lane detection
 # ---------------------------------------------------------------------------
 
-BUILTIN_LANE_KEYWORDS: Dict[str, List[str]] = {
-    "reflect": [
-        "feeling", "feelings", "insight", "insights", "pattern", "patterns",
-        "gratitude", "philosophical", "meditation", "mindset", "emotion",
-        "awareness", "therapy", "intention", "journal",
-    ],
-    "professional": [
-        "meeting", "networking", "opportunity", "career", "colleague",
-        "client", "hire", "interview", "salary", "resume", "linkedin",
-        "contract", "proposal", "follow up", "follow-up",
-    ],
-    "build": [
-        "code", "bug", "feature", "deploy", "refactor", "architecture",
-        "engineering", "sprint", "pull request", "github", "function",
-        "api", "database", "frontend", "backend", "typescript", "python",
-    ],
-}
+# Built-in keyword fallbacks used when a lane has no explicit keywords in config.
+# These are examples — define your own lanes and keywords in config.json instead.
+BUILTIN_LANE_KEYWORDS: Dict[str, List[str]] = {}
 
 
 def detect_workflow(transcript: str, config: Dict[str, Any]) -> tuple:
@@ -602,24 +588,19 @@ def transcribe_audio(config: Dict[str, Any], source_path: Path) -> str:
     return transcript
 
 
-LANE_AI_INSTRUCTIONS: Dict[str, str] = {
-    "reflect": (
-        "This is a personal reflection or philosophical note. "
-        "Focus on insights, recurring patterns, emotional themes, and any intentions or realisations expressed."
-    ),
-    "professional": (
-        "This is a professional note. "
-        "Extract people mentioned, companies, opportunities, relationship context, and concrete next steps."
-    ),
-    "build": (
-        "This is a software or product development note. "
-        "Extract technical decisions, open questions, blockers, ideas, and specific action items."
-    ),
-    "default": "",
-}
+# Per-lane AI summarization hints. Add entries matching your lane names in config.json
+# to give the model context about what each lane contains.
+# Example: {"journal": "Personal journal entry. Focus on feelings and intentions."}
+LANE_AI_INSTRUCTIONS: Dict[str, str] = {}
 
 
-def ai_prompt(transcript: str, max_tags: int, preferred_tags: List[str], workflow: str = "default") -> str:
+def ai_prompt(
+    transcript: str,
+    max_tags: int,
+    preferred_tags: List[str],
+    workflow: str = "default",
+    lane_instruction: str = "",
+) -> str:
     preferred_tags_block = ""
     if preferred_tags:
         preferred_tags_block = (
@@ -628,7 +609,6 @@ def ai_prompt(transcript: str, max_tags: int, preferred_tags: List[str], workflo
             f"{', '.join(preferred_tags)}\n\n"
         )
 
-    lane_instruction = LANE_AI_INSTRUCTIONS.get(workflow, "")
     lane_block = f"Lane context: {lane_instruction}\n\n" if lane_instruction else ""
 
     return (
@@ -654,12 +634,18 @@ def ai_prompt(transcript: str, max_tags: int, preferred_tags: List[str], workflo
     )
 
 
+def lane_ai_instruction(config: Dict[str, Any], workflow: str) -> str:
+    """Return the ai_instruction string for a lane, from config. Falls back to LANE_AI_INSTRUCTIONS."""
+    lane_cfg = config.get("lanes", {}).get(workflow, {})
+    return lane_cfg.get("ai_instruction", "") or LANE_AI_INSTRUCTIONS.get(workflow, "")
+
+
 def run_ai_ollama_http(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
     ai = config["ai"]
     preferred_tags = collect_preferred_tags(config)
     payload = {
         "model": ai["model"],
-        "prompt": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow),
+        "prompt": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow, lane_ai_instruction(config, workflow)),
         "stream": False,
         "format": "json",
         "options": {
@@ -700,7 +686,7 @@ def run_ai_openai_http(config: Dict[str, Any], transcript: str, workflow: str = 
     payload = {
         "model": ai.get("model", "gpt-4o-mini"),
         "messages": [
-            {"role": "user", "content": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow)}
+            {"role": "user", "content": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow, lane_ai_instruction(config, workflow))}
         ],
         "temperature": ai.get("temperature", 0.2),
         "response_format": {"type": "json_object"},
@@ -1261,8 +1247,8 @@ def run_lane_actions(
         with append_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    # Wisdom synthesis — only for reflect lane, only when corpus is configured
-    if actions.get("generate_wisdom_note") and workflow == "reflect":
+    # Wisdom synthesis — triggered by generate_wisdom_note: true in lane_actions
+    if actions.get("generate_wisdom_note"):
         passages = load_corpus_passages(config)
         if passages:
             synthesis = run_ai_wisdom_synthesis(config, transcript, passages)
