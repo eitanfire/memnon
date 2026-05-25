@@ -963,6 +963,47 @@ def write_last_run(config: Dict[str, Any], results: List[ProcessResult]) -> None
     write_json(runtime_dir / "last-run.json", payload)
 
 
+def run_lane_actions(
+    config: Dict[str, Any],
+    workflow: str,
+    source_path: Path,
+    transcript: str,
+    ai_payload: Dict[str, Any],
+    note_path: Path,
+) -> None:
+    """Execute any downstream actions configured for a workflow lane.
+
+    Currently supports:
+      append_jsonl: path — appends a formatted entry to a JSONL intake file.
+    """
+    lane_actions = config.get("lane_actions", {})
+    actions = lane_actions.get(workflow, {})
+    if not actions:
+        return
+
+    append_path_raw = actions.get("append_jsonl")
+    if append_path_raw:
+        append_path = Path(os.path.expanduser(append_path_raw))
+        append_path.parent.mkdir(parents=True, exist_ok=True)
+        title = note_title(source_path, ai_payload)
+        created_at = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone().replace(microsecond=0)
+        action_items = ai_payload.get("action_items", [])
+        action_items_text = "\n".join(f"- {item}" for item in action_items) if action_items else "None"
+        content = (
+            f"Voice note ({workflow}) — {created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
+            f"Title: {title}\n\n"
+            f"Summary: {ai_payload.get('summary', '').strip() or 'None'}\n\n"
+            f"Action items:\n{action_items_text}\n\n"
+            f"Transcript:\n{transcript.strip()}"
+        )
+        entry = json.dumps(
+            {"role": "user", "content": content, "source": "memnon", "created": created_at.isoformat()},
+            ensure_ascii=False,
+        )
+        with append_path.open("a", encoding="utf-8") as f:
+            f.write(entry + "\n")
+
+
 def move_to_archive(source_path: Path, destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     return Path(shutil.move(str(source_path), str(destination)))
@@ -1019,6 +1060,7 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
         note_path = write_note(
             config, source_path, archive_path, transcript, ai_payload, workflow, routing_reason
         )
+        run_lane_actions(config, workflow, source_path, transcript, ai_payload, note_path)
         if lane == "gpt" and config["gpt_handoff"].get("enabled"):
             gpt_packet_path = write_gpt_packet(
                 config=config,
