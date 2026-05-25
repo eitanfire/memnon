@@ -430,7 +430,13 @@ def parse_frontmatter_tags(text: str) -> List[str]:
     return [slugify(item, fallback="") for item in tags if slugify(item, fallback="")]
 
 
-def collect_preferred_tags(config: Dict[str, Any], limit: int = 25) -> List[str]:
+def collect_preferred_tags(config: Dict[str, Any], limit: int = 25, min_count: int = 3) -> List[str]:
+    """Return the most-used tags from the Obsidian vault.
+
+    Only tags that appear in at least *min_count* notes are included — this
+    filters out one-off or accidental tags that would otherwise pollute the
+    AI suggestion context.
+    """
     counts: Dict[str, int] = {}
     hashtag_pattern = re.compile(r"(?<!\w)#([A-Za-z0-9][A-Za-z0-9/_-]*)")
 
@@ -453,7 +459,7 @@ def collect_preferred_tags(config: Dict[str, Any], limit: int = 25) -> List[str]
                     counts[tag] = counts.get(tag, 0) + 1
 
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-    return [tag for tag, _count in ranked[:limit]]
+    return [tag for tag, count in ranked if count >= min_count][:limit]
 
 
 def parse_json_object(raw_text: str) -> Dict[str, Any]:
@@ -606,7 +612,8 @@ def ai_prompt(transcript: str, max_tags: int, preferred_tags: List[str], workflo
     preferred_tags_block = ""
     if preferred_tags:
         preferred_tags_block = (
-            "Prefer these existing tags when they genuinely fit the transcript:\n"
+            "Existing vault tags (reuse ONLY if they clearly match this specific transcript — "
+            "do not force-fit; inventing from content is better than a poor match):\n"
             f"{', '.join(preferred_tags)}\n\n"
         )
 
@@ -626,7 +633,8 @@ def ai_prompt(transcript: str, max_tags: int, preferred_tags: List[str], workflo
         f"Rules:\n- Keep suggested_tags to at most {max_tags} items.\n"
         "- Do not invent facts.\n"
         "- If there are no action items, return an empty array.\n"
-        "- Tags should describe likely future retrieval, not every topic.\n"
+        "- Tags must be grounded in the actual transcript content.\n"
+        "- Tags should describe likely future retrieval, not every topic mentioned.\n"
         "- Make the title specific but concise.\n\n"
         f"{lane_block}"
         f"{preferred_tags_block}"
@@ -971,6 +979,7 @@ def run_lane_actions(
     ai_payload: Dict[str, Any],
     note_path: Path,
     entry_id: str = "",
+    file_mtime: Optional[datetime] = None,
     archived_audio_path: Optional[Path] = None,
 ) -> None:
     """Execute any downstream actions configured for a workflow lane.
@@ -981,6 +990,10 @@ def run_lane_actions(
     Schema (v1):
       schema_version, id, timestamp, workflow, title, summary,
       action_items, tags, transcript, note_path, source_audio_path
+
+    Note: source_path may no longer exist on disk when this is called (the
+    file has been moved to the archive). Do NOT call source_path.stat() here.
+    Use file_mtime (captured before the move) for the timestamp.
     """
     lane_actions = config.get("lane_actions", {})
     actions = lane_actions.get(workflow, {})
@@ -992,10 +1005,11 @@ def run_lane_actions(
         append_path = Path(os.path.expanduser(append_path_raw))
         append_path.parent.mkdir(parents=True, exist_ok=True)
         title = note_title(source_path, ai_payload)
-        created_at = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone().replace(microsecond=0)
+        # Use the pre-captured mtime; fall back to now() if not provided
+        created_at = file_mtime or datetime.now().astimezone().replace(microsecond=0)
         entry = {
             "schema_version": 1,
-            "id": entry_id or source_key(source_path),
+            "id": entry_id,
             "timestamp": created_at.isoformat(),
             "workflow": workflow,
             "title": title,
@@ -1008,6 +1022,27 @@ def run_lane_actions(
         }
         with append_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def is_locally_readable(path: Path) -> bool:
+    """Return False if the file is an iCloud stub that has not been downloaded yet.
+
+    Two checks, in order:
+    1. Shadow file — macOS creates ".{name}.icloud" next to stubs that are
+       fully evicted. If that exists, the file has no local bytes.
+    2. Read probe — attempt to open the file and read 1 byte. iCloud VFS
+       raises OSError (errno 11 EDEADLK or errno 6 ENXIO) when the file
+       is not yet materialised on disk. Any OSError means "skip for now".
+    """
+    shadow = path.parent / f".{path.name}.icloud"
+    if shadow.exists():
+        return False
+    try:
+        with path.open("rb") as f:
+            f.read(1)
+        return True
+    except OSError:
+        return False
 
 
 def move_to_archive(source_path: Path, destination: Path) -> Path:
@@ -1066,12 +1101,15 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
         note_path = write_note(
             config, source_path, archive_path, transcript, ai_payload, workflow, routing_reason
         )
-        # Compute source_key before moving the file — stat is unavailable after move
+        # Capture all stat()-derived values before the move — the file will
+        # not exist at source_path once move_to_archive() is called.
         entry_id = source_key(source_path)
+        file_mtime = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone().replace(microsecond=0)
         archived_audio_path = move_to_archive(source_path, archive_path)
         run_lane_actions(
             config, workflow, source_path, transcript, ai_payload, note_path,
             entry_id=entry_id,
+            file_mtime=file_mtime,
             archived_audio_path=archived_audio_path,
         )
         if lane == "gpt" and config["gpt_handoff"].get("enabled"):
@@ -1142,6 +1180,13 @@ def process_pending(config: Dict[str, Any]) -> List[ProcessResult]:
         try:
             current_size = candidate.path.stat().st_size
         except FileNotFoundError:
+            continue
+
+        # iCloud materialization gate: skip files whose bytes are not yet
+        # resident on disk (stubs, in-progress downloads, evicted files).
+        # We do this BEFORE the size-stability check because a stub can
+        # report a stable size while having no local data at all.
+        if not is_locally_readable(candidate.path):
             continue
 
         # Size-stability check: skip if size differs from last poll snapshot
