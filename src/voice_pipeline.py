@@ -1131,7 +1131,7 @@ def write_wisdom_note(
     if not synthesis:
         return None
 
-    template_path = Path(config.get("wisdom_template_path", "./templates/wisdom-note.md"))
+    template_path = Path(os.path.expanduser(config.get("wisdom_template_path", "./templates/wisdom-note.md")))
     if not template_path.is_absolute():
         template_path = (Path(config["_config_dir"]) / template_path).resolve()
     if not template_path.exists():
@@ -1153,7 +1153,9 @@ def write_wisdom_note(
                 passages_md_lines.append(f"\n{why}\n")
     passages_md = "\n\n".join(passages_md_lines) if passages_md_lines else "_No passages selected._"
 
-    traditions = synthesis.get("traditions", [])
+    traditions = synthesis.get("traditions") or []
+    if isinstance(traditions, str):
+        traditions = [t.strip() for t in traditions.split(",") if t.strip()]
     traditions_str = ", ".join(traditions) if traditions else ""
 
     tags = [slugify(t) for t in traditions if t]
