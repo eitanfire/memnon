@@ -1016,17 +1016,90 @@ def load_corpus_passages(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     return passages
 
 
-def wisdom_synthesis_prompt(transcript: str, passages: List[Dict[str, Any]]) -> str:
+def load_context_feeds(actions: Dict[str, Any]) -> str:
+    """Load and concatenate content from context_feeds configured for a lane action.
+
+    Each feed entry supports:
+      type: "file"         — reads the full file as plain text
+      type: "jsonl_recent" — reads the N most recent entries from a JSONL file,
+                             rendering each entry's title + summary + transcript
+      path: str            — path to the file (~ expanded)
+      label: str           — section heading in the context block
+      limit: int           — (jsonl_recent only) number of entries to include (default 5)
+
+    Returns a formatted string to inject into the synthesis prompt, or "" if no feeds.
+    """
+    feeds = actions.get("context_feeds", [])
+    if not feeds:
+        return ""
+
+    sections: List[str] = []
+    for feed in feeds:
+        feed_type = feed.get("type", "file")
+        path_raw = feed.get("path", "")
+        label = feed.get("label", path_raw)
+        if not path_raw:
+            continue
+
+        feed_path = Path(os.path.expanduser(path_raw))
+        if not feed_path.exists():
+            continue
+
+        try:
+            if feed_type == "file":
+                content = feed_path.read_text(encoding="utf-8").strip()
+                if content:
+                    sections.append(f"[{label}]\n{content}")
+
+            elif feed_type == "jsonl_recent":
+                limit = int(feed.get("limit", 5))
+                lines = [l for l in feed_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+                recent = lines[-limit:]
+                entries = []
+                for line in recent:
+                    try:
+                        entry = json.loads(line)
+                        title = entry.get("title", "Untitled")
+                        summary = entry.get("summary", "").strip()
+                        transcript_text = entry.get("transcript", "").strip()
+                        ts = entry.get("timestamp", "")
+                        parts = [f"• {title} ({ts[:10] if ts else ''})"]
+                        if summary:
+                            parts.append(f"  Summary: {summary}")
+                        if transcript_text:
+                            parts.append(f"  Transcript: {transcript_text}")
+                        entries.append("\n".join(parts))
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+                if entries:
+                    sections.append(f"[{label}]\n" + "\n\n".join(entries))
+
+        except OSError:
+            continue
+
+    return "\n\n".join(sections)
+
+
+def wisdom_synthesis_prompt(
+    transcript: str,
+    passages: List[Dict[str, Any]],
+    context: str = "",
+) -> str:
     corpus_lines = []
     for p in passages:
         source = f"{p['author']}, {p['work']}" if p.get("work") else p.get("author", "Unknown")
         corpus_lines.append(f"[{source}]\n{p['text']}")
     corpus_block = "\n\n---\n\n".join(corpus_lines)
 
+    context_block = (
+        f"--- ADDITIONAL CONTEXT (use to deepen relevance, do not summarise back) ---\n{context}\n\n"
+        if context.strip() else ""
+    )
+
     return (
         "You are a personal wisdom synthesizer. You receive a voice reflection "
-        "from someone about their life, and a library of passages from philosophical "
-        "and sacred texts.\n\n"
+        "from someone about their life, a library of passages from philosophical "
+        "and sacred texts, and optionally additional context about their life circumstances.\n\n"
         "Return strict JSON only. Do not wrap in markdown fences.\n"
         "Schema:\n"
         "{\n"
@@ -1046,26 +1119,31 @@ def wisdom_synthesis_prompt(transcript: str, passages: List[Dict[str, Any]]) -> 
         "}\n\n"
         "Rules:\n"
         "- Select 3 to 5 passages that most resonate with what the person is going through right now\n"
+        "- Use the additional context to sharpen relevance — but do not repeat it back verbatim\n"
         "- Quote verbatim — do not paraphrase the quotes themselves\n"
         "- The podcast script should feel like a thoughtful friend speaking, not a lecturer\n"
         "- The meditation should be practical and grounded, not generic spa music copy\n"
         "- If the reflection is short or unclear, err toward stillness and acceptance themes\n\n"
         "--- VOICE REFLECTION ---\n"
         f"{transcript}\n\n"
+        f"{context_block}"
         "--- WISDOM CORPUS ---\n"
         f"{corpus_block}\n"
     )
 
 
 def run_ai_wisdom_synthesis(
-    config: Dict[str, Any], transcript: str, passages: List[Dict[str, Any]]
+    config: Dict[str, Any],
+    transcript: str,
+    passages: List[Dict[str, Any]],
+    context: str = "",
 ) -> Dict[str, Any]:
     """Call the AI to select passages and generate podcast + meditation scripts."""
     ai = config["ai"]
     if not ai.get("enabled", True) or not passages:
         return {}
 
-    prompt = wisdom_synthesis_prompt(transcript, passages)
+    prompt = wisdom_synthesis_prompt(transcript, passages, context)
     backend = ai.get("backend", "ollama_http")
 
     if backend == "openai_http":
@@ -1253,7 +1331,8 @@ def run_lane_actions(
     if actions.get("generate_wisdom_note"):
         passages = load_corpus_passages(config)
         if passages:
-            synthesis = run_ai_wisdom_synthesis(config, transcript, passages)
+            context = load_context_feeds(actions)
+            synthesis = run_ai_wisdom_synthesis(config, transcript, passages, context)
             write_wisdom_note(
                 config,
                 source_note_path=note_path,
