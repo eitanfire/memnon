@@ -1376,6 +1376,7 @@ def generate_wisdom_audio(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     voice = audio_cfg.get("voice", "en-US-JennyNeural")
+    meditation_voice = audio_cfg.get("meditation_voice", voice)
     meditation_rate = audio_cfg.get("meditation_rate", "-20%")
     # Strip leading timestamp (e.g. "2026-05-26 080657 wisdom-foo" → "wisdom-foo")
     raw_stem = note_path.stem
@@ -1396,7 +1397,7 @@ def generate_wisdom_audio(
     meditation_text = synthesis.get("meditation_script", "").strip()
     if meditation_text:
         narration_path = output_dir / f"{stem}-meditation-narration.mp3"
-        asyncio.run(synthesize(meditation_text, voice, meditation_rate, narration_path))
+        asyncio.run(synthesize(meditation_text, meditation_voice, meditation_rate, narration_path))
 
         # Select ambient music: mood-based first, then fixed fallback, then skip
         mood = synthesis.get("music_mood", "")
