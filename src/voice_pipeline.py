@@ -1080,6 +1080,186 @@ def load_context_feeds(actions: Dict[str, Any]) -> str:
     return "\n\n".join(sections)
 
 
+def coaching_analysis_prompt(transcript: str, context: str = "") -> str:
+    """Build the prompt for professional lane life-coach analysis."""
+    context_block = (
+        f"--- BACKGROUND CONTEXT (use to deepen relevance, do not summarise back) ---\n{context}\n\n"
+        if context.strip() else ""
+    )
+    return (
+        "You are an expert executive and life coach with deep experience in career transitions, "
+        "professional relationships, and purposeful growth. You receive a voice note from a client "
+        "and optional background context about their situation.\n\n"
+        "Return strict JSON only. Do not wrap in markdown fences.\n"
+        "Schema:\n"
+        "{\n"
+        '  "coaching_title": "short title that captures the core theme of this note",\n'
+        '  "observations": "2-3 paragraphs. Speak directly to the person (use \'you\'). '
+        "Identify patterns, name what's really going on beneath the surface, and connect "
+        'this moment to their broader trajectory. Warm but direct tone.",\n'
+        '  "next_steps": ["specific, concrete action — not generic advice"],\n'
+        '  "reflection_questions": ["a question worth sitting with"],\n'
+        '  "todo_items": ["actionable task phrased as a checkbox item"]\n'
+        "}\n\n"
+        "Rules:\n"
+        "- next_steps should be 2-4 items: bold, specific, doable within days or weeks\n"
+        "- reflection_questions should be 1-3 items: open-ended, not rhetorical\n"
+        "- todo_items are practical tasks extracted or inferred from the transcript — "
+        "things the person clearly needs to do (can overlap with next_steps if they are tasks)\n"
+        "- Do not invent facts; stay grounded in what was said\n"
+        "- If context is provided, use it to sharpen relevance — but don't repeat it back\n\n"
+        f"{context_block}"
+        "--- VOICE NOTE TRANSCRIPT ---\n"
+        f"{transcript}\n"
+    )
+
+
+def run_ai_coaching_analysis(
+    config: Dict[str, Any],
+    transcript: str,
+    context: str = "",
+) -> Dict[str, Any]:
+    """Call the AI for a professional life-coach analysis of a voice note."""
+    ai = config.get("ai", {})
+    if not ai.get("enabled", True):
+        return {}
+
+    prompt = coaching_analysis_prompt(transcript, context)
+    backend = ai.get("backend", "ollama_http")
+
+    if backend == "openai_http":
+        api_key = ai.get("api_key") or os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("OpenAI API key not set for coaching analysis.")
+        payload = {
+            "model": ai.get("model", "gpt-4o-mini"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "response_format": {"type": "json_object"},
+        }
+        encoded = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=encoded,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=ai.get("timeout_seconds", 60)) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Could not reach OpenAI for coaching analysis: {exc}") from exc
+        outer = parse_json_object(body)
+        choices = outer.get("choices", [])
+        if not choices:
+            return {}
+        return parse_json_object(choices[0].get("message", {}).get("content", "{}"))
+
+    if backend == "ollama_http":
+        payload = {
+            "model": ai["model"],
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.3},
+        }
+        encoded = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            f"{ai['base_url'].rstrip('/')}/api/generate",
+            data=encoded,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=ai.get("timeout_seconds", 120)) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Could not reach Ollama: {exc}") from exc
+        outer = parse_json_object(body)
+        return parse_json_object(outer.get("response", "{}"))
+
+    return {}
+
+
+def write_coaching_note(
+    config: Dict[str, Any],
+    source_note_path: Path,
+    transcript: str,
+    file_mtime: datetime,
+    coaching: Dict[str, Any],
+) -> Optional[Path]:
+    """Render and write the coaching analysis note to Obsidian."""
+    if not coaching:
+        return None
+
+    title = coaching.get("coaching_title", "Coaching Note")
+    observations = coaching.get("observations", "").strip()
+    next_steps = coaching.get("next_steps") or []
+    reflection_questions = coaching.get("reflection_questions") or []
+    raw_todos = coaching.get("todo_items") or []
+
+    # Strip any leading checkbox syntax the AI may have added (e.g. "[ ] task")
+    def _clean(s: str) -> str:
+        return re.sub(r"^\[[ x]\]\s*", "", s.strip())
+
+    todo_items = [_clean(t) for t in raw_todos if t]
+
+    next_steps_md = "\n".join(f"- {s}" for s in next_steps) if next_steps else "_None identified._"
+    questions_md = "\n".join(f"- {q}" for q in reflection_questions) if reflection_questions else "_None identified._"
+    todo_md = "\n".join(f"- [ ] {t}" for t in todo_items) if todo_items else "_No tasks extracted._"
+
+    processed_at = iso_now()
+    content = f"""---
+title: {title}
+type: coaching-note
+status: inbox
+workflow: professional
+source_note: {source_note_path}
+created: {file_mtime.isoformat()}
+generated: {processed_at}
+---
+
+# {title}
+
+## Coaching Perspective
+
+{observations}
+
+---
+
+## Next Steps
+
+{next_steps_md}
+
+---
+
+## Reflection Questions
+
+{questions_md}
+
+---
+
+## To-Do
+
+{todo_md}
+
+---
+
+*Generated from voice note on {file_mtime.strftime('%Y-%m-%d')}*
+"""
+
+    inbox_dir = Path(config.get("professional_obsidian_dir") or config["obsidian_inbox_dir"])
+    inbox_dir.mkdir(parents=True, exist_ok=True)
+    slug = slugify(title)
+    filename = f"{file_mtime.strftime('%Y-%m-%d %H%M%S')} coaching-{slug}.md"
+    dest = unique_path(inbox_dir / filename)
+    dest.write_text(content, encoding="utf-8")
+    return dest
+
+
 def wisdom_synthesis_prompt(
     transcript: str,
     passages: List[Dict[str, Any]],
@@ -1513,6 +1693,20 @@ def run_lane_actions(
         }
         with append_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    # Professional coaching analysis — triggered by generate_coaching_note: true
+    if actions.get("generate_coaching_note"):
+        context = load_context_feeds(actions)
+        coaching = run_ai_coaching_analysis(config, transcript, context)
+        coaching_path = write_coaching_note(
+            config,
+            source_note_path=note_path,
+            transcript=transcript,
+            file_mtime=file_mtime or datetime.now().astimezone().replace(microsecond=0),
+            coaching=coaching,
+        )
+        if coaching_path:
+            print(f"[coaching] note → {coaching_path}")
 
     # Wisdom synthesis — triggered by generate_wisdom_note: true in lane_actions
     if actions.get("generate_wisdom_note"):
