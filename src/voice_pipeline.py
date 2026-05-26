@@ -1261,6 +1261,75 @@ def write_wisdom_note(
     return dest
 
 
+def generate_wisdom_audio(
+    actions: Dict[str, Any],
+    synthesis: Dict[str, Any],
+    note_path: Path,
+) -> Dict[str, str]:
+    """Generate MP3 audio for podcast and meditation scripts using edge-tts.
+
+    Requires: pip install edge-tts
+    Config (under lane_actions.<lane>.generate_wisdom_audio):
+      enabled:          bool   — master switch (default false)
+      voice:            str    — edge-tts voice name (default en-US-JennyNeural)
+      meditation_rate:  str    — speaking rate adjustment for meditation (default -20%)
+      output_dir:       str    — directory for audio files (default ~/.codex/wisdom/audio)
+
+    Returns a dict with keys "podcast_audio" and/or "meditation_audio" pointing to
+    the generated file paths. Appends audio links to the bottom of the wisdom note.
+    """
+    audio_cfg = actions.get("generate_wisdom_audio", {})
+    if not audio_cfg.get("enabled", False):
+        return {}
+
+    try:
+        import asyncio
+        import edge_tts  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError(
+            "edge-tts is not installed. Run: pip install edge-tts"
+        ) from exc
+
+    output_dir = Path(os.path.expanduser(audio_cfg.get("output_dir", "~/.codex/wisdom/audio")))
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    voice = audio_cfg.get("voice", "en-US-JennyNeural")
+    meditation_rate = audio_cfg.get("meditation_rate", "-20%")
+    stem = note_path.stem  # e.g. "2026-05-26 080657 wisdom-embracing-the-threshold"
+
+    async def synthesize(text: str, v: str, rate: str, dest: Path) -> None:
+        communicate = edge_tts.Communicate(text, v, rate=rate)
+        await communicate.save(str(dest))
+
+    results: Dict[str, str] = {}
+
+    podcast_text = synthesis.get("podcast_script", "").strip()
+    if podcast_text:
+        podcast_path = output_dir / f"{stem}-podcast.mp3"
+        asyncio.run(synthesize(podcast_text, voice, "+0%", podcast_path))
+        results["podcast_audio"] = str(podcast_path)
+
+    meditation_text = synthesis.get("meditation_script", "").strip()
+    if meditation_text:
+        meditation_path = output_dir / f"{stem}-meditation.mp3"
+        asyncio.run(synthesize(meditation_text, voice, meditation_rate, meditation_path))
+        results["meditation_audio"] = str(meditation_path)
+
+    # Append audio links to the bottom of the wisdom note
+    if results and note_path.exists():
+        lines = ["\n\n---\n\n## Audio\n"]
+        if "podcast_audio" in results:
+            p = Path(results["podcast_audio"])
+            lines.append(f"**Podcast:** [{p.name}]({p})\n")
+        if "meditation_audio" in results:
+            p = Path(results["meditation_audio"])
+            lines.append(f"**Meditation:** [{p.name}]({p})\n")
+        with note_path.open("a", encoding="utf-8") as f:
+            f.writelines(lines)
+
+    return results
+
+
 def write_last_run(config: Dict[str, Any], results: List[ProcessResult]) -> None:
     """Write runtime/last-run.json after every poll cycle for observability."""
     runtime_dir = Path(config["runtime_dir"])
@@ -1333,13 +1402,15 @@ def run_lane_actions(
         if passages:
             context = load_context_feeds(actions)
             synthesis = run_ai_wisdom_synthesis(config, transcript, passages, context)
-            write_wisdom_note(
+            wisdom_path = write_wisdom_note(
                 config,
                 source_note_path=note_path,
                 transcript=transcript,
                 file_mtime=file_mtime or datetime.now().astimezone().replace(microsecond=0),
                 synthesis=synthesis,
             )
+            if wisdom_path:
+                generate_wisdom_audio(actions, synthesis, wisdom_path)
 
 
 def is_locally_readable(path: Path) -> bool:
