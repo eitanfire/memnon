@@ -1378,9 +1378,11 @@ def generate_wisdom_audio(
     voice = audio_cfg.get("voice", "en-US-JennyNeural")
     meditation_voice = audio_cfg.get("meditation_voice", voice)
     meditation_rate = audio_cfg.get("meditation_rate", "-20%")
-    # Strip leading timestamp (e.g. "2026-05-26 080657 wisdom-foo" → "wisdom-foo")
+    # Strip leading timestamp and "wisdom-" prefix, e.g.
+    # "2026-05-26 080657 wisdom-embracing-the-threshold" → "embracing-the-threshold"
     raw_stem = note_path.stem
     stem = re.sub(r"^\d{4}-\d{2}-\d{2} \d{6} ", "", raw_stem)
+    stem = re.sub(r"^wisdom-", "", stem)
 
     async def synthesize(text: str, v: str, rate: str, dest: Path) -> None:
         communicate = edge_tts.Communicate(text, v, rate=rate)
@@ -1390,13 +1392,13 @@ def generate_wisdom_audio(
 
     podcast_text = synthesis.get("podcast_script", "").strip()
     if podcast_text:
-        podcast_path = output_dir / f"{stem}-podcast.mp3"
+        podcast_path = output_dir / f"podcast-{stem}.mp3"
         asyncio.run(synthesize(podcast_text, voice, "+0%", podcast_path))
         results["podcast_audio"] = str(podcast_path)
 
     meditation_text = synthesis.get("meditation_script", "").strip()
     if meditation_text:
-        narration_path = output_dir / f"{stem}-meditation-narration.mp3"
+        narration_path = output_dir / f"meditation-{stem}-narration.mp3"
         asyncio.run(synthesize(meditation_text, meditation_voice, meditation_rate, narration_path))
 
         # Select ambient music: mood-based first, then fixed fallback, then skip
@@ -1415,7 +1417,7 @@ def generate_wisdom_audio(
                 if candidate.exists():
                     music_path = candidate
         if music_path is not None:
-            mixed_path = output_dir / f"{stem}-meditation.mp3"
+            mixed_path = output_dir / f"meditation-{stem}.mp3"
             mix_meditation_with_music(
                 narration_path=narration_path,
                 music_path=music_path,
@@ -1427,7 +1429,7 @@ def generate_wisdom_audio(
             results["meditation_audio"] = str(mixed_path)
         else:
             # No music — rename narration to final path
-            final_path = output_dir / f"{stem}-meditation.mp3"
+            final_path = output_dir / f"meditation-{stem}.mp3"
             narration_path.rename(final_path)
             results["meditation_audio"] = str(final_path)
 
