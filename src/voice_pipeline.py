@@ -1115,7 +1115,8 @@ def wisdom_synthesis_prompt(
         "OPENING (ground and arrive, 1 paragraph), BODY (weave the day's themes with "
         "the passages, 2-3 paragraphs), CLOSING (integration and intention, 1 paragraph). "
         'Use present tense. Gentle, unhurried pace.",\n'
-        '  "traditions": ["list", "of", "traditions", "drawn", "from"]\n'
+        '  "traditions": ["list", "of", "traditions", "drawn", "from"],\n'
+        '  "music_mood": "one word from: peaceful | melancholic | hopeful | contemplative | healing | wonder | grounded | expansive"\n'
         "}\n\n"
         "Rules:\n"
         "- Select 3 to 5 passages that most resonate with what the person is going through right now\n"
@@ -1261,6 +1262,49 @@ def write_wisdom_note(
     return dest
 
 
+
+# ---------------------------------------------------------------------------
+# Music library — mood → track filename mapping.
+# Tracks live in the output_dir (or a sibling "music" subdir).
+# Each mood maps to an ordered list; first existing file wins.
+# ---------------------------------------------------------------------------
+MUSIC_LIBRARY: Dict[str, List[str]] = {
+    # Gentle stillness — for presence, acceptance, everyday gratitude
+    "peaceful": ["meditation-impromptu.mp3", "constancy-part-one.mp3", "heartwarming.mp3"],
+    # Introspective sadness, loss, ending of chapters
+    "melancholic": ["mourning-song.mp3", "dreamy-flashback.mp3", "slow-burn.mp3"],
+    # Forward motion, possibility, new beginnings
+    "hopeful": ["heartwarming.mp3", "leaving-home.mp3", "comfortable-mystery.mp3"],
+    # Deep thinking, philosophy, uncertainty
+    "contemplative": ["comfortable-mystery.mp3", "perspectives.mp3", "slow-burn.mp3"],
+    # Recovery, care, emotional tenderness
+    "healing": ["healing.mp3", "long-note-two.mp3", "relaxing-piano.mp3"],
+    # Awe, curiosity, intellectual delight
+    "wonder": ["peaceful-desolation.mp3", "dreamy-flashback.mp3", "perspectives.mp3"],
+    # Earth, body, rootedness
+    "grounded": ["constancy-part-one.mp3", "long-note-one.mp3", "meditation-impromptu.mp3"],
+    # Spacious, open horizon, transition
+    "expansive": ["leaving-home.mp3", "long-note-one.mp3", "peaceful-desolation.mp3"],
+}
+
+_MOOD_FALLBACK = ["meditation-impromptu.mp3", "slow-burn.mp3", "relaxing-piano.mp3"]
+
+
+def select_music_for_mood(mood: str, audio_dir: Path) -> Optional[Path]:
+    """Return the first existing file for *mood* from MUSIC_LIBRARY, else fallback.
+
+    *audio_dir* is the directory that contains all track files.
+    The mood value is normalised to lowercase and stripped before lookup.
+    """
+    normalised = (mood or "").strip().lower()
+    candidates = MUSIC_LIBRARY.get(normalised, []) + _MOOD_FALLBACK
+    for filename in candidates:
+        track = audio_dir / filename
+        if track.exists():
+            return track
+    return None
+
+
 def mix_meditation_with_music(
     narration_path: Path,
     music_path: Path,
@@ -1352,10 +1396,22 @@ def generate_wisdom_audio(
         narration_path = output_dir / f"{stem}-meditation-narration.mp3"
         asyncio.run(synthesize(meditation_text, voice, meditation_rate, narration_path))
 
-        # Mix with ambient music if configured
-        music_raw = audio_cfg.get("ambient_music_path", "")
-        music_path = Path(os.path.expanduser(music_raw)) if music_raw else None
-        if music_path and music_path.exists():
+        # Select ambient music: mood-based first, then fixed fallback, then skip
+        mood = synthesis.get("music_mood", "")
+        music_path: Optional[Path] = None
+        if mood:
+            music_path = select_music_for_mood(mood, output_dir)
+            if music_path:
+                print(f"[wisdom] music mood '{mood}' → {music_path.name}")
+            else:
+                print(f"[wisdom] music mood '{mood}' — no matching track found, trying fallback")
+        if music_path is None:
+            music_raw = audio_cfg.get("ambient_music_path", "")
+            if music_raw:
+                candidate = Path(os.path.expanduser(music_raw))
+                if candidate.exists():
+                    music_path = candidate
+        if music_path is not None:
             mixed_path = output_dir / f"{stem}-meditation.mp3"
             mix_meditation_with_music(
                 narration_path=narration_path,
