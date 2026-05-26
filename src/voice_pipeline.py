@@ -1261,6 +1261,41 @@ def write_wisdom_note(
     return dest
 
 
+def mix_meditation_with_music(
+    narration_path: Path,
+    music_path: Path,
+    output_path: Path,
+    music_volume: float = 0.15,
+    fade_out_seconds: int = 4,
+) -> Path:
+    """Mix a narration MP3 with ambient music using ffmpeg.
+
+    The music is looped to match the narration length, ducked to music_volume,
+    and faded out over the final fade_out_seconds. Requires ffmpeg in PATH.
+    """
+    ffmpeg = "/opt/homebrew/bin/ffmpeg"
+    if not Path(ffmpeg).exists():
+        ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+
+    filter_graph = (
+        f"[1:a]volume={music_volume},aloop=loop=-1:size=2147483647[music];"
+        f"[0:a][music]amix=inputs=2:duration=first:dropout_transition={fade_out_seconds}[out]"
+    )
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(narration_path),
+        "-i", str(music_path),
+        "-filter_complex", filter_graph,
+        "-map", "[out]",
+        "-b:a", "128k",
+        str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg mixing failed: {result.stderr.strip()}")
+    return output_path
+
+
 def generate_wisdom_audio(
     actions: Dict[str, Any],
     synthesis: Dict[str, Any],
@@ -1270,10 +1305,13 @@ def generate_wisdom_audio(
 
     Requires: pip install edge-tts
     Config (under lane_actions.<lane>.generate_wisdom_audio):
-      enabled:          bool   — master switch (default false)
-      voice:            str    — edge-tts voice name (default en-US-JennyNeural)
-      meditation_rate:  str    — speaking rate adjustment for meditation (default -20%)
-      output_dir:       str    — directory for audio files (default ~/.codex/wisdom/audio)
+      enabled:            bool   — master switch (default false)
+      voice:              str    — edge-tts voice name (default en-US-JennyNeural)
+      meditation_rate:    str    — speaking rate for meditation (default -20%)
+      output_dir:         str    — output directory (default ~/.codex/wisdom/audio)
+      ambient_music_path: str    — optional path to ambient music file for meditation
+      music_volume:       float  — music level relative to narration (default 0.15)
+      fade_out_seconds:   int    — fade duration at end of meditation (default 4)
 
     Returns a dict with keys "podcast_audio" and/or "meditation_audio" pointing to
     the generated file paths. Appends audio links to the bottom of the wisdom note.
@@ -1295,7 +1333,7 @@ def generate_wisdom_audio(
 
     voice = audio_cfg.get("voice", "en-US-JennyNeural")
     meditation_rate = audio_cfg.get("meditation_rate", "-20%")
-    stem = note_path.stem  # e.g. "2026-05-26 080657 wisdom-embracing-the-threshold"
+    stem = note_path.stem
 
     async def synthesize(text: str, v: str, rate: str, dest: Path) -> None:
         communicate = edge_tts.Communicate(text, v, rate=rate)
@@ -1311,9 +1349,28 @@ def generate_wisdom_audio(
 
     meditation_text = synthesis.get("meditation_script", "").strip()
     if meditation_text:
-        meditation_path = output_dir / f"{stem}-meditation.mp3"
-        asyncio.run(synthesize(meditation_text, voice, meditation_rate, meditation_path))
-        results["meditation_audio"] = str(meditation_path)
+        narration_path = output_dir / f"{stem}-meditation-narration.mp3"
+        asyncio.run(synthesize(meditation_text, voice, meditation_rate, narration_path))
+
+        # Mix with ambient music if configured
+        music_raw = audio_cfg.get("ambient_music_path", "")
+        music_path = Path(os.path.expanduser(music_raw)) if music_raw else None
+        if music_path and music_path.exists():
+            mixed_path = output_dir / f"{stem}-meditation.mp3"
+            mix_meditation_with_music(
+                narration_path=narration_path,
+                music_path=music_path,
+                output_path=mixed_path,
+                music_volume=float(audio_cfg.get("music_volume", 0.15)),
+                fade_out_seconds=int(audio_cfg.get("fade_out_seconds", 4)),
+            )
+            narration_path.unlink(missing_ok=True)  # remove bare narration
+            results["meditation_audio"] = str(mixed_path)
+        else:
+            # No music — rename narration to final path
+            final_path = output_dir / f"{stem}-meditation.mp3"
+            narration_path.rename(final_path)
+            results["meditation_audio"] = str(final_path)
 
     # Append audio links to the bottom of the wisdom note
     if results and note_path.exists():
