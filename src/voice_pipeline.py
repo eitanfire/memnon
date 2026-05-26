@@ -1377,7 +1377,9 @@ def generate_wisdom_audio(
 
     voice = audio_cfg.get("voice", "en-US-JennyNeural")
     meditation_rate = audio_cfg.get("meditation_rate", "-20%")
-    stem = note_path.stem
+    # Strip leading timestamp (e.g. "2026-05-26 080657 wisdom-foo" → "wisdom-foo")
+    raw_stem = note_path.stem
+    stem = re.sub(r"^\d{4}-\d{2}-\d{2} \d{6} ", "", raw_stem)
 
     async def synthesize(text: str, v: str, rate: str, dest: Path) -> None:
         communicate = edge_tts.Communicate(text, v, rate=rate)
