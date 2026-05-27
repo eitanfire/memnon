@@ -1554,6 +1554,10 @@ def generate_wisdom_audio(
 
     output_dir = Path(os.path.expanduser(audio_cfg.get("output_dir", "~/.codex/wisdom/audio")))
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Music library dir — where source tracks live (may differ from output_dir)
+    music_lib_dir = Path(os.path.expanduser(
+        audio_cfg.get("music_library_dir", "~/.codex/wisdom/audio")
+    ))
 
     voice = audio_cfg.get("voice", "en-US-JennyNeural")
     meditation_voice = audio_cfg.get("meditation_voice", voice)
@@ -1585,7 +1589,7 @@ def generate_wisdom_audio(
         mood = synthesis.get("music_mood", "")
         music_path: Optional[Path] = None
         if mood:
-            music_path = select_music_for_mood(mood, output_dir)
+            music_path = select_music_for_mood(mood, music_lib_dir)
             if music_path:
                 print(f"[wisdom] music mood '{mood}' → {music_path.name}")
             else:
