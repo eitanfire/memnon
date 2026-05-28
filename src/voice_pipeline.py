@@ -1465,6 +1465,8 @@ MUSIC_LIBRARY: Dict[str, List[str]] = {
     "grounded": ["constancy-part-one.mp3", "long-note-one.mp3", "meditation-impromptu.mp3"],
     # Spacious, open horizon, transition
     "expansive": ["leaving-home.mp3", "long-note-one.mp3", "peaceful-desolation.mp3"],
+    # Forward momentum, focus, start of day
+    "energizing": ["deliberate-thought.mp3", "call-to-adventure.mp3", "rising.mp3"],
 }
 
 _MOOD_FALLBACK = ["meditation-impromptu.mp3", "slow-burn.mp3", "relaxing-piano.mp3"]
@@ -1632,6 +1634,334 @@ def generate_wisdom_audio(
     return results
 
 
+def load_recent_wisdom_notes(config: Dict[str, Any], lookback_days: int = 7) -> List[Dict[str, Any]]:
+    """Scan the Obsidian inbox for wisdom notes created in the last *lookback_days* days.
+
+    Returns a list of dicts sorted newest-first:
+      {title, created, podcast_script, traditions, path}
+    The most recent note gets a 'is_most_recent' flag for prompt weighting.
+    Caps at 5 notes total to keep the prompt manageable; older ones are summarised
+    to title + traditions only in the calling prompt.
+    """
+    inbox = Path(config.get("wisdom_obsidian_dir") or config["obsidian_inbox_dir"])
+    cutoff = datetime.now().astimezone() - __import__("datetime").timedelta(days=lookback_days)
+    notes = []
+
+    for md_file in sorted(inbox.glob("*wisdom-*.md"), reverse=True):
+        try:
+            text = md_file.read_text(encoding="utf-8")
+            # Parse created date from frontmatter
+            created_match = re.search(r"^created:\s*(.+)$", text, re.MULTILINE)
+            if not created_match:
+                continue
+            created_str = created_match.group(1).strip()
+            try:
+                created = datetime.fromisoformat(created_str)
+            except ValueError:
+                continue
+            if created < cutoff:
+                continue
+
+            title_match = re.search(r"^title:\s*(.+)$", text, re.MULTILINE)
+            title = title_match.group(1).strip() if title_match else md_file.stem
+
+            traditions_match = re.search(r"^traditions:\s*(.+)$", text, re.MULTILINE)
+            traditions = traditions_match.group(1).strip() if traditions_match else ""
+
+            # Extract podcast script section
+            podcast_match = re.search(
+                r"##\s+Podcast Script\s*\n\n(.*?)(?=\n---|\Z)", text, re.DOTALL
+            )
+            podcast_script = podcast_match.group(1).strip() if podcast_match else ""
+
+            notes.append({
+                "title": title,
+                "created": created,
+                "traditions": traditions,
+                "podcast_script": podcast_script,
+                "path": str(md_file),
+                "is_most_recent": False,
+            })
+        except (OSError, ValueError):
+            continue
+
+    notes.sort(key=lambda n: n["created"], reverse=True)
+    if notes:
+        notes[0]["is_most_recent"] = True
+    return notes[:5]  # cap at 5
+
+
+def morning_briefing_prompt(transcript: str, professional_context: str) -> str:
+    """Prompt for the professional morning briefing script."""
+    context_block = (
+        f"--- PROFESSIONAL CONTEXT ---\n{professional_context}\n\n"
+        if professional_context.strip() else ""
+    )
+    transcript_block = (
+        f"--- ADDITIONAL MORNING NOTES (spoken by the user) ---\n{transcript.strip()}\n\n"
+        if transcript.strip() else ""
+    )
+    return (
+        "You are a warm, experienced mentor and executive coach preparing a personalised "
+        "morning briefing for your client. Your tone is encouraging but direct — you see "
+        "the whole person, not just their task list.\n\n"
+        "Return strict JSON only. Do not wrap in markdown fences.\n"
+        "Schema:\n"
+        "{\n"
+        '  "briefing_script": "A spoken 2-3 minute script. Structure: (1) briefly '
+        "acknowledge where they've been and what they've been carrying — one or two "
+        "sentences that show you've been paying attention; (2) name the one or two things "
+        "that genuinely matter most today and why; (3) close with a single energising "
+        'sentence that sends them into the day with momentum.",\n'
+        '  "focus_theme": "three words or fewer — the core theme of today (e.g. \'follow-through\', \'making contact\', \'clearing the deck\')"\n'
+        "}\n\n"
+        "Rules:\n"
+        "- Speak directly to the person using 'you'\n"
+        "- Be specific — name actual people, projects, and situations from the context\n"
+        "- Do not produce a generic motivational speech\n"
+        "- The closing sentence should feel like a friend sending you off, not a slogan\n"
+        "- If context is sparse, focus on intentions and energy over specific tasks\n\n"
+        f"{context_block}"
+        f"{transcript_block}"
+    )
+
+
+def morning_reflection_prompt(
+    transcript: str,
+    recent_notes: List[Dict[str, Any]],
+) -> str:
+    """Prompt for the weekly reflection synthesis in the morning podcast."""
+    if not recent_notes:
+        return ""
+
+    notes_block_parts = []
+    for note in recent_notes:
+        if note["is_most_recent"]:
+            header = f"[MOST RECENT — {note['created'].strftime('%A %b %d')}] {note['title']}"
+            body = note["podcast_script"] or f"Traditions drawn from: {note['traditions']}"
+            notes_block_parts.append(f"{header}\n{body}")
+        else:
+            # Older notes: title + traditions only to save tokens
+            header = f"[Earlier this week — {note['created'].strftime('%A %b %d')}] {note['title']}"
+            notes_block_parts.append(f"{header}\nTraditions: {note['traditions']}")
+
+    notes_block = "\n\n---\n\n".join(notes_block_parts)
+
+    transcript_block = (
+        f"--- MORNING VOICE NOTE ---\n{transcript.strip()}\n\n"
+        if transcript.strip() else ""
+    )
+
+    return (
+        "You are writing the reflective segment of a personalised daily podcast. "
+        "You have access to wisdom reflections from the past week.\n\n"
+        "Return strict JSON only. Do not wrap in markdown fences.\n"
+        "Schema:\n"
+        "{\n"
+        '  "reflection_script": "A spoken 3-4 minute script. Draw primarily from the '
+        "MOST RECENT reflection — let its themes, passages, and insights carry the most "
+        "weight. Weave in earlier themes from the week only where they deepen or connect. "
+        "If there is no most recent note, synthesise the week's arc as a whole. "
+        "Speak directly to the person. Warm, unhurried, thoughtful — not a summary, "
+        'but a living conversation with the week.",\n'
+        '  "music_mood": "one word from: peaceful | melancholic | hopeful | contemplative | healing | wonder | grounded | expansive"\n'
+        "}\n\n"
+        "Rules:\n"
+        "- The most recent reflection is primary; earlier ones are context\n"
+        "- Do not list bullet points or recite events — weave them into a spoken narrative\n"
+        "- Close with one question or intention worth carrying into the day\n\n"
+        f"{transcript_block}"
+        "--- RECENT REFLECTIONS ---\n\n"
+        f"{notes_block}\n"
+    )
+
+
+def run_ai_morning(
+    config: Dict[str, Any],
+    transcript: str,
+    professional_context: str,
+    recent_notes: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Two AI calls: one for the professional briefing, one for the weekly reflection.
+
+    Returns:
+      {
+        "briefing_script":   str,
+        "focus_theme":       str,
+        "reflection_script": str,   # empty string if no recent notes
+        "music_mood":        str,
+      }
+    """
+    ai = config.get("ai", {})
+    if not ai.get("enabled", True):
+        return {}
+
+    def _openai_call(prompt: str, temperature: float = 0.3) -> Dict[str, Any]:
+        api_key = ai.get("api_key") or os.environ.get("OPENAI_API_KEY", "")
+        payload = {
+            "model": ai.get("model", "gpt-4o-mini"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "response_format": {"type": "json_object"},
+        }
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=ai.get("timeout_seconds", 60)) as resp:
+            outer = parse_json_object(resp.read().decode("utf-8"))
+        return parse_json_object(outer.get("choices", [{}])[0].get("message", {}).get("content", "{}"))
+
+    result: Dict[str, Any] = {
+        "briefing_script": "",
+        "focus_theme": "",
+        "reflection_script": "",
+        "music_mood": "hopeful",
+    }
+
+    # --- Briefing ---
+    try:
+        briefing = _openai_call(morning_briefing_prompt(transcript, professional_context), temperature=0.3)
+        result["briefing_script"] = briefing.get("briefing_script", "").strip()
+        result["focus_theme"] = briefing.get("focus_theme", "").strip()
+        print(f"[morning] briefing focus: {result['focus_theme']}")
+    except Exception as exc:
+        print(f"[morning] briefing AI call failed: {exc}")
+
+    # --- Reflection (only if notes exist) ---
+    if recent_notes:
+        try:
+            ref_prompt = morning_reflection_prompt(transcript, recent_notes)
+            reflection = _openai_call(ref_prompt, temperature=0.4)
+            result["reflection_script"] = reflection.get("reflection_script", "").strip()
+            result["music_mood"] = reflection.get("music_mood", "hopeful").strip()
+            print(f"[morning] reflection mood: {result['music_mood']} | {len(recent_notes)} notes used")
+        except Exception as exc:
+            print(f"[morning] reflection AI call failed: {exc}")
+    else:
+        print("[morning] no recent wisdom notes found — skipping reflection segment")
+
+    return result
+
+
+def generate_morning_audio(
+    actions: Dict[str, Any],
+    morning: Dict[str, Any],
+    date_str: str,
+) -> Dict[str, str]:
+    """Generate morning briefing audio and optionally combine with reflection.
+
+    Produces up to three files in output_dir:
+      briefing-YYYY-MM-DD.mp3        — briefing with energizing music
+      reflection-YYYY-MM-DD.mp3      — reflection podcast (no music)
+      daily-YYYY-MM-DD.mp3           — combined: briefing + bridge + reflection
+
+    Returns dict with keys: briefing_audio, reflection_audio, daily_audio.
+    Any segment that fails is omitted from the dict; the others still land.
+    """
+    try:
+        import asyncio
+        import edge_tts  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError("edge-tts is not installed. Run: pip install edge-tts") from exc
+
+    output_dir = Path(os.path.expanduser(actions.get("output_dir", "~/.codex/wisdom/audio")))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    music_lib = Path(os.path.expanduser(actions.get("music_library_dir", "~/.codex/wisdom/audio")))
+
+    briefing_voice = actions.get("briefing_voice", "en-US-AndrewNeural")
+    reflection_voice = actions.get("reflection_voice", "en-US-JennyNeural")
+    music_volume = float(actions.get("music_volume", 0.12))
+    fade_out = int(actions.get("fade_out_seconds", 4))
+
+    async def synthesize(text: str, voice: str, rate: str, dest: Path) -> None:
+        comm = edge_tts.Communicate(text, voice, rate=rate)
+        await comm.save(str(dest))
+
+    results: Dict[str, str] = {}
+    ffmpeg = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
+
+    # ------------------------------------------------------------------ briefing
+    briefing_text = morning.get("briefing_script", "").strip()
+    if briefing_text:
+        try:
+            narration = output_dir / f"briefing-{date_str}-narration.mp3"
+            asyncio.run(synthesize(briefing_text, briefing_voice, "+0%", narration))
+            music_path = select_music_for_mood("energizing", music_lib)
+            if music_path:
+                final = output_dir / f"briefing-{date_str}.mp3"
+                mix_meditation_with_music(narration, music_path, final,
+                                          music_volume=music_volume,
+                                          fade_out_seconds=fade_out)
+                narration.unlink(missing_ok=True)
+                print(f"[morning] briefing audio → {final.name}")
+            else:
+                final = output_dir / f"briefing-{date_str}.mp3"
+                narration.rename(final)
+                print(f"[morning] briefing audio (no music) → {final.name}")
+            results["briefing_audio"] = str(final)
+        except Exception as exc:
+            print(f"[morning] briefing audio failed: {exc}")
+
+    # ---------------------------------------------------------------- reflection
+    reflection_text = morning.get("reflection_script", "").strip()
+    if reflection_text:
+        try:
+            ref_path = output_dir / f"reflection-{date_str}.mp3"
+            asyncio.run(synthesize(reflection_text, reflection_voice, "+0%", ref_path))
+            print(f"[morning] reflection audio → {ref_path.name}")
+            results["reflection_audio"] = str(ref_path)
+        except Exception as exc:
+            print(f"[morning] reflection audio failed: {exc}")
+
+    # ----------------------------------------------------------- combined podcast
+    if "briefing_audio" in results and "reflection_audio" in results and actions.get("combine_podcast", True):
+        try:
+            # Short spoken bridge between segments
+            bridge_text = (
+                f"That's your briefing for today. "
+                f"Now, a reflection on the themes of your week."
+            )
+            bridge_path = output_dir / f"bridge-{date_str}.mp3"
+            asyncio.run(synthesize(bridge_text, reflection_voice, "-10%", bridge_path))
+
+            # Write ffmpeg concat list
+            concat_list = output_dir / f"concat-{date_str}.txt"
+            segments = [
+                results["briefing_audio"],
+                str(bridge_path),
+                results["reflection_audio"],
+            ]
+            concat_list.write_text(
+                "\n".join(f"file '{s}'" for s in segments), encoding="utf-8"
+            )
+            daily_path = output_dir / f"daily-{date_str}.mp3"
+            cmd = [
+                ffmpeg, "-y",
+                "-f", "concat", "-safe", "0",
+                "-i", str(concat_list),
+                "-c:a", "libmp3lame", "-b:a", "128k",
+                str(daily_path),
+            ]
+            result_proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            bridge_path.unlink(missing_ok=True)
+            concat_list.unlink(missing_ok=True)
+            if result_proc.returncode == 0:
+                print(f"[morning] daily podcast → {daily_path.name}")
+                results["daily_audio"] = str(daily_path)
+            else:
+                print(f"[morning] ffmpeg combine failed: {result_proc.stderr.strip()}")
+        except Exception as exc:
+            print(f"[morning] combine failed: {exc}")
+
+    return results
+
+
 def write_last_run(config: Dict[str, Any], results: List[ProcessResult]) -> None:
     """Write runtime/last-run.json after every poll cycle for observability."""
     runtime_dir = Path(config["runtime_dir"])
@@ -1727,6 +2057,16 @@ def run_lane_actions(
             )
             if wisdom_path:
                 generate_wisdom_audio(actions, synthesis, wisdom_path)
+
+    # Morning briefing — triggered by generate_daily_briefing: true in lane_actions
+    if actions.get("generate_daily_briefing"):
+        professional_context = load_context_feeds(actions)
+        lookback = int(actions.get("reflection_lookback_days", 7))
+        recent_notes = load_recent_wisdom_notes(config, lookback_days=lookback)
+        morning = run_ai_morning(config, transcript, professional_context, recent_notes)
+        if morning:
+            date_str = (file_mtime or datetime.now().astimezone()).strftime("%Y-%m-%d")
+            generate_morning_audio(actions, morning, date_str)
 
 
 def is_locally_readable(path: Path) -> bool:
