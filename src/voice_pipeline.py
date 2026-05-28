@@ -1758,18 +1758,20 @@ def morning_reflection_prompt(
         "Return strict JSON only. Do not wrap in markdown fences.\n"
         "Schema:\n"
         "{\n"
-        '  "reflection_script": "A spoken 3-4 minute script. Draw primarily from the '
-        "MOST RECENT reflection — let its themes, passages, and insights carry the most "
-        "weight. Weave in earlier themes from the week only where they deepen or connect. "
-        "If there is no most recent note, synthesise the week's arc as a whole. "
-        "Speak directly to the person. Warm, unhurried, thoughtful — not a summary, "
-        'but a living conversation with the week.",\n'
+        '  "reflection_script": "A spoken 90-second script — tight, no filler. '
+        "One cohesive thought drawn from the most recent reflection, sharpened by "
+        "anything resonant from earlier in the week. Every sentence must earn its place. "
+        "No restating what was already said, no summarising events — land on the insight "
+        "and move. Close with a single question or image worth sitting with today. "
+        'Speak directly to the person.",\n'
         '  "music_mood": "one word from: peaceful | melancholic | hopeful | contemplative | healing | wonder | grounded | expansive"\n'
         "}\n\n"
         "Rules:\n"
-        "- The most recent reflection is primary; earlier ones are context\n"
-        "- Do not list bullet points or recite events — weave them into a spoken narrative\n"
-        "- Close with one question or intention worth carrying into the day\n\n"
+        "- Target 200-250 words maximum\n"
+        "- The most recent reflection is primary; earlier ones sharpen, not pad\n"
+        "- Cut any sentence that repeats a point already made\n"
+        "- No throat-clearing openers ('This week you...', 'It sounds like...')\n"
+        "- Land on one clear insight, not a tour of several\n\n"
         f"{transcript_block}"
         "--- RECENT REFLECTIONS ---\n\n"
         f"{notes_block}\n"
@@ -1912,9 +1914,23 @@ def generate_morning_audio(
     reflection_text = morning.get("reflection_script", "").strip()
     if reflection_text:
         try:
+            narration = output_dir / f"reflection-{date_str}-narration.mp3"
+            asyncio.run(synthesize(reflection_text, reflection_voice, "+0%", narration))
+            # Mix with mood-matched music (same pattern as wisdom meditations)
+            mood = morning.get("music_mood", "")
+            music_path = select_music_for_mood(mood, music_lib) if mood else None
             ref_path = output_dir / f"reflection-{date_str}.mp3"
-            asyncio.run(synthesize(reflection_text, reflection_voice, "+0%", ref_path))
-            print(f"[morning] reflection audio → {ref_path.name}")
+            if music_path:
+                mix_meditation_with_music(
+                    narration, music_path, ref_path,
+                    music_volume=music_volume,
+                    fade_out_seconds=fade_out,
+                )
+                narration.unlink(missing_ok=True)
+                print(f"[morning] reflection audio (mood: {mood} → {music_path.name}) → {ref_path.name}")
+            else:
+                narration.rename(ref_path)
+                print(f"[morning] reflection audio (no music) → {ref_path.name}")
             results["reflection_audio"] = str(ref_path)
         except Exception as exc:
             print(f"[morning] reflection audio failed: {exc}")
