@@ -1959,7 +1959,7 @@ def generate_morning_audio(
                 mix_meditation_with_music(
                     concat_narration, music_path, bridge_reflection_mixed,
                     music_volume=music_volume,
-                    fade_in_seconds=4,
+                    fade_in_seconds=2,
                     fade_out_seconds=fade_out,
                 )
                 concat_narration.unlink(missing_ok=True)
