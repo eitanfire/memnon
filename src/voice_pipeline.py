@@ -1492,19 +1492,22 @@ def mix_meditation_with_music(
     music_path: Path,
     output_path: Path,
     music_volume: float = 0.15,
+    fade_in_seconds: int = 0,
     fade_out_seconds: int = 4,
 ) -> Path:
     """Mix a narration MP3 with ambient music using ffmpeg.
 
     The music is looped to match the narration length, ducked to music_volume,
-    and faded out over the final fade_out_seconds. Requires ffmpeg in PATH.
+    optionally faded in over fade_in_seconds, and faded out over fade_out_seconds.
+    Requires ffmpeg in PATH.
     """
     ffmpeg = "/opt/homebrew/bin/ffmpeg"
     if not Path(ffmpeg).exists():
         ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
 
+    fade_in_filter = f"afade=t=in:st=0:d={fade_in_seconds}," if fade_in_seconds > 0 else ""
     filter_graph = (
-        f"[1:a]volume={music_volume},aloop=loop=-1:size=2147483647[music];"
+        f"[1:a]volume={music_volume},{fade_in_filter}aloop=loop=-1:size=2147483647[music];"
         f"[0:a][music]amix=inputs=2:duration=first:dropout_transition={fade_out_seconds}[out]"
     )
     cmd = [
@@ -1911,14 +1914,15 @@ def generate_morning_audio(
             print(f"[morning] briefing audio failed: {exc}")
 
     # ---------------------------------------------------------------- reflection
+    # Generate the standalone reflection file (for iCloud — no music fade-in needed here)
     reflection_text = morning.get("reflection_script", "").strip()
+    mood = morning.get("music_mood", "")
+    music_path = select_music_for_mood(mood, music_lib) if mood else None
+
     if reflection_text:
         try:
             narration = output_dir / f"reflection-{date_str}-narration.mp3"
             asyncio.run(synthesize(reflection_text, reflection_voice, "+0%", narration))
-            # Mix with mood-matched music (same pattern as wisdom meditations)
-            mood = morning.get("music_mood", "")
-            music_path = select_music_for_mood(mood, music_lib) if mood else None
             ref_path = output_dir / f"reflection-{date_str}.mp3"
             if music_path:
                 mix_meditation_with_music(
@@ -1936,42 +1940,55 @@ def generate_morning_audio(
             print(f"[morning] reflection audio failed: {exc}")
 
     # ----------------------------------------------------------- combined podcast
-    if "briefing_audio" in results and "reflection_audio" in results and actions.get("combine_podcast", True):
+    # No spoken bridge — the reflective music fading in over silence provides the
+    # transition. Briefing music fades out, then reflective music fades up, then
+    # Emily's voice begins. Clean and unjarring.
+    if "briefing_audio" in results and reflection_text and actions.get("combine_podcast", True):
         try:
-            # Short spoken bridge between segments
-            bridge_text = (
-                f"That's your briefing for today. "
-                f"Now, a reflection on the themes of your week."
-            )
-            bridge_path = output_dir / f"bridge-{date_str}.mp3"
-            asyncio.run(synthesize(bridge_text, reflection_voice, "-10%", bridge_path))
+            reflection_narration = output_dir / f"reflection-{date_str}-narration2.mp3"
+            asyncio.run(synthesize(reflection_text, reflection_voice, "+0%", reflection_narration))
+            concat_narration = reflection_narration  # no bridge to concat
 
-            # Write ffmpeg concat list
-            concat_list = output_dir / f"concat-{date_str}.txt"
-            segments = [
-                results["briefing_audio"],
-                str(bridge_path),
-                results["reflection_audio"],
-            ]
-            concat_list.write_text(
-                "\n".join(f"file '{s}'" for s in segments), encoding="utf-8"
+            if False:  # keep structure aligned with rest of block
+                raise RuntimeError("unreachable")
+
+            # Mix the reflection narration with reflective music — 4s fade IN at top
+            # so music emerges softly before the voice, 4s fade out at end
+            bridge_reflection_mixed = output_dir / f"bridge-reflection-{date_str}.mp3"
+            if music_path:
+                mix_meditation_with_music(
+                    concat_narration, music_path, bridge_reflection_mixed,
+                    music_volume=music_volume,
+                    fade_in_seconds=4,
+                    fade_out_seconds=fade_out,
+                )
+                concat_narration.unlink(missing_ok=True)
+                print(f"[morning] bridge+reflection mixed (fade-in: 4s, mood: {mood})")
+            else:
+                concat_narration.rename(bridge_reflection_mixed)
+
+            # Final concat: briefing (energizing) + bridge+reflection (reflective)
+            final_list = output_dir / f"concat-final-{date_str}.txt"
+            final_list.write_text(
+                f"file '{results['briefing_audio']}'\nfile '{bridge_reflection_mixed}'",
+                encoding="utf-8",
             )
             daily_path = output_dir / f"daily-{date_str}.mp3"
-            cmd = [
-                ffmpeg, "-y",
-                "-f", "concat", "-safe", "0",
-                "-i", str(concat_list),
-                "-c:a", "libmp3lame", "-b:a", "128k",
-                str(daily_path),
-            ]
-            result_proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            bridge_path.unlink(missing_ok=True)
-            concat_list.unlink(missing_ok=True)
-            if result_proc.returncode == 0:
+            r2 = subprocess.run(
+                [ffmpeg, "-y", "-f", "concat", "-safe", "0",
+                 "-i", str(final_list), "-c:a", "libmp3lame", "-b:a", "128k",
+                 str(daily_path)],
+                capture_output=True, text=True, check=False,
+            )
+            bridge_reflection_mixed.unlink(missing_ok=True)
+            final_list.unlink(missing_ok=True)
+
+            if r2.returncode == 0:
                 print(f"[morning] daily podcast → {daily_path.name}")
                 results["daily_audio"] = str(daily_path)
             else:
-                print(f"[morning] ffmpeg combine failed: {result_proc.stderr.strip()}")
+                print(f"[morning] final concat failed: {r2.stderr.strip()}")
+
         except Exception as exc:
             print(f"[morning] combine failed: {exc}")
 
