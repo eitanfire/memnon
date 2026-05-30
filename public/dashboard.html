@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Memnon</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <nav>
+    <span class="nav-brand">🎙 Memnon</span>
+    <div class="nav-right">
+      <span id="nav-name" class="muted"></span>
+      <button id="signout-btn" class="btn btn-outline" style="padding:6px 14px; font-size:0.8rem;">
+        Sign out
+      </button>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <div style="margin-bottom:28px;">
+      <h1>Welcome back, <span id="first-name"></span> 👋</h1>
+      <p class="muted">
+        <span class="status-dot green"></span>
+        Memnon is running — checking your inbox every minute.
+      </p>
+    </div>
+
+    <!-- Lane -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <h2 id="lane-title">Loading…</h2>
+          <p id="lane-desc" style="color:#555;"></p>
+          <p style="margin-top:8px;">
+            <span class="tag" id="lane-detail"></span>
+          </p>
+        </div>
+        <a href="/setup" class="btn btn-outline" style="padding:7px 14px; font-size:0.8rem; white-space:nowrap;">
+          Change lane
+        </a>
+      </div>
+    </div>
+
+    <!-- Drive folders -->
+    <div class="card">
+      <h2>Your Google Drive folders</h2>
+      <p style="color:#555; margin-bottom:20px;">
+        Drop recordings into <strong>memnon-inbox</strong>.
+        Notes appear in <strong>memnon-notes</strong> within ~60 seconds.
+      </p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div style="border:1px solid #e8e6e0; border-radius:10px; padding:16px;">
+          <div style="font-size:1.4rem; margin-bottom:8px;">📥</div>
+          <div style="font-weight:600; margin-bottom:4px;">memnon-inbox</div>
+          <div style="font-size:0.8rem; color:#888; margin-bottom:12px;">Drop recordings here</div>
+          <a id="inbox-link" href="#" target="_blank"
+             class="btn btn-outline" style="padding:7px 12px; font-size:0.8rem;">
+            Open in Drive ↗
+          </a>
+        </div>
+        <div style="border:1px solid #e8e6e0; border-radius:10px; padding:16px;">
+          <div style="font-size:1.4rem; margin-bottom:8px;">📝</div>
+          <div style="font-weight:600; margin-bottom:4px;">memnon-notes</div>
+          <div style="font-size:0.8rem; color:#888; margin-bottom:12px;">Your processed notes</div>
+          <a id="notes-link" href="#" target="_blank"
+             class="btn btn-primary" style="padding:7px 12px; font-size:0.8rem;">
+            Open in Drive ↗
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- iPhone instructions -->
+    <div class="card">
+      <h2>📱 Capture from iPhone</h2>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Record in Voice Memos</div>
+          <div class="step-desc">Your screen can lock while recording.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Share the recording</div>
+          <div class="step-desc">
+            Tap recording → share icon →
+            <strong>Save to Files → Google Drive → memnon-inbox</strong>
+          </div>
+        </div>
+      </div>
+      <div class="step" style="margin-bottom:0;">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Done</div>
+          <div class="step-desc">
+            Your note appears in <strong>memnon-notes</strong> within about a minute.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
+      authDomain: "memnon-app.firebaseapp.com",
+      projectId: "memnon-app",
+      storageBucket: "memnon-app.firebasestorage.app",
+      messagingSenderId: "714155490867",
+      appId: "1:714155490867:web:f382fddb58a596bede6d46"
+    };
+
+    const API = "https://us-central1-memnon-app.cloudfunctions.net/api";
+
+    const LANE_LABELS = {
+      professional: { icon: "💼", label: "Professional lane" },
+      reflect:      { icon: "🌿", label: "Reflect lane" },
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = "/"; return; }
+
+      const firstName = (user.displayName || user.email).split(" ")[0];
+      document.getElementById("first-name").textContent = firstName;
+      document.getElementById("nav-name").textContent = user.displayName || user.email;
+
+      // Fetch user data from API
+      const token = await user.getIdToken();
+      const res = await fetch(`${API}/me`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const lane = data.lane || "professional";
+        const info = LANE_LABELS[lane] || LANE_LABELS.professional;
+
+        document.getElementById("lane-title").textContent = `${info.icon} ${info.label}`;
+        document.getElementById("lane-desc").textContent =
+          lane === "reflect"
+            ? "Personal reflections grounded in a tradition you chose."
+            : "Work notes enriched with best practices for your field.";
+
+        const detail = data.profession || data.tradition || "";
+        const detailEl = document.getElementById("lane-detail");
+        if (detail) {
+          detailEl.textContent = detail;
+        } else {
+          detailEl.style.display = "none";
+        }
+
+        if (data.inbox_folder_id) {
+          document.getElementById("inbox-link").href =
+            `https://drive.google.com/drive/folders/${data.inbox_folder_id}`;
+        }
+        if (data.notes_folder_id) {
+          document.getElementById("notes-link").href =
+            `https://drive.google.com/drive/folders/${data.notes_folder_id}`;
+        }
+      }
+    });
+
+    document.getElementById("signout-btn").addEventListener("click", async () => {
+      await signOut(auth);
+      window.location.href = "/";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup — Memnon</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <nav>
+    <span class="nav-brand">🎙 Memnon</span>
+    <div class="nav-right">
+      <span id="nav-name" class="muted"></span>
+    </div>
+  </nav>
+
+  <div class="container" style="max-width:600px;">
+
+    <!-- Step 1: Connect Drive -->
+    <div id="step-drive">
+      <div style="margin-bottom:28px;">
+        <h1>Connect Google Drive</h1>
+        <p class="muted">Memnon needs access to your Drive to watch for recordings and save notes.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:2rem; margin-bottom:12px;">📂</div>
+        <h2 style="margin-bottom:8px;">Grant Drive access</h2>
+        <p style="margin-bottom:20px;">
+          Memnon will create two folders in your Drive:
+          <strong>memnon-inbox</strong> (drop recordings here) and
+          <strong>memnon-notes</strong> (your processed notes).
+        </p>
+        <button id="connect-drive-btn" class="btn btn-primary">Connect Google Drive →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Choose lane -->
+    <div id="step-lane" style="display:none;">
+      <div style="margin-bottom:28px;">
+        <h1>Choose your lane</h1>
+        <p class="muted">This shapes how Memnon summarizes your recordings. You can change it anytime.</p>
+      </div>
+
+      <div class="card">
+        <h2>Pick a lane</h2>
+        <div class="lane-cards">
+
+          <label class="lane-card selected" id="card-professional">
+            <input type="radio" name="lane" value="professional" checked />
+            <div class="lane-card-icon">💼</div>
+            <div class="lane-card-title">Professional</div>
+            <div class="lane-card-desc">Work notes enriched with best practices for your field.</div>
+          </label>
+
+          <label class="lane-card" id="card-reflect">
+            <input type="radio" name="lane" value="reflect" />
+            <div class="lane-card-icon">🌿</div>
+            <div class="lane-card-title">Reflect</div>
+            <div class="lane-card-desc">Personal reflections grounded in a tradition you choose.</div>
+          </label>
+
+        </div>
+      </div>
+
+      <!-- Professional field -->
+      <div class="card" id="field-professional">
+        <label for="profession">Your profession or field</label>
+        <p class="muted" style="margin-bottom:12px;">
+          Memnon frames action items and best practices around your specific work.
+        </p>
+        <input type="text" id="profession"
+               placeholder="e.g. high school CS teacher, product manager, nurse…" />
+      </div>
+
+      <!-- Reflect field -->
+      <div class="card" id="field-reflect" style="display:none;">
+        <label for="tradition">Grounding tradition</label>
+        <p class="muted" style="margin-bottom:12px;">
+          Memnon weaves relevant themes from this tradition into your summaries.
+        </p>
+        <select id="tradition">
+          <option value="stoicism">Stoic philosophy (Marcus Aurelius, Epictetus, Seneca)</option>
+          <option value="buddhism">Buddhist teachings (mindfulness, the Eightfold Path)</option>
+          <option value="christianity">Christian scripture and contemplative tradition</option>
+          <option value="islam">Islamic wisdom (Quran, Hadith, Sufi teachings)</option>
+          <option value="taoism">Taoist philosophy (Tao Te Ching, wu wei)</option>
+          <option value="judaism">Jewish wisdom (Torah, Talmud, Mussar tradition)</option>
+          <option value="secular" selected>Secular humanism and psychology</option>
+          <option value="other">My own personal framework</option>
+        </select>
+      </div>
+
+      <button id="save-btn" class="btn btn-primary">Save and continue →</button>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
+      authDomain: "memnon-app.firebaseapp.com",
+      projectId: "memnon-app",
+      storageBucket: "memnon-app.firebasestorage.app",
+      messagingSenderId: "714155490867",
+      appId: "1:714155490867:web:f382fddb58a596bede6d46"
+    };
+
+    const API = "https://us-central1-memnon-app.cloudfunctions.net/api";
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentUser = null;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = "/"; return; }
+      currentUser = user;
+      document.getElementById("nav-name").textContent = user.displayName || user.email;
+
+      // Check if Drive already connected (returning from OAuth callback)
+      const params = new URLSearchParams(window.location.search);
+      const snap = await getDoc(doc(db, "users", user.uid));
+      const data = snap.exists() ? snap.data() : {};
+
+      if (data.drive_connected || params.get("drive_connected") === "true") {
+        document.getElementById("step-drive").style.display = "none";
+        document.getElementById("step-lane").style.display = "block";
+        // Pre-fill if already configured
+        if (data.lane) {
+          document.querySelector(`input[value="${data.lane}"]`).checked = true;
+          selectLane(data.lane);
+        }
+        if (data.profession) document.getElementById("profession").value = data.profession;
+        if (data.tradition) document.getElementById("tradition").value = data.tradition;
+      }
+    });
+
+    // Connect Drive button
+    document.getElementById("connect-drive-btn").addEventListener("click", () => {
+      if (!currentUser) return;
+      window.location.href = `${API}/auth/drive?uid=${currentUser.uid}`;
+    });
+
+    // Lane toggle
+    function selectLane(key) {
+      document.querySelectorAll(".lane-card").forEach(el => el.classList.remove("selected"));
+      document.getElementById("card-" + key).classList.add("selected");
+      document.getElementById("field-professional").style.display =
+        key === "professional" ? "block" : "none";
+      document.getElementById("field-reflect").style.display =
+        key === "reflect" ? "block" : "none";
+    }
+
+    document.querySelectorAll("input[name='lane']").forEach(radio => {
+      radio.addEventListener("change", () => selectLane(radio.value));
+    });
+
+    // Save setup
+    document.getElementById("save-btn").addEventListener("click", async () => {
+      if (!currentUser) return;
+      const lane = document.querySelector("input[name='lane']:checked").value;
+      const profession = document.getElementById("profession").value.trim();
+      const tradition = document.getElementById("tradition").value;
+
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API}/setup`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ lane, profession, tradition }),
+      });
+
+      if (res.ok) {
+        window.location.href = "/dashboard";
+      } else {
+        alert("Something went wrong. Please try again.");
+      }
+    });
+  </script>
+</body>
+</html>
