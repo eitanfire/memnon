@@ -16,7 +16,7 @@ Set secrets:
   firebase functions:secrets:set FLASK_SECRET
 
 OAuth redirect URI to register in Google Cloud Console:
-  https://us-central1-memnon-app.cloudfunctions.net/api/auth/callback
+  https://api-4hth6oktaa-uc.a.run.app/auth/callback
 """
 
 import hashlib
@@ -68,7 +68,7 @@ CORS(flask_app, origins=[
 # ── constants ─────────────────────────────────────────────────────────────────
 
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
-API_BASE = "https://us-central1-memnon-app.cloudfunctions.net/api"
+API_BASE = "https://api-4hth6oktaa-uc.a.run.app"
 REDIRECT_URI = f"{API_BASE}/auth/callback"
 FRONTEND_URL = "https://memnon-app.web.app"
 
