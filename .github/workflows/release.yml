@@ -135,9 +135,11 @@ jobs:
             ## Install
 
             1. Download `Memnon-${{ steps.version.outputs.VERSION }}-macos.dmg`
-            2. Open the disk image
-            3. Drag **Memnon** to your Applications folder
-            4. Open Memnon — Terminal opens and walks you through setup
+            2. Open the disk image and drag **Memnon** to your Applications folder
+            3. **First launch:** right-click `Memnon.app` → **Open** → click **Open**
+               > macOS blocks unsigned apps — right-clicking bypasses Gatekeeper once and remembers your choice.
+               > Or run: `xattr -dr com.apple.quarantine /Applications/Memnon.app`
+            4. Terminal opens and walks you through setup
 
             **Requirements:** macOS 12+
             **Optional:** An OpenAI API key for AI summarization ([get one](https://platform.openai.com/api-keys))

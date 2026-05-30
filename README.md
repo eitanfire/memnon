@@ -122,6 +122,17 @@ thing is going to bite us if we deploy Friday without fixing it...
 
 ## Installation
 
+### Option A — DMG (recommended for most users)
+
+1. Download `Memnon-vX.X.X-macos.dmg` from the [latest release](https://github.com/eitanfire/memnon/releases/latest)
+2. Open the disk image and drag **Memnon** to your Applications folder
+3. **First launch:** right-click `Memnon.app` → **Open** → click **Open**
+   - macOS blocks unsigned apps by default; right-clicking bypasses Gatekeeper once and remembers your choice
+   - Or run: `xattr -dr com.apple.quarantine /Applications/Memnon.app`
+4. Terminal opens and walks you through the setup wizard
+
+### Option B — From source
+
 ```bash
 git clone https://github.com/eitanfire/memnon.git
 cd memnon
