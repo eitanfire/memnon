@@ -42,10 +42,20 @@ from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from lanes import build_prompt
 
-# ── init ──────────────────────────────────────────────────────────────────────
+# ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
 
-firebase_admin.initialize_app()
-_db = firestore.client()
+_firebase_app = None
+_firestore_client = None
+
+
+def _get_db():
+    global _firebase_app, _firestore_client
+    if _firebase_app is None:
+        _firebase_app = firebase_admin.initialize_app()
+    if _firestore_client is None:
+        _firestore_client = firestore.client()
+    return _firestore_client
+
 
 flask_app = Flask(__name__)
 flask_app.secret_key = os.environ.get("FLASK_SECRET", "dev-change-me")
@@ -95,7 +105,7 @@ def _verify_firebase_token(req) -> str | None:
 
 
 def _drive_creds(uid: str) -> Credentials | None:
-    doc = _db.collection("users").document(uid).get()
+    doc = _get_db().collection("users").document(uid).get()
     if not doc.exists:
         return None
     token_data = doc.to_dict().get("google_drive_token")
@@ -112,7 +122,7 @@ def _drive_creds(uid: str) -> Credentials | None:
     if creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
-            _db.collection("users").document(uid).update(
+            _get_db().collection("users").document(uid).update(
                 {"google_drive_token": json.loads(creds.to_json())}
             )
         except Exception as exc:
@@ -297,7 +307,7 @@ def _sweep_user(uid: str, user_data: dict):
         notes_id = _find_or_create_folder(service, "memnon-notes")
         updates["notes_folder_id"] = notes_id
     if updates:
-        _db.collection("users").document(uid).update(updates)
+        _get_db().collection("users").document(uid).update(updates)
 
     files = service.files().list(
         q=f"'{inbox_id}' in parents and trashed=false",
@@ -341,7 +351,7 @@ def auth_callback():
         )
         flow.fetch_token(authorization_response=request.url)
         creds = flow.credentials
-        _db.collection("users").document(uid).set(
+        _get_db().collection("users").document(uid).set(
             {"google_drive_token": json.loads(creds.to_json()), "drive_connected": True},
             merge=True,
         )
@@ -358,7 +368,7 @@ def save_setup():
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(silent=True) or {}
-    _db.collection("users").document(uid).set({
+    _get_db().collection("users").document(uid).set({
         "lane": data.get("lane", "professional"),
         "profession": data.get("profession", ""),
         "tradition": data.get("tradition", "secular"),
@@ -373,7 +383,7 @@ def get_me():
     uid = _verify_firebase_token(request)
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
-    doc = _db.collection("users").document(uid).get()
+    doc = _get_db().collection("users").document(uid).get()
     if not doc.exists:
         return jsonify({}), 404
     data = doc.to_dict()
@@ -402,9 +412,7 @@ def api(req: https_fn.Request) -> https_fn.Response:
     secrets=["OPENAI_API_KEY", "GOOGLE_CLIENT_SECRETS"],
 )
 def worker(event: scheduler_fn.ScheduledEvent) -> None:
-    users = _db.collection("users").where(
-        filter=firestore.FieldFilter("active", "==", True)
-    ).stream()
+    users = _get_db().collection("users").where("active", "==", True).stream()
     for doc in users:
         uid = doc.id
         user_data = doc.to_dict()
