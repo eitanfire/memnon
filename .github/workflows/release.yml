@@ -1,0 +1,108 @@
+name: Release
+
+# Triggered by pushing a version tag: git tag v1.0.0 && git push --tags
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos-dmg:
+    name: Build macOS .dmg
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Stage app contents
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          STAGE="dist/Memnon-${VERSION}"
+          mkdir -p "$STAGE"
+
+          # Core app files
+          cp -r src templates launchd README.md config.example.json "$STAGE/"
+
+          # Runtime placeholder so the directory exists
+          mkdir -p "$STAGE/runtime"
+          touch "$STAGE/runtime/.gitkeep"
+
+          # Setup launcher — double-click to run in Terminal
+          cat > "$STAGE/Setup Memnon.command" << 'SCRIPT'
+          #!/bin/bash
+          # Setup Memnon — double-click this file to run the interactive setup wizard.
+          set -euo pipefail
+          cd "$(dirname "$0")"
+
+          echo ""
+          echo "  Memnon ${VERSION} — Setup"
+          echo "  $(python3 --version 2>/dev/null || echo '(checking Python...)')"
+          echo ""
+
+          # Check Python version
+          if ! python3 --version 2>/dev/null | grep -qE "3\.(1[1-9]|[2-9][0-9])"; then
+            echo "  Python 3.11+ is required."
+            echo "  Install it from https://www.python.org/downloads/"
+            echo "  or via Homebrew: brew install python"
+            echo ""
+            open "https://www.python.org/downloads/"
+            read -rp "  Press Enter to exit..."
+            exit 1
+          fi
+
+          exec python3 src/voice_pipeline.py setup
+          SCRIPT
+
+          # Inject version into the launcher
+          sed -i '' "s/\${VERSION}/${VERSION}/g" "$STAGE/Setup Memnon.command"
+          chmod +x "$STAGE/Setup Memnon.command"
+
+          echo "Staged contents:"
+          ls -la "$STAGE/"
+
+      - name: Build .dmg
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          STAGE="dist/Memnon-${VERSION}"
+          DMG="dist/Memnon-${VERSION}-macos.dmg"
+
+          hdiutil create \
+            -volname "Memnon ${VERSION}" \
+            -srcfolder "$STAGE" \
+            -ov \
+            -format UDZO \
+            "$DMG"
+
+          echo "Built: $DMG ($(du -sh "$DMG" | cut -f1))"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Memnon ${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## Install
+
+            1. Download `Memnon-${{ steps.version.outputs.VERSION }}-macos.dmg`
+            2. Open the disk image
+            3. Double-click **Setup Memnon.command** — Terminal opens and walks you through setup
+
+            **Requirements:** macOS + Python 3.11+ ([download](https://www.python.org/downloads/))
+            **Optional:** An OpenAI API key for AI summarization ([get one](https://platform.openai.com/api-keys))
+
+            ---
+
+            ## What's new
+            See [CHANGELOG](https://github.com/eitanfire/memnon/commits/main) for details.
+
+            ## Two setup modes
+            The wizard will ask which mode you want:
+            - **Lite** — transcription via OpenAI Whisper API, watch folder in `~/Documents`. Fastest setup, no extra installs.
+            - **Full** — transcription via whisper.cpp on your Mac. Fully local, requires `brew install whisper-cpp ffmpeg`.
+          files: dist/Memnon-${{ steps.version.outputs.VERSION }}-macos.dmg
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}

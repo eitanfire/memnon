@@ -1,0 +1,7 @@
+# Core pipeline (src/voice_pipeline.py) — pure Python stdlib, no pip install needed.
+#
+# MCP server (src/mcp_server.py):
+fastmcp>=3.0.0
+#
+# Audio generation (reflect/good-morning lanes — optional):
+# edge-tts>=6.0.0
