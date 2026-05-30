@@ -51,7 +51,9 @@
     "api_key": "sk-...",
     "temperature": 0.2,
     "timeout_seconds": 60,
-    "max_tags": 5
+    "max_tags": 5,
+    "_comment_prompt_template": "Optional. Replaces the default summarization prompt. Must return JSON with keys: title, summary, action_items, suggested_tags. Available placeholders: {transcript}, {max_tags}, {workflow}, {lane_instruction}, {lane_block}, {preferred_tags}, {preferred_tags_block}",
+    "_example_prompt_template": "You help a CS teacher capture classroom observations.\nReturn strict JSON only — no markdown wrapper.\n{{\n  \"title\": \"short title\",\n  \"summary\": \"2-5 sentences\",\n  \"action_items\": [],\n  \"suggested_tags\": []\n}}\nRules: max {max_tags} tags. No invented facts.\n{lane_block}{preferred_tags_block}Transcript:\n{transcript}\n"
   },
 
   "_comment_lanes": "Optional. Define workflow lanes in config.json (not here). Speak the lane name at the start of a recording to route it. See README for the full schema.",

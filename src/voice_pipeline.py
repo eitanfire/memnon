@@ -667,6 +667,7 @@ def ai_prompt(
     preferred_tags: List[str],
     workflow: str = "default",
     lane_instruction: str = "",
+    config: Optional[Dict[str, Any]] = None,
 ) -> str:
     preferred_tags_block = ""
     if preferred_tags:
@@ -677,6 +678,19 @@ def ai_prompt(
         )
 
     lane_block = f"Lane context: {lane_instruction}\n\n" if lane_instruction else ""
+
+    # User-defined prompt template from config — see config.example.json for placeholders
+    template = (config or {}).get("ai", {}).get("prompt_template", "")
+    if template:
+        return template.format(
+            transcript=transcript,
+            max_tags=max_tags,
+            preferred_tags=", ".join(preferred_tags),
+            preferred_tags_block=preferred_tags_block,
+            lane_instruction=lane_instruction,
+            lane_block=lane_block,
+            workflow=workflow,
+        )
 
     return (
         "You organize personal voice notes for Obsidian.\n"
@@ -712,7 +726,7 @@ def run_ai_ollama_http(config: Dict[str, Any], transcript: str, workflow: str = 
     preferred_tags = collect_preferred_tags(config)
     payload = {
         "model": ai["model"],
-        "prompt": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow, lane_ai_instruction(config, workflow)),
+        "prompt": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow, lane_ai_instruction(config, workflow), config),
         "stream": False,
         "format": "json",
         "options": {
@@ -753,7 +767,7 @@ def run_ai_openai_http(config: Dict[str, Any], transcript: str, workflow: str = 
     payload = {
         "model": ai.get("model", "gpt-4o-mini"),
         "messages": [
-            {"role": "user", "content": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow, lane_ai_instruction(config, workflow))}
+            {"role": "user", "content": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow, lane_ai_instruction(config, workflow), config)}
         ],
         "temperature": ai.get("temperature", 0.2),
         "response_format": {"type": "json_object"},
