@@ -245,19 +245,22 @@ Swap `"model": "llama3"` for `"model": "gemma3"` to use Gemma locally with zero 
 
 ## TypeScript MCP Server
 
-The `mcp/` directory contains a TypeScript [Model Context Protocol](https://modelcontextprotocol.io) server that exposes your voice note knowledge base to Claude and other MCP-compatible AI tools.
+A [FastMCP](https://gofastmcp.com) server (`src/mcp_server.py`) exposes your voice note knowledge base to Claude and other MCP-compatible AI tools — pure Python, no Node.js required.
+
+> **Thanks to [@sagarswamirao](https://github.com/sagarswamirao) for suggesting FastMCP as a cleaner alternative to the original TypeScript server.**
 
 Once connected, you can ask Claude things like:
 - *"What action items do I have from this week's notes?"*
 - *"Search my notes for anything about the auth middleware"*
 - *"Summarize what I've been thinking about this week"*
+- *"This note was misrouted — move it to the reflect lane"*
 
 ### Setup
 
 ```bash
-cd mcp
-npm install
-npm run build
+# From the memnon project root:
+python3 -m venv .venv
+.venv/bin/pip install fastmcp
 ```
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -266,8 +269,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "memnon": {
-      "command": "node",
-      "args": ["/path/to/memnon/mcp/dist/index.js"]
+      "command": "/path/to/memnon/.venv/bin/python3",
+      "args": ["/path/to/memnon/src/mcp_server.py"]
     }
   }
 }
@@ -283,6 +286,9 @@ Restart Claude Desktop. You'll see a hammer icon in the chat input confirming th
 | `search_notes` | Full-text search by keyword or tag |
 | `get_note` | Full content of a specific note |
 | `get_action_items` | All open action items across every note |
+| `update_note_lane` | Correct a misrouted note's lane — the feedback loop for re-tagging |
+
+> The original TypeScript server (`mcp/`) still works if you prefer Node.js. The Python server is now the recommended path.
 
 ---
 
@@ -298,6 +304,40 @@ For testing without a real transcriber:
 ```json
 "transcription": { "backend": "mock", "mock_transcript": "Test transcript." }
 ```
+
+### Where is whisper.cpp?
+
+whisper.cpp is a **system dependency**, not part of the Memnon repo. It is installed via Homebrew:
+
+```bash
+brew install whisper-cpp
+whisper-cpp --download-model base.en
+```
+
+After install, the relevant paths are:
+- **Binary:** `/opt/homebrew/bin/whisper-cli`
+- **Model:** `/opt/homebrew/share/whisper-cpp/models/ggml-base.en.bin`
+
+The repo's `src/transcribe.sh` is a thin wrapper that calls `whisper-cli`. Think of whisper.cpp the same way you think of `ffmpeg` — a system tool the pipeline depends on, not something vendored into the repo.
+
+---
+
+## Privacy FAQ
+
+### Is it really local if iCloud is part of the workflow?
+
+iCloud is the **sync transport** between your iPhone and your Mac — it moves the file, it does not process it. The distinction that matters:
+
+| Step | Where it happens |
+|------|-----------------|
+| File sync (iPhone → Mac) | iCloud (Apple infrastructure) |
+| Transcription | Your Mac, via whisper.cpp — **fully local** |
+| AI summarization (Ollama) | Your Mac — **fully local** |
+| AI summarization (OpenAI) | OpenAI API — text only, audio never leaves |
+
+**Your audio is never sent to a transcription service.** That's the privacy guarantee Memnon makes.
+
+iCloud is also not required. The pipeline watches any folder you configure. If you'd rather use AirDrop, a USB mount, Dropbox, or a folder you populate manually, edit `raw_audio_dir` in `config.json` — the rest of the pipeline is unchanged.
 
 ---
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lean voice-note pipeline for Google Drive -> local transcription -> Obsidian."""
+"""Lean voice-note pipeline: iPhone → iCloud → local transcription → Obsidian."""
 
 from __future__ import annotations
 
@@ -567,6 +567,71 @@ def transcribe_with_mock(config: Dict[str, Any], source_path: Path, output_prefi
     return sample
 
 
+def transcribe_with_openai_whisper(
+    config: Dict[str, Any],
+    source_path: Path,
+    output_prefix: Path,
+) -> str:
+    """Send audio to OpenAI Whisper API and return transcript text. No local deps required."""
+    del output_prefix  # result returned directly, no file written
+    ai = config.get("ai", {})
+    api_key = ai.get("api_key") or os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError(
+            "openai_whisper backend requires ai.api_key or the OPENAI_API_KEY environment variable."
+        )
+
+    transcription = config["transcription"]
+    language = transcription.get("language", "en")
+    model = transcription.get("model", "whisper-1")
+    timeout = int(ai.get("timeout_seconds", 120))
+
+    audio_bytes = source_path.read_bytes()
+
+    # Build multipart/form-data body using stdlib only (no requests/httpx)
+    boundary = "MemnomWhisper" + hashlib.md5(audio_bytes[:64]).hexdigest()
+
+    def _field(name: str, value: str) -> bytes:
+        return (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
+            f"{value}\r\n"
+        ).encode()
+
+    def _file_field(name: str, filename: str, data: bytes) -> bytes:
+        suffix = Path(filename).suffix.lstrip(".") or "m4a"
+        header = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
+            f"Content-Type: audio/{suffix}\r\n\r\n"
+        ).encode()
+        return header + data + b"\r\n"
+
+    body = (
+        _field("model", model)
+        + _field("language", language)
+        + _field("response_format", "text")
+        + _file_field("file", source_path.name, audio_bytes)
+        + f"--{boundary}--\r\n".encode()
+    )
+
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/audio/transcriptions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8").strip()
+    except urllib.error.HTTPError as exc:
+        body_text = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenAI Whisper API error {exc.code}: {body_text}") from exc
+
+
 def transcribe_audio(config: Dict[str, Any], source_path: Path) -> str:
     transcripts_dir = Path(config["runtime_dir"]) / "transcripts"
     transcripts_dir.mkdir(parents=True, exist_ok=True)
@@ -577,6 +642,8 @@ def transcribe_audio(config: Dict[str, Any], source_path: Path) -> str:
         transcript = transcribe_with_whisper_cpp(config, source_path, output_prefix)
     elif backend == "command":
         transcript = transcribe_with_command(config, source_path, output_prefix)
+    elif backend == "openai_whisper":
+        transcript = transcribe_with_openai_whisper(config, source_path, output_prefix)
     elif backend == "mock":
         transcript = transcribe_with_mock(config, source_path, output_prefix)
     else:
@@ -2370,6 +2437,9 @@ def command_validate(args: argparse.Namespace) -> int:
         checks.append(("model_path", bool(transcription.get("model_path"))))
     elif transcription["backend"] == "command":
         checks.append(("command_template", bool(transcription.get("command_template"))))
+    elif transcription["backend"] == "openai_whisper":
+        has_key = bool(ai.get("api_key") or os.environ.get("OPENAI_API_KEY", ""))
+        checks.append(("openai api_key (whisper)", has_key))
 
     if ai.get("enabled", True) and ai.get("backend") == "ollama_http":
         checks.append(("ollama model configured", ai.get("model") != "replace-with-installed-model"))
@@ -2385,6 +2455,289 @@ def command_validate(args: argparse.Namespace) -> int:
             failed = True
 
     return 1 if failed else 0
+
+
+def _install_launchd(project_root: Path) -> None:
+    """Install the launchd agent, writing the plist with resolved paths."""
+    plist_template = project_root / "launchd" / "com.memnon.voice-pipeline.plist"
+    if not plist_template.exists():
+        print(f"  ⚠️  Plist template not found at {plist_template} — skipping launchd install.")
+        return
+
+    # Prefer the real Homebrew binary over symlinks for macOS TCC (Full Disk Access)
+    python_bin = sys.executable
+    for candidate in (
+        "/opt/homebrew/bin/python3.13",
+        "/opt/homebrew/bin/python3.12",
+        "/opt/homebrew/bin/python3.11",
+    ):
+        if Path(candidate).exists():
+            python_bin = candidate
+            break
+
+    plist_content = plist_template.read_text(encoding="utf-8")
+    plist_content = plist_content.replace("__PROJECT_ROOT__", str(project_root))
+    plist_content = plist_content.replace("__PYTHON__", python_bin)
+
+    launch_agents = Path.home() / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True, exist_ok=True)
+    dest = launch_agents / "com.memnon.voice-pipeline.plist"
+    dest.write_text(plist_content, encoding="utf-8")
+
+    # Reload
+    subprocess.run(["launchctl", "unload", str(dest)], capture_output=True)
+    result = subprocess.run(["launchctl", "load", str(dest)], capture_output=True, text=True)
+    if result.returncode == 0:
+        print(f"  ✓  launchd agent installed ({python_bin})")
+    else:
+        print(f"  ⚠️  launchctl load failed: {result.stderr.strip()}")
+        print(f"     Plist written to {dest} — load it manually with:")
+        print(f"     launchctl load {dest}")
+
+
+def command_setup(args: argparse.Namespace) -> int:  # noqa: ARG001
+    """Interactive wizard: writes config.json and creates required folders."""
+
+    GREEN = "\033[0;32m"
+    YELLOW = "\033[1;33m"
+    RED = "\033[0;31m"
+    RESET = "\033[0m"
+
+    def ok(msg: str) -> None:
+        print(f"{GREEN}✓{RESET}  {msg}")
+
+    def warn(msg: str) -> None:
+        print(f"{YELLOW}!{RESET}  {msg}")
+
+    def fail(msg: str) -> None:
+        print(f"{RED}✗{RESET}  {msg}")
+
+    print(f"\n  Memnon — Setup Wizard")
+    print(f"  ─────────────────────\n")
+
+    # ── Mode selection ──────────────────────────────────────────────────────
+    print("Choose a setup mode:\n")
+    print(f"  [1] Lite  {YELLOW}(recommended for getting started quickly){RESET}")
+    print(f"      • Transcription via OpenAI Whisper API")
+    print(f"      • Watch folder in ~/Documents/memnon-inbox")
+    print(f"      • No Homebrew deps, no Full Disk Access needed")
+    print(f"      • Requires an OpenAI API key\n")
+    print(f"  [2] Full  {GREEN}(local-first, fully private){RESET}")
+    print(f"      • Transcription via whisper.cpp — runs entirely on your Mac")
+    print(f"      • Watch folder in iCloud Drive")
+    print(f"      • Requires: brew install whisper-cpp ffmpeg")
+    print(f"      • Requires Full Disk Access for the background agent\n")
+
+    while True:
+        mode_raw = input("Enter 1 or 2 [1]: ").strip() or "1"
+        if mode_raw in ("1", "2"):
+            mode = "lite" if mode_raw == "1" else "full"
+            break
+        print("  Please enter 1 or 2.")
+
+    print(f"\n  → {mode.title()} mode selected.\n")
+
+    project_root = Path(__file__).resolve().parent.parent
+    username = os.environ.get("USER", os.environ.get("USERNAME", "your-username"))
+
+    # ── Full mode: check dependencies early ────────────────────────────────
+    if mode == "full":
+        print("Checking dependencies…")
+        missing = False
+        if not shutil.which("whisper-cli"):
+            fail("whisper-cli not found.  Install: brew install whisper-cpp")
+            missing = True
+        else:
+            ok("whisper-cli found")
+
+        model_path = "/opt/homebrew/share/whisper-cpp/models/ggml-base.en.bin"
+        if not Path(model_path).exists():
+            fail(f"Whisper model not found at {model_path}")
+            print("     Download it: whisper-cpp --download-model base.en")
+            missing = True
+        else:
+            ok("Whisper base.en model found")
+
+        if not shutil.which("ffmpeg"):
+            fail("ffmpeg not found.  Install: brew install ffmpeg")
+            missing = True
+        else:
+            ok("ffmpeg found")
+
+        if missing:
+            print("\nFix the issues above and re-run setup.")
+            return 1
+        print()
+
+    # ── OpenAI API key ──────────────────────────────────────────────────────
+    env_key = os.environ.get("OPENAI_API_KEY", "")
+    if env_key:
+        ok(f"OPENAI_API_KEY found in environment")
+        api_key = env_key
+    else:
+        required_label = "(required)" if mode == "lite" else "(optional — leave blank to disable AI summarization)"
+        api_key = input(f"OpenAI API key {required_label}: ").strip()
+
+    if mode == "lite" and not api_key:
+        fail("Lite mode requires an OpenAI API key.  Get one at platform.openai.com/api-keys")
+        return 1
+
+    print()
+
+    # ── Obsidian vault ──────────────────────────────────────────────────────
+    obsidian_inbox = ""
+    default_obsidian = Path.home() / "Documents" / "Obsidian"
+    if default_obsidian.exists():
+        vaults = sorted(
+            [d for d in default_obsidian.iterdir() if d.is_dir() and not d.name.startswith(".")],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if len(vaults) == 1:
+            print(f"Found Obsidian vault: {vaults[0].name}")
+            use_found = input("  Use this vault? [Y/n]: ").strip().lower()
+            if use_found != "n":
+                obsidian_inbox = str(vaults[0] / "Inbox" / "Voice")
+        elif len(vaults) > 1:
+            print("Found multiple Obsidian vaults:")
+            for i, v in enumerate(vaults, 1):
+                print(f"  [{i}] {v.name}")
+            while True:
+                choice = input("Choose vault number: ").strip()
+                if choice.isdigit() and 1 <= int(choice) <= len(vaults):
+                    obsidian_inbox = str(vaults[int(choice) - 1] / "Inbox" / "Voice")
+                    break
+                print("  Invalid choice.")
+
+    if not obsidian_inbox:
+        warn("Obsidian vault not found in ~/Documents/Obsidian")
+        print(f"  Enter the path to your vault's Voice inbox folder.")
+        print(f"  Example: /Users/{username}/Documents/Obsidian/MyVault/Inbox/Voice")
+        raw = input("  Path: ").strip()
+        obsidian_inbox = str(Path(raw).expanduser()) if raw else ""
+
+    if not obsidian_inbox:
+        fail("Obsidian inbox path is required.")
+        return 1
+
+    print()
+
+    # ── Folder setup ────────────────────────────────────────────────────────
+    if mode == "lite":
+        base = Path.home() / "Documents" / "memnon-inbox"
+        raw_dir = str(base / "raw")
+        archive_dir = str(base / "processed")
+        failed_dir = str(base / "failed")
+    else:
+        icloud = Path.home() / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+        if not icloud.exists():
+            fail("iCloud Drive not found.  Enable it in System Settings → Apple ID → iCloud.")
+            return 1
+        base = icloud / "Voice Inbox"
+        raw_dir = str(base / "raw")
+        archive_dir = str(base / "processed")
+        failed_dir = str(base / "failed")
+
+    print("Creating folders…")
+    for d in (raw_dir, archive_dir, failed_dir, obsidian_inbox):
+        Path(d).mkdir(parents=True, exist_ok=True)
+        ok(d)
+    print()
+
+    # ── Build config ────────────────────────────────────────────────────────
+    if mode == "lite":
+        transcription_cfg: Dict[str, Any] = {
+            "backend": "openai_whisper",
+            "language": "en",
+        }
+        min_stable = 5  # files arrive locally, no iCloud stub delay
+    else:
+        model_path = "/opt/homebrew/share/whisper-cpp/models/ggml-base.en.bin"
+        transcription_cfg = {
+            "backend": "command",
+            "command_template": [
+                str(project_root / "src" / "transcribe.sh"),
+                "{input_path}",
+                "{output_prefix}",
+                model_path,
+                "{language}",
+            ],
+            "transcript_file_template": "{output_prefix}.txt",
+            "language": "en",
+        }
+        min_stable = 90  # iCloud stubs need time to materialize
+
+    new_config: Dict[str, Any] = {
+        "runtime_dir": "./runtime",
+        "state_file": "./runtime/state.json",
+        "raw_audio_dir": raw_dir,
+        "archive_audio_dir": archive_dir,
+        "failed_audio_dir": failed_dir,
+        "obsidian_inbox_dir": obsidian_inbox,
+        "note_template_path": "./templates/voice-note.md",
+        "poll_seconds": 30,
+        "min_stable_age_seconds": min_stable,
+        "archive_subdirs_by_date": True,
+        "transcription": transcription_cfg,
+        "ai": {
+            "enabled": bool(api_key),
+            "backend": "openai_http",
+            "model": "gpt-4o-mini",
+            "api_key": api_key or "",
+            "temperature": 0.2,
+            "timeout_seconds": 60,
+            "max_tags": 5,
+        },
+        "gpt_handoff": {"enabled": False},
+    }
+
+    config_path = project_root / "config.json"
+    if config_path.exists():
+        overwrite = input(f"config.json already exists. Overwrite? [y/N]: ").strip().lower()
+        if overwrite != "y":
+            warn("Keeping existing config.json.")
+            config_path = None  # type: ignore[assignment]
+
+    if config_path is not None:
+        write_json(config_path, new_config)
+        ok(f"config.json written")
+    print()
+
+    # ── launchd agent ───────────────────────────────────────────────────────
+    install_agent = input("Install background agent (runs pipeline every 60s)? [Y/n]: ").strip().lower()
+    if install_agent != "n":
+        _install_launchd(project_root)
+    print()
+
+    # ── Summary ─────────────────────────────────────────────────────────────
+    print("  ────────────────────────────────────")
+    print("  Setup complete!\n")
+
+    if mode == "full":
+        python_bin = sys.executable
+        for candidate in (
+            "/opt/homebrew/bin/python3.13",
+            "/opt/homebrew/bin/python3.12",
+            "/opt/homebrew/bin/python3.11",
+        ):
+            if Path(candidate).exists():
+                python_bin = candidate
+                break
+        warn("Full Disk Access required for the background agent:")
+        print(f"     System Settings → Privacy & Security → Full Disk Access")
+        print(f"     Add: {python_bin}\n")
+        print("  iPhone capture:  install the iOS Shortcut (see README.md)")
+    else:
+        print("  Drop audio files into:")
+        print(f"     {raw_dir}")
+        print("  Or AirDrop from iPhone and move to that folder.\n")
+
+    print("  Validate everything is wired up:")
+    print(f"     python3 src/voice_pipeline.py validate --config config.json\n")
+    print("  Test with a single file:")
+    print(f"     python3 src/voice_pipeline.py process-file /path/to/audio.m4a --config config.json\n")
+
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2405,6 +2758,12 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser("validate", help="Check config paths and key dependencies.")
     validate_parser.add_argument("--config", required=True, help="Path to config.json")
     validate_parser.set_defaults(func=command_validate)
+
+    setup_parser = subparsers.add_parser(
+        "setup",
+        help="Interactive setup wizard — creates config.json and required folders.",
+    )
+    setup_parser.set_defaults(func=command_setup)
 
     return parser
 

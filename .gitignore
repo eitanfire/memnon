@@ -9,3 +9,6 @@ docs/
 .vscode/
 mcp/node_modules/
 mcp/dist/
+.venv/
+slide-*.jpg
+build-deck.js

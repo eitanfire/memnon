@@ -1,44 +1,50 @@
 {
+  "_comment_setup": "Run 'python3 src/voice_pipeline.py setup' to generate this file interactively.",
+
   "runtime_dir": "./runtime",
   "state_file": "./runtime/state.json",
-  "raw_audio_dir": "/Users/your-username/Library/Mobile Documents/com~apple~CloudDocs/Voice Inbox/raw",
-  "archive_audio_dir": "/Users/your-username/Library/Mobile Documents/com~apple~CloudDocs/Voice Inbox/processed",
-  "failed_audio_dir": "/Users/your-username/Library/Mobile Documents/com~apple~CloudDocs/Voice Inbox/failed",
+
+  "_comment_folders_lite": "Lite mode (default): watch folder in ~/Documents, no Full Disk Access needed.",
+  "_comment_folders_full": "Full mode (local-first): watch folder in iCloud Drive — swap paths below.",
+  "raw_audio_dir": "/Users/your-username/Documents/memnon-inbox/raw",
+  "archive_audio_dir": "/Users/your-username/Documents/memnon-inbox/processed",
+  "failed_audio_dir": "/Users/your-username/Documents/memnon-inbox/failed",
+
   "obsidian_inbox_dir": "/Users/your-username/Documents/Obsidian/YourVault/Inbox/Voice",
   "tag_reference_dirs": [
     "/Users/your-username/Documents/Obsidian/YourVault"
   ],
+
   "note_template_path": "./templates/voice-note.md",
   "poll_seconds": 30,
-  "min_stable_age_seconds": 90,
+  "min_stable_age_seconds": 5,
   "archive_subdirs_by_date": true,
   "min_audio_bytes": 4096,
   "min_transcript_words": 3,
   "audio_extensions": [
-    ".m4a",
-    ".mp3",
-    ".wav",
-    ".mp4",
-    ".mpeg",
-    ".mpga",
-    ".webm",
-    ".aac",
-    ".flac"
+    ".m4a", ".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".webm", ".aac", ".flac"
   ],
+
+  "_comment_transcription": "Two backends available — choose one.",
   "transcription": {
-    "backend": "command",
-    "command_template": [
+    "_comment_lite": "Lite mode: OpenAI Whisper API — no local deps, requires api_key below.",
+    "backend": "openai_whisper",
+    "language": "en",
+
+    "_comment_full": "Full mode (local-first): uncomment below and comment out backend above.",
+    "_full_backend": "command",
+    "_full_command_template": [
       "./src/transcribe.sh",
       "{input_path}",
       "{output_prefix}",
       "/opt/homebrew/share/whisper-cpp/models/ggml-base.en.bin",
       "{language}"
     ],
-    "transcript_file_template": "{output_prefix}.txt",
-    "language": "en"
+    "_full_transcript_file_template": "{output_prefix}.txt"
   },
+
   "ai": {
-    "enabled": false,
+    "enabled": true,
     "_comment_backend": "Options: openai_http | ollama_http | mock",
     "backend": "openai_http",
     "model": "gpt-4o-mini",
@@ -47,10 +53,12 @@
     "timeout_seconds": 60,
     "max_tags": 5
   },
-  "_comment_lanes": "Optional. Define your own workflow lanes. Speak the lane name at the start of a recording to route it (e.g. 'Journal: today I...'). Falls back to keyword matching, then default. See README for the full lanes and lane_actions schema.",
+
+  "_comment_lanes": "Optional. Define workflow lanes in config.json (not here). Speak the lane name at the start of a recording to route it. See README for the full schema.",
+
   "gpt_handoff": {
     "enabled": false,
-    "audio_dir": "/Users/your-username/Library/Mobile Documents/com~apple~CloudDocs/Voice Inbox/gpt-now",
+    "audio_dir": "/Users/your-username/Documents/memnon-inbox/gpt-now",
     "export_dir": "./runtime/gpt-handoff",
     "template_path": "./templates/gpt-handoff.md",
     "copy_to_clipboard": true,
