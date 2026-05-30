@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: memnon
+    runtime: python
+    buildCommand: pip install -r requirements-saas.txt
+    startCommand: gunicorn --worker-class gthread --threads 2 --bind 0.0.0.0:$PORT "src.server:create_app()"
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false          # set manually in Render dashboard
+      - key: FLASK_SECRET
+        generateValue: true  # Render generates a random secret automatically
+      - key: GOOGLE_CLIENT_SECRETS
+        sync: false          # paste the JSON content from Google Cloud Console
+    disk:
+      name: memnon-data
+      mountPath: /opt/render/project/src/runtime
+      sizeGB: 1

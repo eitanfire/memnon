@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Memnon{% endblock %}
+{% block nav_right %}
+  <span>{{ name }}</span>
+  <form method="POST" action="/logout" style="margin: 0;">
+    <button type="submit" class="btn btn-outline" style="padding: 6px 14px; font-size: 0.8rem;">
+      Sign out
+    </button>
+  </form>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div style="margin-bottom: 28px;">
+    <h1>Welcome back, {{ name.split()[0] }} 👋</h1>
+    <p class="muted">
+      <span class="status-dot green"></span>
+      Memnon is running — checking your inbox every minute.
+    </p>
+  </div>
+
+  <!-- Lane info -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <h2>
+          {{ lane_info.icon }} {{ lane_info.label }} lane
+        </h2>
+        <p style="color: #555;">{{ lane_info.description }}</p>
+        {% if user.profession %}
+          <p style="margin-top: 8px;">
+            <span class="tag">{{ user.profession }}</span>
+          </p>
+        {% endif %}
+        {% if user.tradition %}
+          <p style="margin-top: 8px;">
+            <span class="tag">{{ user.tradition }}</span>
+          </p>
+        {% endif %}
+      </div>
+      <a href="/setup" class="btn btn-outline" style="padding: 7px 14px; font-size: 0.8rem; white-space: nowrap;">
+        Change lane
+      </a>
+    </div>
+  </div>
+
+  <!-- Drive folders -->
+  <div class="card">
+    <h2>Your Google Drive folders</h2>
+    <p style="margin-bottom: 20px; color: #555;">
+      Drop recordings into <strong>memnon-inbox</strong>. Notes appear in <strong>memnon-notes</strong> within ~60 seconds.
+    </p>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+
+      <div style="border: 1px solid #e8e6e0; border-radius: 10px; padding: 16px;">
+        <div style="font-size: 1.4rem; margin-bottom: 8px;">📥</div>
+        <div style="font-weight: 600; margin-bottom: 4px;">memnon-inbox</div>
+        <div style="font-size: 0.8rem; color: #888; margin-bottom: 12px;">Drop recordings here</div>
+        {% if inbox_folder_link %}
+          <a href="{{ inbox_folder_link }}" target="_blank" class="btn btn-outline"
+             style="padding: 7px 12px; font-size: 0.8rem;">
+            Open in Drive ↗
+          </a>
+        {% else %}
+          <span class="muted">Created on first use</span>
+        {% endif %}
+      </div>
+
+      <div style="border: 1px solid #e8e6e0; border-radius: 10px; padding: 16px;">
+        <div style="font-size: 1.4rem; margin-bottom: 8px;">📝</div>
+        <div style="font-weight: 600; margin-bottom: 4px;">memnon-notes</div>
+        <div style="font-size: 0.8rem; color: #888; margin-bottom: 12px;">Your processed notes</div>
+        {% if notes_folder_link %}
+          <a href="{{ notes_folder_link }}" target="_blank" class="btn btn-primary"
+             style="padding: 7px 12px; font-size: 0.8rem;">
+            Open in Drive ↗
+          </a>
+        {% else %}
+          <span class="muted">Created on first use</span>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+
+  <!-- iPhone instructions -->
+  <div class="card">
+    <h2>📱 Capture from iPhone</h2>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Record in Voice Memos</div>
+        <div class="step-desc">Your phone screen can lock while recording.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Share the recording</div>
+        <div class="step-desc">
+          Tap the recording → share icon →
+          <strong>Save to Files → Google Drive → memnon-inbox</strong>
+        </div>
+      </div>
+    </div>
+    <div class="step" style="margin-bottom: 0;">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">That's it</div>
+        <div class="step-desc">
+          The note will be in your <strong>memnon-notes</strong> folder within about a minute.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

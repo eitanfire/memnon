@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Setup — Memnon{% endblock %}
+{% block nav_right %}
+  <span>{{ name }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 600px;">
+
+  <div style="margin-bottom: 28px;">
+    <h1>Set up your lane</h1>
+    <p class="muted">Choose how Memnon shapes your notes. You can change this anytime.</p>
+  </div>
+
+  <form method="POST" action="/setup">
+
+    <div class="card">
+      <h2>Choose a lane</h2>
+      <div class="lane-cards">
+        {% for key, lane in lanes.items() %}
+        <label class="lane-card {% if loop.first %}selected{% endif %}" id="card-{{ key }}">
+          <input type="radio" name="lane" value="{{ key }}"
+                 {% if loop.first %}checked{% endif %}
+                 onchange="selectLane('{{ key }}')">
+          <div class="lane-card-icon">{{ lane.icon }}</div>
+          <div class="lane-card-title">{{ lane.label }}</div>
+          <div class="lane-card-desc">{{ lane.description }}</div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Reflect: tradition picker -->
+    <div class="card field-group" id="field-reflect">
+      <label for="tradition">🌿 Grounding tradition</label>
+      <p class="muted" style="margin-bottom: 12px;">
+        Memnon will weave relevant themes from this tradition into your reflection summaries.
+      </p>
+      <select name="tradition" id="tradition">
+        {% for key, lane in lanes.items() %}
+          {% if lane.setup_field == "tradition" %}
+            {% for opt_key, opt_label in lane.setup_options.items() %}
+            <option value="{{ opt_key }}">{{ opt_label }}</option>
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Professional: profession field -->
+    <div class="card field-group visible" id="field-professional">
+      <label for="profession">💼 Your profession or field</label>
+      <p class="muted" style="margin-bottom: 12px;">
+        Memnon will surface best practices and frame action items for your specific work.
+      </p>
+      <input type="text" name="profession" id="profession"
+             placeholder="e.g. high school CS teacher, product manager, nurse practitioner…" />
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="align-self: flex-start;">
+      Save and continue →
+    </button>
+
+  </form>
+
+</div>
+
+<script>
+  function selectLane(key) {
+    // Update card selection
+    document.querySelectorAll('.lane-card').forEach(el => el.classList.remove('selected'));
+    document.getElementById('card-' + key).classList.add('selected');
+
+    // Show/hide fields
+    document.querySelectorAll('.field-group').forEach(el => el.classList.remove('visible'));
+    const field = document.getElementById('field-' + key);
+    if (field) field.classList.add('visible');
+  }
+
+  // Init on page load based on checked radio
+  const checked = document.querySelector('input[name="lane"]:checked');
+  if (checked) selectLane(checked.value);
+</script>
+{% endblock %}
