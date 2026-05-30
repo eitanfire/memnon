@@ -2622,12 +2622,30 @@ def command_setup(args: argparse.Namespace) -> int:  # noqa: ARG001
 
     print()
 
+    # ── iPhone capture method (Lite mode only) ──────────────────────────────
+    capture_method = "manual"
+    if mode == "lite":
+        print("How will you get recordings from your iPhone?\n")
+        print(f"  [1] AirDrop  {YELLOW}(recommended){RESET}")
+        print(f"      Record in Voice Memos → share → AirDrop to this Mac")
+        print(f"      Memnon watches ~/Downloads — files are picked up automatically\n")
+        print(f"  [2] Manual folder")
+        print(f"      Drop audio files into ~/Documents/memnon-inbox/raw yourself")
+        print(f"      Works with USB, iCloud, or any transfer method\n")
+        while True:
+            cap_raw = input("Enter 1 or 2 [1]: ").strip() or "1"
+            if cap_raw in ("1", "2"):
+                capture_method = "airdrop" if cap_raw == "1" else "manual"
+                break
+            print("  Please enter 1 or 2.")
+        print()
+
     # ── Folder setup ────────────────────────────────────────────────────────
     if mode == "lite":
-        base = Path.home() / "Documents" / "memnon-inbox"
-        raw_dir = str(base / "raw")
-        archive_dir = str(base / "processed")
-        failed_dir = str(base / "failed")
+        inbox_base = Path.home() / "Documents" / "memnon-inbox"
+        raw_dir = str(Path.home() / "Downloads") if capture_method == "airdrop" else str(inbox_base / "raw")
+        archive_dir = str(inbox_base / "processed")
+        failed_dir = str(inbox_base / "failed")
     else:
         icloud = Path.home() / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
         if not icloud.exists():
@@ -2639,9 +2657,14 @@ def command_setup(args: argparse.Namespace) -> int:  # noqa: ARG001
         failed_dir = str(base / "failed")
 
     print("Creating folders…")
-    for d in (raw_dir, archive_dir, failed_dir, obsidian_inbox):
+    dirs_to_create = [archive_dir, failed_dir, obsidian_inbox]
+    if raw_dir != str(Path.home() / "Downloads"):
+        dirs_to_create.insert(0, raw_dir)
+    for d in dirs_to_create:
         Path(d).mkdir(parents=True, exist_ok=True)
         ok(d)
+    if raw_dir == str(Path.home() / "Downloads"):
+        ok(f"{raw_dir}  (already exists — watching for audio files)")
     print()
 
     # ── Build config ────────────────────────────────────────────────────────
@@ -2726,11 +2749,20 @@ def command_setup(args: argparse.Namespace) -> int:  # noqa: ARG001
         warn("Full Disk Access required for the background agent:")
         print(f"     System Settings → Privacy & Security → Full Disk Access")
         print(f"     Add: {python_bin}\n")
-        print("  iPhone capture:  install the iOS Shortcut (see README.md)")
+        print("  iPhone capture:")
+        print(f"     Install the iOS Shortcut — link in README.md")
+        print(f"     Or: Voice Memos → share → Save to Files → Voice Inbox/raw\n")
+    elif capture_method == "airdrop":
+        print("  iPhone capture (AirDrop):")
+        print(f"     1. Record in Voice Memos (screen can lock mid-recording)")
+        print(f"     2. Tap the recording → share → AirDrop → your Mac")
+        print(f"     3. That's it — Memnon picks it up from ~/Downloads automatically\n")
+        print(f"  Tip: Pin Voice Memos to your iPhone dock for one-tap access.")
+        print(f"  Tip: iPhone 15 Pro+ — set the Action Button to open Voice Memos.\n")
     else:
-        print("  Drop audio files into:")
-        print(f"     {raw_dir}")
-        print("  Or AirDrop from iPhone and move to that folder.\n")
+        print("  iPhone capture (manual):")
+        print(f"     Move audio files into:")
+        print(f"     {raw_dir}\n")
 
     print("  Validate everything is wired up:")
     print(f"     python3 src/voice_pipeline.py validate --config config.json\n")
