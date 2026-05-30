@@ -2471,38 +2471,73 @@ def command_validate(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _resources_dir() -> Path:
+    """Return the directory containing bundled resources (templates, launchd).
+
+    When running as a PyInstaller .app bundle, resources are extracted to
+    sys._MEIPASS. When running as a plain script, they live two levels up from
+    this file (the project root).
+    """
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parent.parent
+
+
 def _install_launchd(project_root: Path) -> None:
-    """Install the launchd agent, writing the plist with resolved paths."""
-    plist_template = project_root / "launchd" / "com.memnon.voice-pipeline.plist"
-    if not plist_template.exists():
-        print(f"  ⚠️  Plist template not found at {plist_template} — skipping launchd install.")
-        return
+    """Install the launchd agent, writing the plist with resolved paths.
 
-    # Prefer the real Homebrew binary over symlinks for macOS TCC (Full Disk Access)
-    python_bin = sys.executable
-    for candidate in (
-        "/opt/homebrew/bin/python3.13",
-        "/opt/homebrew/bin/python3.12",
-        "/opt/homebrew/bin/python3.11",
-    ):
-        if Path(candidate).exists():
-            python_bin = candidate
-            break
+    When running from a PyInstaller .app bundle, uses the app-specific plist
+    that calls the memnon binary directly instead of python3 voice_pipeline.py.
+    """
+    resources = _resources_dir()
+    is_app_bundle = hasattr(sys, "_MEIPASS")
 
-    plist_content = plist_template.read_text(encoding="utf-8")
-    plist_content = plist_content.replace("__PROJECT_ROOT__", str(project_root))
-    plist_content = plist_content.replace("__PYTHON__", python_bin)
+    if is_app_bundle:
+        # Running as a packaged .app — the memnon binary IS the executable
+        plist_template = resources / "launchd" / "com.memnon.voice-pipeline.app.plist"
+        memnon_bin = sys.executable
+        config_path = project_root / "config.json"
+
+        if not plist_template.exists():
+            print(f"  ⚠️  App plist template not found — skipping launchd install.")
+            return
+
+        plist_content = plist_template.read_text(encoding="utf-8")
+        plist_content = plist_content.replace("__MEMNON_BINARY__", str(memnon_bin))
+        plist_content = plist_content.replace("__CONFIG_PATH__", str(config_path))
+        plist_content = plist_content.replace("__WORKING_DIR__", str(project_root))
+        agent_label = f"  ✓  launchd agent installed ({memnon_bin})"
+    else:
+        # Running as a plain Python script
+        plist_template = resources / "launchd" / "com.memnon.voice-pipeline.plist"
+        if not plist_template.exists():
+            print(f"  ⚠️  Plist template not found at {plist_template} — skipping launchd install.")
+            return
+
+        python_bin = sys.executable
+        for candidate in (
+            "/opt/homebrew/bin/python3.13",
+            "/opt/homebrew/bin/python3.12",
+            "/opt/homebrew/bin/python3.11",
+        ):
+            if Path(candidate).exists():
+                python_bin = candidate
+                break
+
+        plist_content = plist_template.read_text(encoding="utf-8")
+        plist_content = plist_content.replace("__PROJECT_ROOT__", str(project_root))
+        plist_content = plist_content.replace("__PYTHON__", python_bin)
+        agent_label = f"  ✓  launchd agent installed ({python_bin})"
 
     launch_agents = Path.home() / "Library" / "LaunchAgents"
     launch_agents.mkdir(parents=True, exist_ok=True)
     dest = launch_agents / "com.memnon.voice-pipeline.plist"
     dest.write_text(plist_content, encoding="utf-8")
 
-    # Reload
     subprocess.run(["launchctl", "unload", str(dest)], capture_output=True)
     result = subprocess.run(["launchctl", "load", str(dest)], capture_output=True, text=True)
     if result.returncode == 0:
-        print(f"  ✓  launchd agent installed ({python_bin})")
+        print(agent_label)
     else:
         print(f"  ⚠️  launchctl load failed: {result.stderr.strip()}")
         print(f"     Plist written to {dest} — load it manually with:")
@@ -2551,7 +2586,7 @@ def command_setup(args: argparse.Namespace) -> int:  # noqa: ARG001
 
     print(f"\n  → {mode.title()} mode selected.\n")
 
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = _resources_dir()
     username = os.environ.get("USER", os.environ.get("USERNAME", "your-username"))
 
     # ── Full mode: check dependencies early ────────────────────────────────

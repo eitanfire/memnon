@@ -1,6 +1,6 @@
 name: Release
 
-# Triggered by pushing a version tag: git tag v1.0.0 && git push --tags
+# Triggered by pushing a version tag: git tag v1.2.0 && git push --tags
 on:
   push:
     tags:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-macos-dmg:
-    name: Build macOS .dmg
+    name: Build macOS .app + .dmg
     runs-on: macos-latest
     permissions:
       contents: write
@@ -17,65 +17,110 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
       - name: Set version
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Stage app contents
+      - name: Install build dependencies
+        run: |
+          pip install pyinstaller edge-tts
+
+      - name: Build memnon binary
+        run: |
+          pyinstaller \
+            --onefile \
+            --name memnon \
+            --hidden-import edge_tts \
+            --collect-all edge_tts \
+            --add-data "templates:templates" \
+            --add-data "launchd:launchd" \
+            --add-data "config.example.json:." \
+            src/voice_pipeline.py
+
+      - name: Convert logo to .icns
+        run: |
+          ICONSET="build/memnon.iconset"
+          mkdir -p "$ICONSET"
+          for SIZE in 16 32 64 128 256 512; do
+            sips -z $SIZE $SIZE memnon_logo.png --out "$ICONSET/icon_${SIZE}x${SIZE}.png" >/dev/null
+          done
+          sips -z 32  32  memnon_logo.png --out "$ICONSET/icon_16x16@2x.png"  >/dev/null
+          sips -z 64  64  memnon_logo.png --out "$ICONSET/icon_32x32@2x.png"  >/dev/null
+          sips -z 256 256 memnon_logo.png --out "$ICONSET/icon_128x128@2x.png" >/dev/null
+          sips -z 512 512 memnon_logo.png --out "$ICONSET/icon_256x256@2x.png" >/dev/null
+          sips -z 1024 1024 memnon_logo.png --out "$ICONSET/icon_512x512@2x.png" >/dev/null
+          iconutil -c icns "$ICONSET" -o build/AppIcon.icns
+
+      - name: Build Memnon.app bundle
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          STAGE="dist/Memnon-${VERSION}"
-          mkdir -p "$STAGE"
+          APP="dist/Memnon.app"
 
-          # Core app files
-          cp -r src templates launchd README.md config.example.json "$STAGE/"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources"
 
-          # Runtime placeholder so the directory exists
-          mkdir -p "$STAGE/runtime"
-          touch "$STAGE/runtime/.gitkeep"
+          # App icon
+          cp build/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
-          # Setup launcher — double-click to run in Terminal
-          cat > "$STAGE/Setup Memnon.command" << 'SCRIPT'
+          # PyInstaller binary + bundled resources
+          cp dist/memnon "$APP/Contents/Resources/memnon"
+
+          # Info.plist
+          cat > "$APP/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key><string>Memnon</string>
+            <key>CFBundleIconFile</key><string>AppIcon</string>
+            <key>CFBundleIdentifier</key><string>com.eitanfire.memnon</string>
+            <key>CFBundleName</key><string>Memnon</string>
+            <key>CFBundleDisplayName</key><string>Memnon</string>
+            <key>CFBundleVersion</key><string>${VERSION}</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSMinimumSystemVersion</key><string>12.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          EOF
+
+          # Launcher — opens Terminal and runs the setup wizard
+          cat > "$APP/Contents/MacOS/Memnon" << 'LAUNCHER'
           #!/bin/bash
-          # Setup Memnon — double-click this file to run the interactive setup wizard.
-          set -euo pipefail
-          cd "$(dirname "$0")"
+          BINARY="$(dirname "$0")/../Resources/memnon"
+          osascript << APPLESCRIPT
+          tell application "Terminal"
+              activate
+              do script "'$BINARY' setup"
+          end tell
+          APPLESCRIPT
+          LAUNCHER
 
-          echo ""
-          echo "  Memnon ${VERSION} — Setup"
-          echo "  $(python3 --version 2>/dev/null || echo '(checking Python...)')"
-          echo ""
+          chmod +x "$APP/Contents/MacOS/Memnon"
+          chmod +x "$APP/Contents/Resources/memnon"
 
-          # Check Python version
-          if ! python3 --version 2>/dev/null | grep -qE "3\.(1[1-9]|[2-9][0-9])"; then
-            echo "  Python 3.11+ is required."
-            echo "  Install it from https://www.python.org/downloads/"
-            echo "  or via Homebrew: brew install python"
-            echo ""
-            open "https://www.python.org/downloads/"
-            read -rp "  Press Enter to exit..."
-            exit 1
-          fi
+          echo "App bundle contents:"
+          find "$APP" -type f
 
-          exec python3 src/voice_pipeline.py setup
-          SCRIPT
-
-          # Inject version into the launcher
-          sed -i '' "s/\${VERSION}/${VERSION}/g" "$STAGE/Setup Memnon.command"
-          chmod +x "$STAGE/Setup Memnon.command"
-
-          echo "Staged contents:"
-          ls -la "$STAGE/"
-
-      - name: Build .dmg
+      - name: Build .dmg with drag-to-Applications
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          STAGE="dist/Memnon-${VERSION}"
+          DMG_STAGE="dist/dmg-stage"
           DMG="dist/Memnon-${VERSION}-macos.dmg"
+
+          mkdir -p "$DMG_STAGE"
+          cp -r dist/Memnon.app "$DMG_STAGE/"
+          ln -s /Applications "$DMG_STAGE/Applications"
 
           hdiutil create \
             -volname "Memnon ${VERSION}" \
-            -srcfolder "$STAGE" \
+            -srcfolder "$DMG_STAGE" \
             -ov \
             -format UDZO \
             "$DMG"
@@ -91,20 +136,20 @@ jobs:
 
             1. Download `Memnon-${{ steps.version.outputs.VERSION }}-macos.dmg`
             2. Open the disk image
-            3. Double-click **Setup Memnon.command** — Terminal opens and walks you through setup
+            3. Drag **Memnon** to your Applications folder
+            4. Open Memnon — Terminal opens and walks you through setup
 
-            **Requirements:** macOS + Python 3.11+ ([download](https://www.python.org/downloads/))
+            **Requirements:** macOS 12+
             **Optional:** An OpenAI API key for AI summarization ([get one](https://platform.openai.com/api-keys))
 
             ---
 
-            ## What's new
-            See [CHANGELOG](https://github.com/eitanfire/memnon/commits/main) for details.
-
             ## Two setup modes
-            The wizard will ask which mode you want:
-            - **Lite** — transcription via OpenAI Whisper API, watch folder in `~/Documents`. Fastest setup, no extra installs.
-            - **Full** — transcription via whisper.cpp on your Mac. Fully local, requires `brew install whisper-cpp ffmpeg`.
+            - **Lite** — transcription via OpenAI Whisper API, watches `~/Downloads` for AirDropped recordings. No extra installs.
+            - **Full** — transcription via whisper.cpp on your Mac (fully local). Requires `brew install whisper-cpp ffmpeg`.
+
+            ## What's new
+            See [CHANGELOG](https://github.com/eitanfire/memnon/blob/main/CHANGELOG.md) for details.
           files: dist/Memnon-${{ steps.version.outputs.VERSION }}-macos.dmg
           draft: false
           prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}

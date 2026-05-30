@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.memnon.voice-pipeline</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__MEMNON_BINARY__</string>
+    <string>watch</string>
+    <string>--config</string>
+    <string>__CONFIG_PATH__</string>
+    <string>--once</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__WORKING_DIR__</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StartInterval</key>
+  <integer>60</integer>
+
+  <key>StandardOutPath</key>
+  <string>__WORKING_DIR__/launchd.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__WORKING_DIR__/launchd.stderr.log</string>
+</dict>
+</plist>
