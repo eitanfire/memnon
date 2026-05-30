@@ -3,5 +3,9 @@
 # MCP server (src/mcp_server.py):
 fastmcp>=3.0.0
 #
+# Google Drive capture (src/drive_poller.py — optional):
+# google-api-python-client>=2.0.0
+# google-auth-oauthlib>=1.0.0
+#
 # Audio generation (reflect/good-morning lanes — optional):
 # edge-tts>=6.0.0

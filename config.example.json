@@ -56,6 +56,15 @@
     "_example_prompt_template": "You help a CS teacher capture classroom observations.\nReturn strict JSON only — no markdown wrapper.\n{{\n  \"title\": \"short title\",\n  \"summary\": \"2-5 sentences\",\n  \"action_items\": [],\n  \"suggested_tags\": []\n}}\nRules: max {max_tags} tags. No invented facts.\n{lane_block}{preferred_tags_block}Transcript:\n{transcript}\n"
   },
 
+  "_comment_google_drive": "Optional. Alternative capture source — watch a Google Drive folder instead of (or alongside) AirDrop/iCloud. See src/drive_poller.py for setup instructions.",
+  "google_drive": {
+    "enabled": false,
+    "client_secrets_path": "./google_client_secrets.json",
+    "_comment_watch_folder_id": "Copy from the Drive folder URL: drive.google.com/drive/folders/<THIS_PART>",
+    "watch_folder_id": "",
+    "poll_seconds": 60
+  },
+
   "_comment_lanes": "Optional. Define workflow lanes in config.json (not here). Speak the lane name at the start of a recording to route it. See README for the full schema.",
 
   "gpt_handoff": {

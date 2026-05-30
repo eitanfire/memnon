@@ -199,6 +199,45 @@ Tap to record, tap to finish. Saves directly to `Voice Inbox/raw` without openin
 
 > **Limitation:** The screen must stay on during recording. If your phone locks mid-recording, the recording stops.
 
+### Option D — Google Drive (no iCloud required)
+
+Best for educators already in Google Workspace. Recordings land in a Google Drive folder; `drive_poller.py` downloads them automatically into the pipeline — no iCloud, no AirDrop.
+
+**Mac setup (one time, ~5 minutes):**
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com/) → New project → Enable **Google Drive API**
+2. **APIs & Services → Credentials → Create credentials → OAuth client ID → Desktop app** → Download JSON
+3. Save the file as `google_client_secrets.json` next to `config.json`
+4. Add to `config.json`:
+   ```json
+   "google_drive": {
+     "enabled": true,
+     "client_secrets_path": "./google_client_secrets.json",
+     "watch_folder_id": "FOLDER_ID_FROM_DRIVE_URL",
+     "poll_seconds": 60
+   }
+   ```
+5. Authorize once (opens a browser tab):
+   ```bash
+   python3 src/drive_poller.py --config config.json --auth
+   ```
+6. Install the poller as a background agent:
+   ```bash
+   sed -e "s|__PYTHON__|$(which python3)|g" \
+       -e "s|__PROJECT_ROOT__|$(pwd)|g" \
+       -e "s|__CONFIG_PATH__|$(pwd)/config.json|g" \
+       launchd/com.memnon.drive-poller.plist \
+       > ~/Library/LaunchAgents/com.memnon.drive-poller.plist
+   launchctl load ~/Library/LaunchAgents/com.memnon.drive-poller.plist
+   ```
+
+**iPhone capture:**
+Record in Voice Memos → **Share → Save to Files → Google Drive → memnon-inbox**
+
+Or use an iOS Shortcut with the **Save File** action pointed at your Drive folder.
+
+> **Dependencies:** `pip install google-api-python-client google-auth-oauthlib`
+
 ---
 
 ## Full Disk Access (Required for launchd)
