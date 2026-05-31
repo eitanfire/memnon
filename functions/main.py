@@ -24,6 +24,7 @@ import io
 import json
 import os
 import re
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -67,7 +68,12 @@ CORS(flask_app, origins=[
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
+DRIVE_SCOPES = [
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "openid",
+]
 API_BASE = "https://api-4hth6oktaa-uc.a.run.app"
 REDIRECT_URI = f"{API_BASE}/auth/callback"
 FRONTEND_URL = "https://memnon-app.web.app"
@@ -324,41 +330,99 @@ def _sweep_user(uid: str, user_data: dict):
 
 # ── Flask routes ───────────────────────────────────────────────────────────────
 
-@flask_app.route("/auth/drive")
-def auth_drive():
-    """Step 1: redirect user to Google OAuth to grant Drive access."""
-    uid = request.args.get("uid")
-    if not uid:
-        return jsonify({"error": "uid required"}), 400
-    flow = Flow.from_client_secrets_file(
-        _client_secrets_path(), scopes=DRIVE_SCOPES, redirect_uri=REDIRECT_URI
-    )
-    auth_url, _ = flow.authorization_url(
-        access_type="offline", prompt="consent", state=uid,
-    )
-    return redirect(auth_url)
+def _client_config() -> dict:
+    """Return the parsed client secrets dict."""
+    raw = os.environ.get("GOOGLE_CLIENT_SECRETS", "")
+    if not raw:
+        raise RuntimeError("GOOGLE_CLIENT_SECRETS env var not set")
+    return json.loads(raw if raw.strip().startswith("{") else Path(raw).read_text())
+
+
+@flask_app.route("/auth/start")
+def auth_start():
+    """Redirect user to Google — requests profile + Drive in one consent screen."""
+    cfg = _client_config()["web"]
+    params = urllib.parse.urlencode({
+        "client_id": cfg["client_id"],
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": " ".join(DRIVE_SCOPES),
+        "access_type": "offline",
+        "prompt": "consent",
+    })
+    return redirect(f"https://accounts.google.com/o/oauth2/auth?{params}")
 
 
 @flask_app.route("/auth/callback")
 def auth_callback():
-    """Step 2: receive tokens, store in Firestore, redirect to setup page."""
-    uid = request.args.get("state")
-    if not uid:
-        return redirect(f"{FRONTEND_URL}/?error=missing_state")
+    """Receive tokens, create/update Firebase user, mint custom token, redirect."""
     try:
-        flow = Flow.from_client_secrets_file(
-            _client_secrets_path(), scopes=DRIVE_SCOPES, redirect_uri=REDIRECT_URI
+        code = request.args.get("code")
+        if not code:
+            return redirect(f"{FRONTEND_URL}/?error=missing_code")
+
+        # Exchange code for tokens — manual POST avoids PKCE state mismatch
+        cfg = _client_config()["web"]
+        import requests as http_requests
+        token_resp = http_requests.post("https://oauth2.googleapis.com/token", data={
+            "code": code,
+            "client_id": cfg["client_id"],
+            "client_secret": cfg["client_secret"],
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code",
+        }).json()
+
+        if "error" in token_resp:
+            raise RuntimeError(token_resp["error_description"])
+
+        creds = Credentials(
+            token=token_resp.get("access_token"),
+            refresh_token=token_resp.get("refresh_token"),
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=cfg["client_id"],
+            client_secret=cfg["client_secret"],
+            scopes=token_resp.get("scope", "").split(),
         )
-        flow.fetch_token(authorization_response=request.url)
-        creds = flow.credentials
-        _get_db().collection("users").document(uid).set(
-            {"google_drive_token": json.loads(creds.to_json()), "drive_connected": True},
-            merge=True,
-        )
+
+        # Ensure Firebase Admin is initialized before any fb_auth calls
+        _get_db()
+
+        # Get user profile from Google
+        people = build("oauth2", "v2", credentials=creds)
+        info = people.userinfo().get().execute()
+        email = info["email"]
+        name = info.get("name", "")
+        google_id = info["id"]
+
+        # Create or fetch Firebase user
+        try:
+            fb_user = fb_auth.get_user_by_email(email)
+        except fb_auth.UserNotFoundError:
+            fb_user = fb_auth.create_user(
+                email=email,
+                display_name=name,
+                uid=f"google_{google_id}",
+            )
+
+        uid = fb_user.uid
+
+        # Persist Drive tokens + user info
+        _get_db().collection("users").document(uid).set({
+            "email": email,
+            "name": name,
+            "google_drive_token": json.loads(creds.to_json()),
+            "drive_connected": True,
+            "active": True,
+        }, merge=True)
+
+        # Mint a short-lived Firebase custom token for the frontend
+        custom_token = fb_auth.create_custom_token(uid).decode("utf-8")
+
     except Exception as exc:
         print(f"OAuth callback error: {exc}")
         return redirect(f"{FRONTEND_URL}/?error=oauth_failed")
-    return redirect(f"{FRONTEND_URL}/setup?drive_connected=true")
+
+    return redirect(f"{FRONTEND_URL}/?token={custom_token}")
 
 
 @flask_app.route("/setup", methods=["POST"])
