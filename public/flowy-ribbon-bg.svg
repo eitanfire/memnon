@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 420" role="img" aria-label="Flowy ribbon background">
+  <defs>
+    <linearGradient id="ribbonFill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f4dca8"/>
+      <stop offset="48%" stop-color="#e7c882"/>
+      <stop offset="100%" stop-color="#c89f52"/>
+    </linearGradient>
+
+    <linearGradient id="ribbonShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7a5a27" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#3f2c12" stop-opacity="0.28"/>
+    </linearGradient>
+
+    <filter id="softShadow" x="-10%" y="-20%" width="120%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#3b280f" flood-opacity="0.26"/>
+    </filter>
+  </defs>
+
+  <path d="M92 226 L186 120 L200 122 L199 292 L188 300 Z" fill="#8e6c33" opacity="0.9"/>
+
+  <path
+    d="M200 122
+       C 372 44, 598 80, 770 120
+       C 980 168, 1186 176, 1418 130
+       L 1520 106
+       L 1468 204
+       L 1526 300
+       L 1422 282
+       C 1184 238, 996 244, 770 286
+       C 592 320, 370 330, 200 292
+       Z"
+    fill="url(#ribbonFill)"
+    filter="url(#softShadow)"/>
+
+  <path
+    d="M200 292
+       C 368 330, 596 316, 770 286
+       C 998 248, 1186 242, 1424 284
+       L 1526 300
+       L 1468 204
+       L 1520 106
+       L 1418 130
+       C 1188 176, 980 166, 770 120
+       C 598 82, 370 44, 200 122
+       L 200 292 Z"
+    fill="url(#ribbonShade)"/>
+
+  <path d="M76 236 L200 122 L200 292 L68 294 L114 236 Z" fill="#c89f52"/>
+  <path d="M76 236 L114 236 L134 304 L68 294 Z" fill="#8e6c33"/>
+</svg>

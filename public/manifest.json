@@ -1,0 +1,41 @@
+{
+  "name": "Memnon",
+  "short_name": "Memnon",
+  "description": "Build your active schema — voice memos for teachers, enriched by wisdom",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f8f7f4",
+  "theme_color": "#f8f7f4",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/memnon_logo_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "file",
+          "accept": ["audio/*", ".m4a", ".mp3", ".wav", ".webm", ".ogg", ".aac"]
+        }
+      ]
+    }
+  }
+}

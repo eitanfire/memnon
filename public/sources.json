@@ -1,0 +1,720 @@
+{
+  "_note": "Active Schema — curated sources library. Public domain texts use full passages. Modern/living authors use short excerpts (≤50 words, fair use). Tags drive theme-based passage selection at processing time.",
+
+  "traditions": {
+    "stoicism": {
+      "label": "Stoic Philosophy",
+      "description": "Practical wisdom on what we control, how to meet difficulty, and how to act with integrity.",
+      "guides": ["marcus_aurelius", "epictetus", "seneca"]
+    },
+    "buddhism": {
+      "label": "Buddhist Teachings",
+      "description": "Mindfulness, impermanence, compassion, and the art of being present with what is.",
+      "guides": ["thich_nhat_hanh", "dhammapada", "pema_chodron", "shunryu_suzuki"]
+    },
+    "christianity": {
+      "label": "Christian Contemplative",
+      "description": "Contemplative prayer, presence, vocation, and the examined inner life.",
+      "guides": ["thomas_merton", "julian_of_norwich", "meister_eckhart"]
+    },
+    "islam": {
+      "label": "Islamic Wisdom",
+      "description": "Sufi poetry, ethical reflection, and the remembrance of what endures.",
+      "guides": ["rumi", "al_ghazali"]
+    },
+    "judaism": {
+      "label": "Jewish Wisdom",
+      "description": "Ethical reasoning, the examined life, responsibility to others, and the weight of the present moment.",
+      "guides": ["pirkei_avot", "martin_buber", "maimonides"]
+    },
+    "taoism": {
+      "label": "Taoist Philosophy",
+      "description": "Yielding, emptiness, the uses of stillness, and harmony with what is.",
+      "guides": ["lao_tzu", "zhuangzi"]
+    },
+    "secular": {
+      "label": "Secular Humanism",
+      "description": "Meaning, freedom, dignity, and the examined life drawn from philosophy, literature, and psychology.",
+      "guides": ["viktor_frankl", "james_baldwin", "simone_weil", "bell_hooks"]
+    }
+  },
+
+  "guides": {
+
+    "marcus_aurelius": {
+      "label": "Marcus Aurelius",
+      "tradition": "stoicism",
+      "work": "Meditations",
+      "dates": "121–180 CE",
+      "public_domain": true,
+      "bio": "Roman emperor and Stoic philosopher. The Meditations were private notes to himself — never intended for publication.",
+      "passages": [
+        {
+          "id": "ma_2_4",
+          "ref": "Book II, §4",
+          "text": "Confine yourself to the present.",
+          "tags": ["presence", "time", "attention", "overwhelm"]
+        },
+        {
+          "id": "ma_4_3",
+          "ref": "Book IV, §3",
+          "text": "Men seek retreats for themselves — in the country, by the sea, in the hills — and you yourself are particularly prone to this yearning. But this is altogether unphilosophical, when it is possible for you to retreat into yourself whenever you please. No retreat offers someone more quiet and relaxation than that into his own mind.",
+          "tags": ["solitude", "rest", "inner_life", "renewal", "stillness"]
+        },
+        {
+          "id": "ma_5_8",
+          "ref": "Book V, §8",
+          "text": "The impediment to action advances action. What stands in the way becomes the way.",
+          "tags": ["resilience", "difficulty", "obstacles", "reframing", "growth"]
+        },
+        {
+          "id": "ma_6_2",
+          "ref": "Book VI, §2",
+          "text": "Here is the rule to remember in the future: when anything tempts you to feel bitter, the rule is — not 'this is a misfortune,' but 'to bear this worthily is good fortune.'",
+          "tags": ["reframing", "resilience", "acceptance", "difficulty", "equanimity"]
+        },
+        {
+          "id": "ma_8_7",
+          "ref": "Book VIII, §7",
+          "text": "Never esteem anything as of advantage to you that will make you break your word or lose your self-respect.",
+          "tags": ["integrity", "identity", "values", "authenticity"]
+        },
+        {
+          "id": "ma_9_3",
+          "ref": "Book IX, §3",
+          "text": "Waste no more time arguing about what a good person should be. Be one.",
+          "tags": ["action", "integrity", "purpose", "values"]
+        },
+        {
+          "id": "ma_11_18",
+          "ref": "Book XI, §18",
+          "text": "When you wake up in the morning, tell yourself: the people I deal with today will be meddling, ungrateful, arrogant, dishonest, jealous and surly. They are this way because they cannot tell good from evil. But I have seen the beauty of good, and the ugliness of evil, and have recognized that the wrongdoer has a nature related to my own.",
+          "tags": ["relationship", "conflict", "empathy", "frustration", "difficult_people"]
+        }
+      ]
+    },
+
+    "epictetus": {
+      "label": "Epictetus",
+      "tradition": "stoicism",
+      "work": "Enchiridion & Discourses",
+      "dates": "c. 50–135 CE",
+      "public_domain": true,
+      "bio": "Former enslaved person who became one of the most influential Stoic philosophers. His teachings were recorded by his student Arrian.",
+      "passages": [
+        {
+          "id": "ep_ench_1",
+          "ref": "Enchiridion, §1",
+          "text": "Some things are in our control and others not. Things in our control are opinion, pursuit, desire, aversion, and, in a word, whatever are our own actions. Things not in our control are body, reputation, command, and, in one word, whatever are not our own actions.",
+          "tags": ["control", "acceptance", "freedom", "equanimity", "anxiety"]
+        },
+        {
+          "id": "ep_ench_5",
+          "ref": "Enchiridion, §5",
+          "text": "Men are disturbed not by the things which happen, but by the opinions about the things. For example, death is nothing terrible, for if it were, it would have seemed so to Socrates. For the terror consists in our opinion of death.",
+          "tags": ["mindset", "reframing", "equanimity", "fear", "anger"]
+        },
+        {
+          "id": "ep_ench_17",
+          "ref": "Enchiridion, §17",
+          "text": "Remember that you are an actor in a play, the character of which is determined by the author. If short, a short one; if long, a long one. If he wishes you to act the part of a poor man, see that you act it well; and so if the part of a cripple, a ruler, or an ordinary man. For this is your duty, to act well the part that is given to you.",
+          "tags": ["vocation", "purpose", "role", "acceptance", "calling"]
+        },
+        {
+          "id": "ep_disc_1_1",
+          "ref": "Discourses I, §1",
+          "text": "Of all existing things, some are in our power and some are not in our power. In our power are our opinions, impulses, desires, aversions. In a word, whatever is our own doing. Not in our power are our bodies, possessions, reputations, positions of authority. In a word, whatever is not our own doing.",
+          "tags": ["control", "acceptance", "priorities", "focus", "clarity"]
+        }
+      ]
+    },
+
+    "seneca": {
+      "label": "Seneca",
+      "tradition": "stoicism",
+      "work": "Letters to Lucilius & Essays",
+      "dates": "c. 4 BCE–65 CE",
+      "public_domain": true,
+      "bio": "Roman statesman and Stoic philosopher. His letters to Lucilius on how to live are among the most intimate philosophical texts of antiquity.",
+      "passages": [
+        {
+          "id": "sen_let_1",
+          "ref": "Letters, I.1",
+          "text": "Reclaim yourself, and gather and save the time which till lately has been forced from you, or filched away, or has merely slipped from your hands. Make yourself believe the truth of my words — that certain moments are torn from us, that some are gently removed, and that others glide beyond our reach. The most disgraceful kind of loss, however, is that due to carelessness.",
+          "tags": ["time", "attention", "priorities", "urgency", "presence"]
+        },
+        {
+          "id": "sen_let_7",
+          "ref": "Letters, VII.1",
+          "text": "I never bring back home the same character I took abroad with me; something which I had attained is upset, and some of the foes that I had routed return again. What I advise you to do is, not to associate with persons unlike yourself, but with those better than yourself.",
+          "tags": ["influence", "community", "growth", "identity", "discernment"]
+        },
+        {
+          "id": "sen_let_77",
+          "ref": "Letters, LXXVII.12",
+          "text": "It is not that I am brave, but that I know the things which are not worth fearing. Omnia aliena sunt, tempus tantum nostrum est. All things are outside us; time alone is ours.",
+          "tags": ["time", "priorities", "courage", "clarity", "focus"]
+        },
+        {
+          "id": "sen_on_tranq",
+          "ref": "On Tranquility of Mind, §2",
+          "text": "We are all bound to one another. No one can live happily who has regard only for himself and transforms everything into a question of his own utility. You must live for your neighbour, if you would live for yourself.",
+          "tags": ["community", "connection", "purpose", "relationship", "belonging"]
+        }
+      ]
+    },
+
+    "thich_nhat_hanh": {
+      "label": "Thich Nhat Hanh",
+      "tradition": "buddhism",
+      "work": "Various",
+      "dates": "1926–2022",
+      "public_domain": false,
+      "bio": "Vietnamese Buddhist monk, peace activist, and teacher. Pioneer of engaged Buddhism and mindfulness in the West.",
+      "passages": [
+        {
+          "id": "tnh_1",
+          "ref": "The Miracle of Mindfulness",
+          "text": "The present moment is the only moment available to us, and it is the door to all moments.",
+          "tags": ["presence", "mindfulness", "time", "attention"]
+        },
+        {
+          "id": "tnh_2",
+          "ref": "Peace Is Every Step",
+          "text": "Smile, breathe, and go slowly.",
+          "tags": ["rest", "presence", "renewal", "pace", "overwhelm"]
+        },
+        {
+          "id": "tnh_3",
+          "ref": "The Heart of the Buddha's Teaching",
+          "text": "The most precious gift we can offer anyone is our attention.",
+          "tags": ["connection", "presence", "relationship", "care", "listening"]
+        },
+        {
+          "id": "tnh_4",
+          "ref": "Being Peace",
+          "text": "If we are not peaceful, if we are not feeling well in our skin, we cannot demonstrate real peace, and we cannot raise our children well either.",
+          "tags": ["wellbeing", "self_care", "sustainability", "peace", "modeling"]
+        }
+      ]
+    },
+
+    "dhammapada": {
+      "label": "Dhammapada",
+      "tradition": "buddhism",
+      "work": "Dhammapada",
+      "dates": "c. 3rd century BCE",
+      "public_domain": true,
+      "bio": "One of the most beloved texts of Theravada Buddhism — a collection of verses attributed to the Buddha.",
+      "passages": [
+        {
+          "id": "dhp_1_1",
+          "ref": "Chapter 1, Verse 1",
+          "text": "Mind is the forerunner of all actions. All deeds are led by mind, created by mind. If one speaks or acts with a corrupt mind, suffering follows, as the wheel follows the hoof of an ox.",
+          "tags": ["mindset", "intention", "action", "consequence", "attention"]
+        },
+        {
+          "id": "dhp_1_2",
+          "ref": "Chapter 1, Verse 2",
+          "text": "Mind is the forerunner of all actions. All deeds are led by mind, created by mind. If one speaks or acts with a serene mind, happiness follows, as a shadow that never departs.",
+          "tags": ["mindset", "intention", "peace", "equanimity", "wellbeing"]
+        },
+        {
+          "id": "dhp_21",
+          "ref": "Chapter 2, Verse 21",
+          "text": "Heedfulness is the path to the deathless. Heedlessness is the path to death. The heedful do not die; the heedless are as if already dead.",
+          "tags": ["attention", "presence", "vigilance", "purpose", "meaning"]
+        },
+        {
+          "id": "dhp_183",
+          "ref": "Chapter 14, Verse 183",
+          "text": "Not to do evil, to cultivate good, to purify one's mind — this is the teaching of the Buddhas.",
+          "tags": ["integrity", "values", "clarity", "purpose", "simplicity"]
+        }
+      ]
+    },
+
+    "pema_chodron": {
+      "label": "Pema Chödrön",
+      "tradition": "buddhism",
+      "work": "Various",
+      "dates": "1936–",
+      "public_domain": false,
+      "bio": "American Tibetan Buddhist nun and teacher. Known for her accessible teachings on working with difficulty, uncertainty, and compassion.",
+      "passages": [
+        {
+          "id": "pc_1",
+          "ref": "When Things Fall Apart",
+          "text": "Things falling apart is a kind of testing and also a kind of healing.",
+          "tags": ["difficulty", "resilience", "uncertainty", "growth", "healing"]
+        },
+        {
+          "id": "pc_2",
+          "ref": "The Places That Scare You",
+          "text": "The most fundamental aggression to ourselves, the most fundamental harm we can do to ourselves, is to remain ignorant by not having the courage and the respect to look at ourselves honestly and gently.",
+          "tags": ["self_awareness", "honesty", "courage", "self_compassion", "reflection"]
+        },
+        {
+          "id": "pc_3",
+          "ref": "Start Where You Are",
+          "text": "You are the sky. Everything else is just the weather.",
+          "tags": ["equanimity", "identity", "difficulty", "perspective", "stability"]
+        }
+      ]
+    },
+
+    "shunryu_suzuki": {
+      "label": "Shunryu Suzuki",
+      "tradition": "buddhism",
+      "work": "Zen Mind, Beginner's Mind",
+      "dates": "1904–1971",
+      "public_domain": false,
+      "bio": "Japanese Soto Zen monk who helped establish Zen in America. Famous for his teaching on beginner's mind.",
+      "passages": [
+        {
+          "id": "ss_1",
+          "ref": "Zen Mind, Beginner's Mind",
+          "text": "In the beginner's mind there are many possibilities, but in the expert's mind there are few.",
+          "tags": ["growth", "learning", "openness", "curiosity", "humility"]
+        },
+        {
+          "id": "ss_2",
+          "ref": "Zen Mind, Beginner's Mind",
+          "text": "Each of you is perfect the way you are... and you can use a little improvement.",
+          "tags": ["growth", "self_compassion", "acceptance", "improvement", "paradox"]
+        }
+      ]
+    },
+
+    "thomas_merton": {
+      "label": "Thomas Merton",
+      "tradition": "christianity",
+      "work": "Various",
+      "dates": "1915–1968",
+      "public_domain": false,
+      "bio": "Trappist monk, poet, and social activist. One of the most influential spiritual writers of the 20th century.",
+      "passages": [
+        {
+          "id": "tm_1",
+          "ref": "No Man Is an Island",
+          "text": "The biggest human temptation is to settle for too little.",
+          "tags": ["vocation", "courage", "growth", "calling", "purpose"]
+        },
+        {
+          "id": "tm_2",
+          "ref": "Thoughts in Solitude",
+          "text": "To be grateful is to recognize the Love of God in everything He has given us — and He has given us everything.",
+          "tags": ["gratitude", "presence", "wonder", "meaning"]
+        },
+        {
+          "id": "tm_3",
+          "ref": "New Seeds of Contemplation",
+          "text": "There is in all visible things an invisible fecundity, a dimmed light, a meek namelessness, a hidden wholeness.",
+          "tags": ["wonder", "presence", "depth", "meaning", "attention"]
+        }
+      ]
+    },
+
+    "julian_of_norwich": {
+      "label": "Julian of Norwich",
+      "tradition": "christianity",
+      "work": "Revelations of Divine Love",
+      "dates": "c. 1342–1416",
+      "public_domain": true,
+      "bio": "English anchoress and mystic. Author of the first book written in English by a woman. Her central vision: 'All shall be well.'",
+      "passages": [
+        {
+          "id": "jon_1",
+          "ref": "Revelations of Divine Love, Ch. 27",
+          "text": "All shall be well, and all shall be well, and all manner of thing shall be well.",
+          "tags": ["hope", "acceptance", "trust", "difficulty", "comfort"]
+        },
+        {
+          "id": "jon_2",
+          "ref": "Revelations of Divine Love, Ch. 5",
+          "text": "He said not 'Thou shalt not be tempested, thou shalt not be travailed, thou shalt not be afflicted'; but He said: 'Thou shalt not be overcome.'",
+          "tags": ["resilience", "difficulty", "hope", "strength", "perseverance"]
+        },
+        {
+          "id": "jon_3",
+          "ref": "Revelations of Divine Love, Ch. 6",
+          "text": "Love was His meaning. Who shewed it thee? Love. What shewed He thee? Love. Wherefore was it shewed? For Love.",
+          "tags": ["love", "meaning", "foundation", "purpose"]
+        }
+      ]
+    },
+
+    "meister_eckhart": {
+      "label": "Meister Eckhart",
+      "tradition": "christianity",
+      "work": "Sermons & Treatises",
+      "dates": "c. 1260–1328",
+      "public_domain": true,
+      "bio": "German Dominican mystic and theologian. Known for teachings on the interior life and the union of the soul with the divine ground.",
+      "passages": [
+        {
+          "id": "me_1",
+          "ref": "Sermon 52",
+          "text": "The most important hour is always the present. The most significant person is precisely the one sitting across from you right now. The most necessary work is always love.",
+          "tags": ["presence", "relationship", "love", "attention", "vocation"]
+        },
+        {
+          "id": "me_2",
+          "ref": "The Book of Divine Comfort",
+          "text": "Only the hand that erases can write the true thing.",
+          "tags": ["growth", "change", "letting_go", "renewal", "learning"]
+        }
+      ]
+    },
+
+    "rumi": {
+      "label": "Rumi",
+      "tradition": "islam",
+      "work": "Masnavi & Divan-i-Shams",
+      "dates": "1207–1273",
+      "public_domain": true,
+      "bio": "13th-century Persian Sufi mystic and poet. His poetry explores love, longing, loss, and the return to one's source.",
+      "passages": [
+        {
+          "id": "rumi_1",
+          "ref": "Masnavi, Book I (opening)",
+          "text": "Listen to the reed, how it tells a tale, complaining of separations: 'Ever since I was parted from the reed-bed, man and woman have moaned in my lament.'",
+          "tags": ["longing", "purpose", "calling", "belonging", "meaning"]
+        },
+        {
+          "id": "rumi_2",
+          "ref": "Masnavi, Book I",
+          "text": "The wound is the place where the Light enters you.",
+          "tags": ["difficulty", "growth", "resilience", "healing", "meaning"]
+        },
+        {
+          "id": "rumi_3",
+          "ref": "Divan-i-Shams",
+          "text": "Out beyond ideas of wrongdoing and rightdoing, there is a field. I'll meet you there. When the soul lies down in that grass, the world is too full to talk about.",
+          "tags": ["connection", "peace", "beyond_conflict", "belonging", "rest"]
+        },
+        {
+          "id": "rumi_4",
+          "ref": "Masnavi, Book I",
+          "text": "Yesterday I was clever, so I wanted to change the world. Today I am wise, so I am changing myself.",
+          "tags": ["growth", "wisdom", "change", "humility", "self_awareness"]
+        },
+        {
+          "id": "rumi_5",
+          "ref": "Masnavi, Book II",
+          "text": "This human being is a guest house. Every morning a new arrival — a joy, a depression, a meanness — some momentary awareness comes as an unexpected visitor. Welcome and entertain them all.",
+          "tags": ["acceptance", "emotion", "equanimity", "resilience", "openness"]
+        }
+      ]
+    },
+
+    "al_ghazali": {
+      "label": "Al-Ghazali",
+      "tradition": "islam",
+      "work": "Ihya Ulum al-Din (Revival of Religious Sciences)",
+      "dates": "1058–1111",
+      "public_domain": true,
+      "bio": "Persian philosopher, theologian, and Sufi mystic. One of the most influential thinkers in Islamic history.",
+      "passages": [
+        {
+          "id": "ag_1",
+          "ref": "Ihya, Book of Knowledge",
+          "text": "Knowledge without action is vanity, and action without knowledge is insanity.",
+          "tags": ["action", "wisdom", "purpose", "integrity", "learning"]
+        },
+        {
+          "id": "ag_2",
+          "ref": "Ihya, Book on the Wonders of the Heart",
+          "text": "The heart is the king of the body and all the organs are its subjects. When the king is good, the subjects are good. When the king is corrupt, the subjects are corrupt.",
+          "tags": ["inner_life", "integrity", "attention", "character", "leadership"]
+        },
+        {
+          "id": "ag_3",
+          "ref": "Alchemy of Happiness",
+          "text": "He who knows himself knows his Lord.",
+          "tags": ["self_awareness", "reflection", "identity", "depth", "wisdom"]
+        }
+      ]
+    },
+
+    "pirkei_avot": {
+      "label": "Pirkei Avot",
+      "tradition": "judaism",
+      "work": "Pirkei Avot (Ethics of the Fathers)",
+      "dates": "c. 3rd century CE",
+      "public_domain": true,
+      "bio": "A tractate of the Mishnah containing ethical maxims of the Rabbis from the 3rd century BCE to the 3rd century CE.",
+      "passages": [
+        {
+          "id": "pa_1_14",
+          "ref": "1:14 (Hillel)",
+          "text": "If I am not for myself, who will be for me? But if I am only for myself, what am I? And if not now, when?",
+          "tags": ["self_care", "responsibility", "community", "urgency", "action"]
+        },
+        {
+          "id": "pa_2_4",
+          "ref": "2:4 (Hillel)",
+          "text": "Do not judge your fellow until you have reached his place.",
+          "tags": ["empathy", "judgment", "understanding", "humility", "relationship"]
+        },
+        {
+          "id": "pa_2_21",
+          "ref": "2:21 (Rabbi Tarfon)",
+          "text": "It is not your duty to finish the work, but neither are you at liberty to neglect it.",
+          "tags": ["purpose", "sustainability", "responsibility", "overwhelm", "vocation"]
+        },
+        {
+          "id": "pa_4_1",
+          "ref": "4:1 (Ben Zoma)",
+          "text": "Who is wise? One who learns from every person. Who is mighty? One who subdues their evil inclination. Who is rich? One who is satisfied with their portion. Who is honored? One who honors others.",
+          "tags": ["wisdom", "growth", "gratitude", "humility", "relationship"]
+        }
+      ]
+    },
+
+    "martin_buber": {
+      "label": "Martin Buber",
+      "tradition": "judaism",
+      "work": "I and Thou & Tales of the Hasidim",
+      "dates": "1878–1965",
+      "public_domain": false,
+      "bio": "Austrian-Israeli philosopher known for his philosophy of dialogue and the I–Thou relationship.",
+      "passages": [
+        {
+          "id": "mb_1",
+          "ref": "I and Thou",
+          "text": "All real living is meeting.",
+          "tags": ["relationship", "connection", "presence", "community", "encounter"]
+        },
+        {
+          "id": "mb_2",
+          "ref": "I and Thou",
+          "text": "The primary word I-Thou can only be spoken with the whole being. The concentration and fusion into the whole being can never take place through my agency, nor can it ever take place without me.",
+          "tags": ["presence", "relationship", "wholeness", "attention", "connection"]
+        }
+      ]
+    },
+
+    "maimonides": {
+      "label": "Maimonides",
+      "tradition": "judaism",
+      "work": "Mishneh Torah & Guide for the Perplexed",
+      "dates": "1138–1204",
+      "public_domain": true,
+      "bio": "Medieval Sephardic Jewish philosopher and Torah scholar. His synthesis of Aristotelian philosophy and Jewish law shaped centuries of thought.",
+      "passages": [
+        {
+          "id": "mai_1",
+          "ref": "Mishneh Torah, Laws of Character Development",
+          "text": "A person should always see himself as equally balanced between merit and guilt, and the world as equally balanced between merit and guilt. If he performs one mitzvah, he tips his balance and that of the entire world to the side of merit.",
+          "tags": ["responsibility", "action", "consequence", "purpose", "ethics"]
+        },
+        {
+          "id": "mai_2",
+          "ref": "Guide for the Perplexed, III:51",
+          "text": "The highest form of wisdom is knowing the limits of one's knowledge.",
+          "tags": ["humility", "wisdom", "honesty", "self_awareness", "learning"]
+        }
+      ]
+    },
+
+    "lao_tzu": {
+      "label": "Lao Tzu",
+      "tradition": "taoism",
+      "work": "Tao Te Ching",
+      "dates": "c. 6th century BCE",
+      "public_domain": true,
+      "bio": "Legendary figure and reputed author of the Tao Te Ching, the foundational text of Taoism.",
+      "passages": [
+        {
+          "id": "lt_8",
+          "ref": "Tao Te Ching, Chapter 8",
+          "text": "The highest good is like water. Water gives life to ten thousand things and does not strive. It flows in places people reject and so is like the Tao.",
+          "tags": ["resilience", "humility", "persistence", "acceptance", "flow"]
+        },
+        {
+          "id": "lt_16",
+          "ref": "Tao Te Ching, Chapter 16",
+          "text": "Empty yourself of everything. Let the mind rest at peace. The ten thousand things rise and fall while the Self watches their return. They grow and flourish and then return to the source. Returning to the source is stillness, which is the way of nature.",
+          "tags": ["rest", "renewal", "stillness", "perspective", "peace"]
+        },
+        {
+          "id": "lt_22",
+          "ref": "Tao Te Ching, Chapter 22",
+          "text": "Yield and overcome. Bend and be straight. Empty and be full. Wear out and be new. Have little and gain. Have much and be confused.",
+          "tags": ["acceptance", "letting_go", "paradox", "strength", "flexibility"]
+        },
+        {
+          "id": "lt_33",
+          "ref": "Tao Te Ching, Chapter 33",
+          "text": "Knowing others is intelligence. Knowing yourself is true wisdom. Mastering others is strength. Mastering yourself is true power.",
+          "tags": ["self_awareness", "wisdom", "identity", "reflection", "leadership"]
+        },
+        {
+          "id": "lt_64",
+          "ref": "Tao Te Ching, Chapter 64",
+          "text": "A journey of a thousand miles begins with a single step.",
+          "tags": ["action", "process", "patience", "beginning", "growth"]
+        }
+      ]
+    },
+
+    "zhuangzi": {
+      "label": "Zhuangzi",
+      "tradition": "taoism",
+      "work": "Zhuangzi",
+      "dates": "c. 369–286 BCE",
+      "public_domain": true,
+      "bio": "Taoist philosopher whose writings are marked by humor, paradox, and a radical questioning of fixed perspectives.",
+      "passages": [
+        {
+          "id": "zhz_1",
+          "ref": "Chapter 2 — Discussion on Making All Things Equal",
+          "text": "Once upon a time, I, Chuang Tzu, dreamt I was a butterfly, fluttering hither and thither, to all intents and purposes a butterfly. I was conscious only of my happiness as a butterfly, unaware that I was Chuang Tzu. Soon I awaked, and there lay Chuang Tzu on my couch. Now I do not know whether I was then a man dreaming I was a butterfly, or whether I am now a butterfly dreaming I am a man.",
+          "tags": ["perspective", "identity", "wonder", "uncertainty", "paradox"]
+        },
+        {
+          "id": "zhz_2",
+          "ref": "Chapter 11 — Let It Be, Leave It Alone",
+          "text": "To know what you can do nothing about, and to be content with it as fate — only a person of virtue can do that.",
+          "tags": ["acceptance", "equanimity", "control", "peace", "wisdom"]
+        },
+        {
+          "id": "zhz_3",
+          "ref": "Chapter 4 — In the Human World",
+          "text": "Be careful, be on your guard, and do not simply follow your own judgment. The mean is the sure guide: that is the pivot on which everything turns.",
+          "tags": ["discernment", "caution", "wisdom", "balance", "relationship"]
+        }
+      ]
+    },
+
+    "viktor_frankl": {
+      "label": "Viktor Frankl",
+      "tradition": "secular",
+      "work": "Man's Search for Meaning",
+      "dates": "1905–1997",
+      "public_domain": false,
+      "bio": "Austrian neurologist, psychiatrist, and Holocaust survivor. Founder of logotherapy — the search for meaning as the primary human drive.",
+      "passages": [
+        {
+          "id": "vf_1",
+          "ref": "Man's Search for Meaning",
+          "text": "Between stimulus and response there is a space. In that space is our power to choose our response. In our response lies our growth and our freedom.",
+          "tags": ["freedom", "choice", "response", "mindset", "resilience"]
+        },
+        {
+          "id": "vf_2",
+          "ref": "Man's Search for Meaning",
+          "text": "Those who have a 'why' to live, can bear with almost any 'how.'",
+          "tags": ["meaning", "purpose", "resilience", "difficulty", "vocation"]
+        },
+        {
+          "id": "vf_3",
+          "ref": "Man's Search for Meaning",
+          "text": "Everything can be taken from a man but one thing: the last of the human freedoms — to choose one's attitude in any given set of circumstances.",
+          "tags": ["freedom", "choice", "attitude", "resilience", "dignity"]
+        },
+        {
+          "id": "vf_4",
+          "ref": "Man's Search for Meaning",
+          "text": "What is to give light must endure burning.",
+          "tags": ["vocation", "difficulty", "purpose", "sacrifice", "calling"]
+        }
+      ]
+    },
+
+    "james_baldwin": {
+      "label": "James Baldwin",
+      "tradition": "secular",
+      "work": "Various Essays",
+      "dates": "1924–1987",
+      "public_domain": false,
+      "bio": "American novelist, playwright, and activist. His essays on race, love, and identity are among the most important of the 20th century.",
+      "passages": [
+        {
+          "id": "jb_1",
+          "ref": "The Fire Next Time",
+          "text": "Not everything that is faced can be changed, but nothing can be changed until it is faced.",
+          "tags": ["honesty", "courage", "change", "truth", "justice"]
+        },
+        {
+          "id": "jb_2",
+          "ref": "A Talk to Teachers (1963)",
+          "text": "The purpose of education, finally, is to create in a person the ability to look at the world for himself, to make his own decisions.",
+          "tags": ["teaching", "vocation", "purpose", "autonomy", "education"]
+        },
+        {
+          "id": "jb_3",
+          "ref": "Notes of a Native Son",
+          "text": "I imagine one of the reasons people cling to their hates so stubbornly is because they sense, once hate is gone, they will be forced to deal with pain.",
+          "tags": ["anger", "honesty", "emotion", "courage", "self_awareness"]
+        }
+      ]
+    },
+
+    "simone_weil": {
+      "label": "Simone Weil",
+      "tradition": "secular",
+      "work": "Various",
+      "dates": "1909–1943",
+      "public_domain": true,
+      "bio": "French philosopher, mystic, and political activist. Known for her radical commitment to truth, justice, and attention as a spiritual practice.",
+      "passages": [
+        {
+          "id": "sw_1",
+          "ref": "Waiting for God",
+          "text": "Attention is the rarest and purest form of generosity.",
+          "tags": ["attention", "presence", "relationship", "generosity", "teaching"]
+        },
+        {
+          "id": "sw_2",
+          "ref": "Waiting for God",
+          "text": "The capacity to give one's attention to a sufferer is a very rare and difficult thing; it is almost a miracle; it is a miracle. Nearly all those who think they have this capacity do not possess it.",
+          "tags": ["attention", "empathy", "care", "presence", "listening"]
+        },
+        {
+          "id": "sw_3",
+          "ref": "Gravity and Grace",
+          "text": "Attention is the form of prayer.",
+          "tags": ["attention", "presence", "practice", "stillness", "meaning"]
+        },
+        {
+          "id": "sw_4",
+          "ref": "The Need for Roots",
+          "text": "To be rooted is perhaps the most important and least recognized need of the human soul.",
+          "tags": ["belonging", "community", "identity", "stability", "meaning"]
+        }
+      ]
+    },
+
+    "bell_hooks": {
+      "label": "bell hooks",
+      "tradition": "secular",
+      "work": "Various",
+      "dates": "1952–2021",
+      "public_domain": false,
+      "bio": "American author, professor, feminist, and social activist. Her work centered love, education, and the intersections of race, gender, and class.",
+      "passages": [
+        {
+          "id": "bh_1",
+          "ref": "Teaching to Transgress",
+          "text": "The classroom remains the most radical space of possibility in the academy.",
+          "tags": ["teaching", "vocation", "purpose", "possibility", "education"]
+        },
+        {
+          "id": "bh_2",
+          "ref": "All About Love",
+          "text": "To begin by always thinking of love as an action rather than a feeling is one way in which anyone using the word in this manner automatically assumes accountability and responsibility.",
+          "tags": ["love", "action", "responsibility", "relationship", "practice"]
+        },
+        {
+          "id": "bh_3",
+          "ref": "Teaching Community",
+          "text": "Caring for myself is not self-indulgence, it is self-preservation, and that is an act of political warfare.",
+          "tags": ["self_care", "sustainability", "wellbeing", "justice", "resilience"]
+        }
+      ]
+    }
+
+  }
+}

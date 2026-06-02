@@ -5,6 +5,83 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Setup — Memnon</title>
   <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <style>
+    /* ── Grade chips ── */
+    .grade-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .grade-chip {
+      padding: 5px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 500;
+      border: 1px solid #ddd; background: #fff; cursor: pointer;
+      transition: all 0.15s; user-select: none;
+    }
+    .grade-chip.selected { background: #eff6ff; border-color: #2563eb; color: #2563eb; font-weight: 600; }
+
+    /* ── School search autocomplete ── */
+    .school-search-wrap { position: relative; }
+    .school-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: #fff; border: 1px solid #ddd; border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      z-index: 100; max-height: 280px; overflow-y: auto;
+    }
+    .school-option {
+      padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6;
+      transition: background 0.1s;
+    }
+    .school-option:last-child { border-bottom: none; }
+    .school-option:hover { background: #eff6ff; }
+    .school-name { font-weight: 600; font-size: 0.9rem; color: #1a1a1a; }
+    .school-meta { font-size: 0.78rem; color: #888; margin-top: 2px; }
+    .school-searching { padding: 12px 14px; color: #888; font-size: 0.85rem; }
+
+    /* ── Inferred badges ── */
+    .inferred-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;
+      border-radius: 6px; padding: 4px 12px; font-size: 0.8rem; font-weight: 500;
+      margin: 4px 4px 4px 0;
+    }
+    .school-confirmed {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: 8px; padding: 12px 14px; margin-top: 8px;
+      font-size: 0.85rem;
+    }
+    .school-confirmed-name { font-weight: 600; color: #15803d; }
+    .school-confirmed-meta { color: #555; font-size: 0.8rem; margin-top: 2px; }
+    .school-clear { margin-left:auto; background:none; border:none; cursor:pointer; color:#888; font-size:0.8rem; padding:0; }
+    .school-clear:hover { color: #dc2626; }
+
+    /* ── Voices UI ── */
+    .tradition-pill {
+      padding: 4px 14px; border-radius: 999px; font-size: 0.8rem; font-weight: 500;
+      border: 1px solid #ddd; background: #fff; cursor: pointer;
+      transition: all 0.15s; user-select: none;
+    }
+    .tradition-pill.active { background: #eff6ff; border-color: #2563eb; color: #2563eb; font-weight: 600; }
+
+    .voice-chip {
+      display: inline-flex; flex-direction: column;
+      padding: 8px 14px; border-radius: 8px; font-size: 0.82rem;
+      border: 1px solid #ddd; background: #fff; cursor: pointer;
+      transition: all 0.15s; user-select: none; max-width: 180px;
+    }
+    .voice-chip:hover { border-color: #2563eb; background: #f8faff; }
+    .voice-chip.selected { background: #eff6ff; border-color: #2563eb; }
+    .voice-chip .vc-name { font-weight: 600; color: #1a1a1a; }
+    .voice-chip .vc-work { font-size: 0.72rem; color: #888; margin-top: 2px; }
+    .voice-chip.selected .vc-name { color: #2563eb; }
+
+    /* .passage-editor — customize passages feature commented out
+    .passage-editor {
+      margin-top: 12px; padding: 12px 14px;
+      border: 1px solid #e8e6e0; border-radius: 8px; background: #fafafa;
+    }
+    .passage-editor label { font-size: 0.8rem; font-weight: 600; color: #444; margin-bottom:6px; }
+    .passage-editor .passage-ref { font-size: 0.72rem; color: #888; margin-bottom:6px; }
+    .passage-editor textarea { font-size: 0.82rem; min-height: 80px; resize: vertical; }
+    */
+  </style>
 </head>
 <body>
   <nav>
@@ -16,66 +93,540 @@
 
   <div class="container" style="max-width:600px;">
 
-    <!-- Choose lane (Drive is already connected via sign-in OAuth) -->
-    <div id="step-lane">
-      <div style="margin-bottom:28px;">
-        <h1>Choose your lane</h1>
-        <p class="muted">This shapes how Memnon summarizes your recordings. You can change it anytime.</p>
+    <div style="margin-bottom:28px;">
+      <h1>Set up your lanes</h1>
+      <p class="muted">This shapes how Memnon processes your recordings. You can change it anytime in settings.</p>
+    </div>
+
+    <!-- ── PROFESSIONAL LANE (Teacher) ── -->
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:1.4rem;">💼</span>
+        <h2 style="margin:0;">Professional lane</h2>
       </div>
+      <p class="muted" style="margin-bottom:20px;">
+        Your voice notes will be processed through the lens of evidence-based teaching practice,
+        relevant standards, and the realities of your classroom.
+      </p>
 
-      <div class="card">
-        <h2>Pick a lane</h2>
-        <div class="lane-cards">
-
-          <label class="lane-card selected" id="card-professional">
-            <input type="radio" name="lane" value="professional" checked />
-            <div class="lane-card-icon">💼</div>
-            <div class="lane-card-title">Professional</div>
-            <div class="lane-card-desc">Work notes enriched with best practices for your field.</div>
-          </label>
-
-          <label class="lane-card" id="card-reflect">
-            <input type="radio" name="lane" value="reflect" />
-            <div class="lane-card-icon">🌿</div>
-            <div class="lane-card-title">Reflect</div>
-            <div class="lane-card-desc">Personal reflections grounded in a tradition you choose.</div>
-          </label>
-
+      <!-- School search -->
+      <div style="margin-bottom:20px;">
+        <label>Where do you teach?</label>
+        <p class="muted" style="font-size:0.8rem; margin-bottom:8px;">
+          Search your school — we'll automatically set your state, grade band, and relevant standards.
+        </p>
+        <div class="school-search-wrap" id="school-search-wrap">
+          <input type="text" id="school-search"
+                 placeholder="Start typing your school name…"
+                 autocomplete="off" />
+          <div class="school-dropdown" id="school-dropdown" style="display:none;"></div>
+        </div>
+        <!-- Confirmed school banner -->
+        <div id="school-confirmed" style="display:none;"></div>
+        <!-- Manual fallback — hidden until user engages search -->
+        <div style="margin-top:8px;" id="manual-toggle-wrap" style="display:none;">
+          <button type="button" id="manual-toggle" class="btn btn-outline" style="padding:5px 12px; font-size:0.78rem;">
+            Can't find your school? Enter manually
+          </button>
+        </div>
+        <div id="manual-fields" style="display:none; margin-top:12px;">
+          <label for="school-state-manual" style="font-size:0.8rem;">State</label>
+          <select id="school-state-manual" style="margin-bottom:0;">
+            <option value="">— Select state —</option>
+          </select>
         </div>
       </div>
 
-      <!-- Professional field -->
-      <div class="card" id="field-professional">
-        <label for="profession">Your profession or field</label>
-        <p class="muted" style="margin-bottom:12px;">
-          Memnon frames action items and best practices around your specific work.
-        </p>
-        <input type="text" id="profession"
-               placeholder="e.g. high school CS teacher, product manager, nurse…" />
+      <!-- Standards preview (auto-populated) -->
+      <div id="standards-section" style="display:none; margin-bottom:20px;">
+        <div class="muted" style="font-size:0.78rem; margin-bottom:6px;">Standards we'll reference:</div>
+        <div id="standards-chips"></div>
       </div>
 
-      <!-- Reflect field -->
-      <div class="card" id="field-reflect" style="display:none;">
-        <label for="tradition">Grounding tradition</label>
-        <p class="muted" style="margin-bottom:12px;">
-          Memnon weaves relevant themes from this tradition into your summaries.
-        </p>
-        <select id="tradition">
-          <option value="stoicism">Stoic philosophy (Marcus Aurelius, Epictetus, Seneca)</option>
-          <option value="buddhism">Buddhist teachings (mindfulness, the Eightfold Path)</option>
-          <option value="christianity">Christian scripture and contemplative tradition</option>
-          <option value="islam">Islamic wisdom (Quran, Hadith, Sufi teachings)</option>
-          <option value="taoism">Taoist philosophy (Tao Te Ching, wu wei)</option>
-          <option value="judaism">Jewish wisdom (Torah, Talmud, Mussar tradition)</option>
-          <option value="secular" selected>Secular humanism and psychology</option>
-          <option value="other">My own personal framework</option>
-        </select>
+      <!-- Subjects -->
+      <div style="margin-bottom:20px;">
+        <label for="subjects">What subject(s) do you teach?</label>
+        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">e.g. Algebra, 9th Grade English, AP Biology, Elementary Art</p>
+        <input type="text" id="subjects"
+               placeholder="e.g. Middle school science, AP Computer Science" />
       </div>
 
-      <button id="save-btn" class="btn btn-primary">Save and continue →</button>
+      <!-- Grade levels -->
+      <div>
+        <label>What grade levels do you teach?</label>
+        <p class="muted" style="font-size:0.8rem; margin-bottom:8px;">
+          Select all that apply. Auto-suggested from your school — adjust as needed.
+        </p>
+        <div class="grade-chips" id="grade-chips"></div>
+      </div>
     </div>
 
+    <!-- ── REFLECT LANE — Voices ── -->
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:1.4rem;">🌿</span>
+        <h2 style="margin:0;">Reflect lane</h2>
+      </div>
+      <p class="muted" style="margin-bottom:20px;">
+        Choose the voices you want in conversation with your reflections.
+        Memnon selects relevant passages from their work to ground your notes in real wisdom.
+      </p>
+
+      <!-- Tradition filter pills -->
+      <div style="margin-bottom:14px;">
+        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Browse by tradition</div>
+        <div id="tradition-filters" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      </div>
+
+      <!-- Voice chips -->
+      <div style="margin-bottom:6px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <label style="margin-bottom:4px;">Your voices <span class="muted" style="font-size:0.78rem;">(select up to 5)</span></label>
+          <span id="voice-count" class="muted" style="font-size:0.78rem;">0 selected</span>
+        </div>
+        <div id="voice-chips" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;"></div>
+      </div>
+
+      <!-- Customize passages feature commented out
+      <div style="margin-top:16px;">
+        <button type="button" id="customize-toggle"
+                style="background:none; border:none; cursor:pointer; font-size:0.8rem; color:#888; padding:0; display:flex; align-items:center; gap:4px;">
+          ▶ Customize passages <span class="muted">(advanced)</span>
+        </button>
+        <div id="customize-panel" style="display:none; margin-top:12px;"></div>
+      </div>
+      -->
+    </div>
+
+    <button id="save-btn" class="btn btn-primary" style="width:100%; justify-content:center; font-size:1rem; padding:14px;">
+      Save and go to dashboard →
+    </button>
+
   </div>
+
+  <script>
+    // ══════════════════════════════════════════════════════════
+    // NCES API — ported from Teach League (ncesAPI.js)
+    // ══════════════════════════════════════════════════════════
+    const NCES_SCHOOLS_API = 'https://nces.ed.gov/opengis/rest/services/K12_School_Locations/EDGE_ADMINDATA_PUBLICSCH_2223/MapServer/1';
+
+    const STATE_FIPS_MAP = {
+      '01':'AL','02':'AK','04':'AZ','05':'AR','06':'CA','08':'CO','09':'CT',
+      '10':'DE','11':'DC','12':'FL','13':'GA','15':'HI','16':'ID','17':'IL',
+      '18':'IN','19':'IA','20':'KS','21':'KY','22':'LA','23':'ME','24':'MD',
+      '25':'MA','26':'MI','27':'MN','28':'MS','29':'MO','30':'MT','31':'NE',
+      '32':'NV','33':'NH','34':'NJ','35':'NM','36':'NY','37':'NC','38':'ND',
+      '39':'OH','40':'OK','41':'OR','42':'PA','44':'RI','45':'SC','46':'SD',
+      '47':'TN','48':'TX','49':'UT','50':'VT','51':'VA','53':'WA','54':'WV',
+      '55':'WI','56':'WY'
+    };
+
+    // Full state → standards mapping (from Teach League)
+    const STATE_STANDARDS_MAP = {
+      'TX': [{ value:'TEKS', label:'Texas Essential Knowledge and Skills (TEKS)' }],
+      'VA': [{ value:'VA-SOL', label:'Virginia Standards of Learning (SOL)' }],
+      'AK': [{ value:'AK-STD', label:'Alaska Content Standards' }],
+      'NE': [{ value:'NE-CCRS', label:'Nebraska College and Career Ready Standards' }],
+      'OK': [{ value:'OK-OAS', label:'Oklahoma Academic Standards' }],
+      'IN': [{ value:'IN-AS', label:'Indiana Academic Standards' }],
+      'SC': [{ value:'SC-CCR', label:'South Carolina College and Career Ready Standards' }],
+      'FL': [{ value:'FL-BEST', label:'Florida B.E.S.T. Standards' }],
+      'NY': [{ value:'NYSLS', label:'New York Next Generation Learning Standards' }],
+      'AZ': [{ value:'AZ-STD', label:'Arizona Academic Standards' }],
+      'MO': [{ value:'MO-LS', label:'Missouri Learning Standards' }],
+      'TN': [{ value:'TN-AS', label:'Tennessee Academic Standards' }],
+      'NC': [{ value:'NC-SCS', label:'North Carolina Standard Course of Study' }],
+      'GA': [{ value:'GA-SOE', label:'Georgia Standards of Excellence' }],
+      'MS': [{ value:'MS-CCR', label:'Mississippi College and Career Ready Standards' }],
+      'LA': [{ value:'LA-SS', label:'Louisiana Student Standards' }],
+      'AR': [{ value:'AR-STD', label:'Arkansas Academic Standards' }],
+      'CA': [{ value:'CA-CCSS', label:'California Common Core State Standards' }],
+      'MA': [{ value:'MA-CF', label:'Massachusetts Curriculum Frameworks' }],
+      'MN': [{ value:'MN-AS', label:'Minnesota Academic Standards' }],
+    };
+
+    const NON_CCSS_STATES = new Set(['TX','VA','AK','NE','OK','IN','SC','FL','MN']);
+
+    function getRecommendedStandards(stateAbbr) {
+      const stateSpecific = STATE_STANDARDS_MAP[stateAbbr] || [];
+      const result = stateSpecific.map(s => s.label);
+      if (!NON_CCSS_STATES.has(stateAbbr)) result.push('Common Core State Standards (CCSS)');
+      result.push('Next Generation Science Standards (NGSS)');
+      return result;
+    }
+
+    async function searchSchools(term) {
+      const escaped = term.trim().replace(/'/g, "''");
+      const params = new URLSearchParams({
+        where: `SCH_NAME LIKE '%${escaped}%'`,
+        outFields: 'NCESSCH,SCH_NAME,LEA_NAME,LCITY,LSTATE,SCHOOL_LEVEL',
+        returnGeometry: 'false',
+        orderByFields: 'SCH_NAME ASC',
+        resultRecordCount: '8',
+        f: 'json'
+      });
+      const res = await fetch(`${NCES_SCHOOLS_API}/query?${params}`);
+      if (!res.ok) throw new Error('NCES API error');
+      const data = await res.json();
+      return (data.features || []).map(f => {
+        const a = f.attributes;
+        return {
+          ncessch: a.NCESSCH,
+          name: a.SCH_NAME,
+          district: a.LEA_NAME,
+          city: a.LCITY,
+          state: a.LSTATE,          // already an abbreviation e.g. "CA"
+          schoolLevel: a.SCHOOL_LEVEL,
+        };
+      });
+    }
+
+    function inferGradesFromLevel(level) {
+      if (!level) return [];
+      const l = level.toLowerCase();
+      const grades = new Set();
+      if (l.includes('primary') || l.includes('elementary')) {
+        ['K','1','2','3','4','5'].forEach(g => grades.add(g));
+      }
+      if (l.includes('middle') || l.includes('junior')) {
+        ['6','7','8'].forEach(g => grades.add(g));
+      }
+      if (l.includes('high')) {
+        ['9','10','11','12'].forEach(g => grades.add(g));
+      }
+      if (l.includes('k-12') || l.includes('k12')) {
+        ['K','1','2','3','4','5','6','7','8','9','10','11','12'].forEach(g => grades.add(g));
+      }
+      return Array.from(grades);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Grade chips
+    // ══════════════════════════════════════════════════════════
+    const GRADES = ["K","1","2","3","4","5","6","7","8","9","10","11","12","College"];
+    var selectedGrades = new Set();
+
+    const chipsEl = document.getElementById("grade-chips");
+    GRADES.forEach(g => {
+      const chip = document.createElement("div");
+      chip.className = "grade-chip";
+      chip.textContent = g;
+      chip.dataset.grade = g;
+      chip.addEventListener("click", () => {
+        if (selectedGrades.has(g)) {
+          selectedGrades.delete(g);
+          chip.classList.remove("selected");
+        } else {
+          selectedGrades.add(g);
+          chip.classList.add("selected");
+        }
+      });
+      chipsEl.appendChild(chip);
+    });
+
+    function setGradeChips(grades) {
+      // Clear all
+      selectedGrades.clear();
+      chipsEl.querySelectorAll('.grade-chip').forEach(c => c.classList.remove('selected'));
+      // Set new
+      grades.forEach(g => {
+        selectedGrades.add(g);
+        const chip = chipsEl.querySelector(`[data-grade="${g}"]`);
+        if (chip) chip.classList.add('selected');
+      });
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Standards preview
+    // ══════════════════════════════════════════════════════════
+    var inferredStandards = [];
+    var selectedSchoolState = '';
+
+    function showStandards(stateAbbr) {
+      selectedSchoolState = stateAbbr;
+      inferredStandards = getRecommendedStandards(stateAbbr);
+      const chipsDiv = document.getElementById('standards-chips');
+      chipsDiv.innerHTML = inferredStandards.map(s =>
+        `<span class="inferred-badge">✓ ${s}</span>`
+      ).join('');
+      document.getElementById('standards-section').style.display = 'block';
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // School search autocomplete
+    // ══════════════════════════════════════════════════════════
+    let searchTimeout = null;
+    var confirmedSchool = null;
+
+    const searchInput = document.getElementById('school-search');
+    const dropdown = document.getElementById('school-dropdown');
+    const confirmedEl = document.getElementById('school-confirmed');
+
+    // Show manual toggle only after user focuses the search field
+    document.getElementById('manual-toggle-wrap').style.display = 'none';
+    searchInput.addEventListener('focus', () => {
+      document.getElementById('manual-toggle-wrap').style.display = 'block';
+    });
+
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      const val = searchInput.value.trim();
+      if (val.length < 3) { dropdown.style.display = 'none'; return; }
+
+      dropdown.innerHTML = '<div class="school-searching">Searching…</div>';
+      dropdown.style.display = 'block';
+
+      searchTimeout = setTimeout(async () => {
+        try {
+          const results = await searchSchools(val);
+          if (!results.length) {
+            dropdown.innerHTML = '<div class="school-searching">No schools found — try a different name or use manual entry below.</div>';
+            return;
+          }
+          dropdown.innerHTML = '';
+          results.forEach(school => {
+            const div = document.createElement('div');
+            div.className = 'school-option';
+            div.innerHTML = `
+              <div class="school-name">${school.name}</div>
+              <div class="school-meta">${school.district} · ${school.city}, ${school.state}</div>
+            `;
+            div.addEventListener('click', () => selectSchool(school));
+            dropdown.appendChild(div);
+          });
+        } catch (e) {
+          dropdown.innerHTML = '<div class="school-searching">Search unavailable — please use manual entry below.</div>';
+        }
+      }, 300);
+    });
+
+    // Close dropdown on outside click
+    document.addEventListener('click', e => {
+      if (!document.getElementById('school-search-wrap').contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+
+    function selectSchool(school) {
+      confirmedSchool = school;
+      dropdown.style.display = 'none';
+      searchInput.style.display = 'none';
+
+      // Show confirmed banner
+      confirmedEl.style.display = 'block';
+      confirmedEl.innerHTML = `
+        <div class="school-confirmed">
+          <div style="flex:1;">
+            <div class="school-confirmed-name">✓ ${school.name}</div>
+            <div class="school-confirmed-meta">${school.district} · ${school.city}, ${school.state}</div>
+          </div>
+          <button class="school-clear" onclick="clearSchool()">Change</button>
+        </div>
+      `;
+
+      // Auto-infer grades from school level
+      const inferredGrades = inferGradesFromLevel(school.schoolLevel);
+      if (inferredGrades.length > 0) setGradeChips(inferredGrades);
+
+      // Auto-infer standards from state
+      if (school.state) showStandards(school.state);
+    }
+
+    function clearSchool() {
+      confirmedSchool = null;
+      confirmedEl.style.display = 'none';
+      confirmedEl.innerHTML = '';
+      searchInput.style.display = 'block';
+      searchInput.value = '';
+      searchInput.focus();
+      document.getElementById('standards-section').style.display = 'none';
+      inferredStandards = [];
+      selectedSchoolState = '';
+    }
+
+    // ── Manual state fallback ──
+    const STATES = [
+      ["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],
+      ["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],
+      ["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],
+      ["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],
+      ["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],
+      ["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],
+      ["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],
+      ["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],
+      ["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],
+      ["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],
+      ["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],
+      ["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],
+      ["WI","Wisconsin"],["WY","Wyoming"],["DC","Washington D.C."],
+    ];
+
+    const manualSelect = document.getElementById('school-state-manual');
+    STATES.forEach(([code, name]) => {
+      const opt = document.createElement('option');
+      opt.value = code; opt.textContent = name;
+      manualSelect.appendChild(opt);
+    });
+    manualSelect.addEventListener('change', () => {
+      if (manualSelect.value) showStandards(manualSelect.value);
+    });
+
+    document.getElementById('manual-toggle').addEventListener('click', () => {
+      const fields = document.getElementById('manual-fields');
+      const visible = fields.style.display !== 'none';
+      fields.style.display = visible ? 'none' : 'block';
+    });
+
+    // ══════════════════════════════════════════════════════════
+    // VOICES UI
+    // ══════════════════════════════════════════════════════════
+    let sourcesData = null;
+    var selectedVoices = [];          // ordered — first is primary
+    var customPassages = {};          // guide_id -> override text (commented out feature)
+    var activeTraditionFilter = 'all';
+
+    async function loadSources() {
+      try {
+        const res = await fetch('/sources.json');
+        sourcesData = await res.json();
+        buildTraditionFilters();
+        buildVoiceChips();
+      } catch(e) {
+        console.error('Could not load sources.json', e);
+      }
+    }
+
+    function buildTraditionFilters() {
+      const container = document.getElementById('tradition-filters');
+      container.innerHTML = '';
+
+      // "All" pill
+      const allPill = makePill('all', 'All');
+      allPill.classList.add('active');
+      container.appendChild(allPill);
+
+      for (const [tid, t] of Object.entries(sourcesData.traditions)) {
+        container.appendChild(makePill(tid, t.label));
+      }
+    }
+
+    function makePill(tid, label) {
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'tradition-pill' + (tid === activeTraditionFilter ? ' active' : '');
+      pill.textContent = label;
+      pill.dataset.tid = tid;
+      pill.addEventListener('click', () => {
+        activeTraditionFilter = tid;
+        document.querySelectorAll('.tradition-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        buildVoiceChips();
+      });
+      return pill;
+    }
+
+    function buildVoiceChips() {
+      const container = document.getElementById('voice-chips');
+      container.innerHTML = '';
+      if (!sourcesData) return;
+
+      for (const [gid, g] of Object.entries(sourcesData.guides)) {
+        if (activeTraditionFilter !== 'all' && g.tradition !== activeTraditionFilter) continue;
+        container.appendChild(makeVoiceChip(gid, g));
+      }
+    }
+
+    function makeVoiceChip(gid, g) {
+      const chip = document.createElement('div');
+      chip.className = 'voice-chip' + (selectedVoices.includes(gid) ? ' selected' : '');
+      chip.dataset.gid = gid;
+      chip.innerHTML = `
+        <span class="vc-name">${g.label}</span>
+        <span class="vc-work">${g.work || g.tradition}</span>
+      `;
+      chip.addEventListener('click', () => toggleVoice(gid, chip));
+      return chip;
+    }
+
+    function toggleVoice(gid, chip) {
+      const idx = selectedVoices.indexOf(gid);
+      if (idx >= 0) {
+        selectedVoices.splice(idx, 1);
+        chip.classList.remove('selected');
+      } else {
+        if (selectedVoices.length >= 5) {
+          alert('You can select up to 5 voices. Deselect one to add another.');
+          return;
+        }
+        selectedVoices.push(gid);
+        chip.classList.add('selected');
+      }
+      updateVoiceCount();
+    }
+
+    function updateVoiceCount() {
+      const el = document.getElementById('voice-count');
+      const n = selectedVoices.length;
+      el.textContent = n === 0 ? 'none selected'
+                     : n === 1 ? '1 selected (primary)'
+                     : `${n} selected — ${getGuideName(selectedVoices[0])} is primary`;
+    }
+
+    function getGuideName(gid) {
+      return sourcesData?.guides?.[gid]?.label || gid;
+    }
+
+    /* Customize passages feature commented out
+    function updateCustomizePanel() { ... }
+    function renderCustomizePanel() { ... }
+    function resetPassage(gid) { ... }
+    document.getElementById('customize-toggle').addEventListener('click', () => { ... });
+    */
+
+    // Load sources on page load
+    loadSources();
+
+    // ── Pre-fill returning user ──
+    function prefill(data) {
+      if (data.subjects) document.getElementById('subjects').value = data.subjects;
+
+      if (Array.isArray(data.grade_levels) && data.grade_levels.length) {
+        setGradeChips(data.grade_levels);
+      }
+      if (data.school_state) {
+        if (data.school_name) {
+          selectSchool({
+            name: data.school_name,
+            district: data.school_district || '',
+            city: data.school_city || '',
+            state: data.school_state,
+            schoolLevel: '',
+          });
+          if (Array.isArray(data.grade_levels) && data.grade_levels.length) {
+            setGradeChips(data.grade_levels);
+          }
+        } else {
+          manualSelect.value = data.school_state;
+          document.getElementById('manual-fields').style.display = 'block';
+          showStandards(data.school_state);
+        }
+      }
+
+      // Restore voices
+      const rc = data.reflect_config || {};
+      if (Array.isArray(rc.selected_guides) && rc.selected_guides.length) {
+        // Wait for sources to load, then apply
+        const applyVoices = () => {
+          if (!sourcesData) { setTimeout(applyVoices, 100); return; }
+          selectedVoices = [...rc.selected_guides];
+          customPassages = rc.custom_passages || {};
+          buildVoiceChips(); // rebuild with selections applied
+          updateVoiceCount();
+        };
+        applyVoices();
+      }
+    }
+  </script>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -101,7 +652,6 @@
 
     let currentUser = null;
 
-    // Wait for Firebase to confirm auth state before redirecting away
     auth.authStateReady().then(() => {
       if (!auth.currentUser) window.location.href = "/";
     });
@@ -110,38 +660,43 @@
       if (!user) return;
       currentUser = user;
       document.getElementById("nav-name").textContent = user.displayName || user.email;
-
-      // Pre-fill any previously saved settings
       const snap = await getDoc(doc(db, "users", user.uid));
-      const data = snap.exists() ? snap.data() : {};
-      if (data.lane) {
-        document.querySelector(`input[value="${data.lane}"]`).checked = true;
-        selectLane(data.lane);
-      }
-      if (data.profession) document.getElementById("profession").value = data.profession;
-      if (data.tradition) document.getElementById("tradition").value = data.tradition;
+      if (snap.exists()) prefill(snap.data());
     });
 
-    // Lane toggle
-    function selectLane(key) {
-      document.querySelectorAll(".lane-card").forEach(el => el.classList.remove("selected"));
-      document.getElementById("card-" + key).classList.add("selected");
-      document.getElementById("field-professional").style.display =
-        key === "professional" ? "block" : "none";
-      document.getElementById("field-reflect").style.display =
-        key === "reflect" ? "block" : "none";
-    }
-
-    document.querySelectorAll("input[name='lane']").forEach(radio => {
-      radio.addEventListener("change", () => selectLane(radio.value));
-    });
-
-    // Save setup
     document.getElementById("save-btn").addEventListener("click", async () => {
       if (!currentUser) return;
-      const lane = document.querySelector("input[name='lane']:checked").value;
-      const profession = document.getElementById("profession").value.trim();
-      const tradition = document.getElementById("tradition").value;
+
+      const btn = document.getElementById("save-btn");
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+
+      // Resolve state: confirmed school > manual select
+      const manualState = document.getElementById("school-state-manual").value;
+      const school_state = selectedSchoolState || manualState || "";
+
+      const body = {
+        lane: "professional",
+        profession: "teacher",
+        tradition: selectedVoices.length > 0
+          ? (sourcesData?.guides?.[selectedVoices[0]]?.tradition || "secular")
+          : "secular",
+        subjects: document.getElementById("subjects").value.trim(),
+        grade_levels: Array.from(selectedGrades),
+        school_state,
+        state_standards: inferredStandards,
+        reflect_config: {
+          selected_guides: selectedVoices,
+          custom_passages: customPassages,
+        },
+      };
+
+      // Persist school details for prefill on return
+      if (confirmedSchool) {
+        body.school_name     = confirmedSchool.name;
+        body.school_district = confirmedSchool.district;
+        body.school_city     = confirmedSchool.city;
+      }
 
       const token = await currentUser.getIdToken();
       const res = await fetch(`${API}/setup`, {
@@ -150,12 +705,14 @@
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ lane, profession, tradition }),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
         window.location.href = "/dashboard";
       } else {
+        btn.disabled = false;
+        btn.textContent = "Save and go to dashboard →";
         alert("Something went wrong. Please try again.");
       }
     });

@@ -1,102 +1,1249 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memnon — Voice to structured knowledge</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <nav>
-    <span class="nav-brand">🎙 Memnon</span>
-  </nav>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memnon — A personal scaffold for teachers</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta
+      name="google-site-verification"
+      content="H5VvVCBv6rygOpi7v0WNuHM3bKu_6WxLQWrry96428M"
+    />
+    <meta
+      name="google-site-verification"
+      content="hBlnL5tWfycuQWNGo4Nfcdp5z-zsO2-OToGpQrwU58A"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,500;1,600&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap"
+    />
+    <style>
+      /* ── Landing-specific styles ── */
+      body {
+        background: #faf9f6;
+      }
 
-  <div class="container" style="max-width:580px; padding-top:72px; text-align:center;">
-    <div style="font-size:3rem; margin-bottom:16px;">🎙</div>
-    <h1>Speak. Reflect. Act.</h1>
-    <p style="font-size:1.05rem; color:#555; margin:12px auto 36px; max-width:460px;">
-      Record a voice memo on your phone. Memnon transcribes it, summarizes it,
-      and saves a structured note to your Google Drive — automatically.
-    </p>
+      .landing-hero {
+        width: 100%;
+        background: #1a1a18;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        padding: 0 0 48px;
+      }
 
-    <a href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
-       class="btn btn-google" style="font-size:1rem; padding:14px 28px; display:inline-flex; align-items:center; gap:10px; text-decoration:none;">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.017 17.64 11.71 17.64 9.2z" fill="#4285F4"/>
-        <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
-        <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-      </svg>
-      Sign in with Google
-    </a>
+      .hero-image {
+        width: 100%;
+        max-height: 430px;
+        object-fit: cover;
+        object-position: center 30%;
+        display: block;
+        margin-top: 0;
+        border-radius: 0;
+      }
 
-    <p class="muted" style="margin-top:16px;">
-      Your audio and notes stay in your own Google Drive.
-    </p>
+      .hero-image-wrap {
+        position: relative;
+      }
 
-    <div style="margin-top:64px; text-align:left;">
+      .hero-title-overlay {
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        width: min(92vw, 760px);
+        z-index: 4;
+      }
+
+      .hero-title-overlay h1 {
+        font-family: "Georgia", "Times New Roman", serif;
+        font-size: clamp(2rem, 4.6vw, 3.2rem);
+        font-weight: 400;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #d3b062;
+        margin: 0 0 4px;
+        text-shadow:
+          0 2px 6px rgba(0, 0, 0, 0.68),
+          0 10px 22px rgba(0, 0, 0, 0.62);
+      }
+
+      .hero-title-overlay .hero-subtitle {
+        text-shadow:
+          0 1px 4px rgba(0, 0, 0, 0.62),
+          0 8px 18px rgba(0, 0, 0, 0.55);
+      }
+
+      .hero-signin-btn {
+        margin-top: 10px;
+        font-size: 0.95rem;
+        padding: 10px 18px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        background: rgba(255, 255, 255, 0.94);
+        color: #24180c;
+        border: 1px solid rgba(0, 0, 0, 0.24);
+        border-radius: 999px;
+        box-shadow:
+          0 4px 10px rgba(0, 0, 0, 0.35),
+          0 10px 24px rgba(0, 0, 0, 0.3);
+      }
+
+      .hero-signin-btn:hover {
+        background: #ffffff;
+      }
+
+      .hero-context {
+        width: 100vw;
+        margin: -24px 0 0;
+        padding: 18px 24px 16px;
+        align-self: stretch;
+        text-align: center;
+        color: #2c2014;
+        font-family: "Caveat", "Bradley Hand", "Segoe Script", cursive;
+        font-size: clamp(1.15rem, 2.05vw, 1.6rem);
+        line-height: 1.3;
+        letter-spacing: 0.01em;
+        position: relative;
+        z-index: 3;
+        border-radius: 0;
+        border: 0;
+        background-image:
+          linear-gradient(
+            180deg,
+            rgba(252, 244, 226, 0.42),
+            rgba(238, 220, 180, 0.34)
+          ),
+          url("/weathered-paper-v2.png");
+        background-repeat: no-repeat, no-repeat;
+        background-position: center;
+        background-size:
+          auto,
+          96% auto;
+        box-shadow:
+          0 8px 16px rgba(0, 0, 0, 0.16),
+          0 1px 0 rgba(255, 244, 218, 0.4) inset;
+        text-shadow: 0 1px 0 rgba(255, 248, 232, 0.6);
+      }
+
+      .hero-context[data-ribbon-theme="paper"] {
+        background-image:
+          linear-gradient(
+            180deg,
+            rgba(252, 244, 226, 0.42),
+            rgba(238, 220, 180, 0.34)
+          ),
+          url("/weathered-paper-v2.png");
+        background-repeat: no-repeat, no-repeat;
+        background-position: center;
+        background-size:
+          auto,
+          96% auto;
+      }
+
+      .hero-context[data-ribbon-theme="earthy"] {
+        background-image:
+          radial-gradient(
+            circle at 50% 45%,
+            rgba(214, 174, 104, 0.36),
+            rgba(77, 52, 22, 0.2) 70%
+          ),
+          linear-gradient(
+            180deg,
+            rgba(60, 42, 20, 0.28),
+            rgba(30, 20, 10, 0.24)
+          ),
+          url("/weathered-paper-v2.png");
+        background-repeat: no-repeat, no-repeat, no-repeat;
+        background-position: center;
+        background-size:
+          cover,
+          cover,
+          96% auto;
+      }
+
+      .hero-context[data-ribbon-theme="radiant"] {
+        background-image:
+          radial-gradient(
+            circle at 50% 50%,
+            rgba(255, 233, 170, 0.45),
+            rgba(255, 233, 170, 0.12) 35%,
+            rgba(0, 0, 0, 0) 62%
+          ),
+          linear-gradient(
+            180deg,
+            rgba(70, 48, 24, 0.22),
+            rgba(34, 24, 12, 0.18)
+          ),
+          url("/weathered-paper-v2.png");
+        background-repeat: no-repeat, no-repeat, no-repeat;
+        background-position: center;
+        background-size:
+          cover,
+          cover,
+          96% auto;
+      }
+
+      .hero-context-inner {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+
+      .hero-detail-row {
+        width: 100%;
+        margin: 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 18px;
+        align-items: start;
+      }
+
+      .hero-detail-row .hero-context {
+        width: 100vw;
+        margin: 0 calc(50% - 50vw) 0;
+        border-radius: 0;
+        padding: 20px 24px 16px;
+        order: 1;
+        border: 0;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.16);
+        position: relative;
+      }
+
+      .hero-detail-row .hero-context .hero-context-inner {
+        padding-bottom: 0;
+      }
+
+      .hero-detail-row .hero-context[data-ribbon-theme="radiant"],
+      .hero-detail-row .hero-context[data-ribbon-theme="earthy"],
+      .hero-detail-row .hero-context[data-ribbon-theme="paper"] {
+        background-image:
+          linear-gradient(
+            180deg,
+            rgba(252, 244, 226, 0.42),
+            rgba(238, 220, 180, 0.34)
+          ),
+          url("/ancient_papyrus_bg.jpeg");
+        background-size: cover, cover;
+        background-repeat: no-repeat, no-repeat;
+        background-position: center, center 40%;
+      }
+
+      .hero-context strong {
+        color: #6d4f25;
+      }
+
+      .hero-context a {
+        color: #5c3f16;
+        font-weight: 600;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+
+      .hero-context a:hover {
+        color: #3b2608;
+      }
+
+      .hero-context .source-quill {
+        display: inline-flex;
+        margin-left: 0.15em;
+        vertical-align: baseline;
+        transform: translateY(1px) rotate(-10deg);
+        color: #7a5a28;
+        line-height: 1;
+      }
+
+      .hero-context .source-quill svg {
+        width: 0.95em;
+        height: 0.95em;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        filter: drop-shadow(0 1px 0 rgba(255, 239, 201, 0.35));
+      }
+
+      .hero-context a:hover .source-quill {
+        color: #4b3210;
+      }
+
+      @media (min-width: 1100px) {
+        .hero-image {
+          width: min(1240px, 84vw);
+          max-height: 360px;
+          margin: 0 auto;
+        }
+      }
+
+      @media (min-width: 701px) and (max-width: 1099px) {
+        .hero-context[data-ribbon-theme="paper"] {
+          background-size:
+            auto,
+            118% auto;
+        }
+
+        .hero-context[data-ribbon-theme="earthy"] {
+          background-size:
+            cover,
+            cover,
+            118% auto;
+        }
+
+        .hero-context[data-ribbon-theme="radiant"] {
+          background-size:
+            cover,
+            cover,
+            118% auto;
+        }
+      }
+
+      .hero-text {
+        text-align: center;
+        padding: 36px 24px 0;
+        max-width: 600px;
+      }
+
+      .hero-detail-row .hero-text {
+        width: min(1180px, 94vw);
+        max-width: min(1180px, 94vw);
+        padding: 30px 26px;
+        margin: 0 auto;
+        border-radius: 10px;
+        order: 2;
+        background-image:
+          linear-gradient(
+            180deg,
+            rgba(16, 20, 30, 0.74),
+            rgba(10, 12, 20, 0.82)
+          ),
+          url("/slate.png");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+      }
+
+      .hero-text h1 {
+        font-family: "Georgia", "Times New Roman", serif;
+        font-size: 2.6rem;
+        font-weight: 400;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #c9a84c;
+        margin-bottom: 6px;
+      }
+
+      .hero-subtitle {
+        font-family: "Georgia", serif;
+        font-style: italic;
+        font-size: 1rem;
+        color: #a89070;
+        letter-spacing: 0.04em;
+        margin-bottom: 32px;
+      }
+
+      .hero-description {
+        font-size: 0.97rem;
+        line-height: 1.8;
+        color: #c8bfaf;
+        max-width: 520px;
+        margin: 0 auto 36px;
+      }
+
+      .hero-detail-row .hero-description {
+        color: #efe6d7;
+        margin: 0;
+        max-width: none;
+      }
+
+      .hero-description strong {
+        color: #e8dcc8;
+        font-weight: 600;
+      }
+
+      .hero-detail-row .hero-description strong {
+        color: #f8e6bf;
+      }
+
+      /* ── Epigraph flip-card section ── */
+      .epigraph-section {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 460px;
+        position: relative;
+        padding: 34px 24px 26px;
+      }
+
+      .epigraph-card-shell {
+        width: min(780px, calc(100vw - 48px));
+        position: relative;
+        perspective: 1600px;
+        cursor: pointer;
+        border-radius: 16px;
+      }
+
+      .epigraph-card-shell:focus-visible {
+        outline: 2px solid #c9a84c;
+        outline-offset: 5px;
+      }
+
+      .epigraph-flip-card {
+        position: relative;
+        min-height: 420px;
+        width: 100%;
+        transform-style: preserve-3d;
+        transition: transform 0.72s cubic-bezier(0.25, 0.82, 0.22, 1);
+      }
+
+      .epigraph-card-shell.is-flipped .epigraph-flip-card {
+        transform: rotateY(180deg);
+      }
+
+      .epigraph-face {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 64px 52px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 20px 36px rgba(0, 0, 0, 0.28);
+        backface-visibility: hidden;
+      }
+
+      .epigraph-card-shell:hover .epigraph-face,
+      .epigraph-card-shell:focus-visible .epigraph-face {
+        box-shadow: 0 26px 44px rgba(0, 0, 0, 0.34);
+      }
+
+      .epigraph-face-back {
+        transform: rotateY(180deg);
+      }
+
+      .epigraph-bg {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center;
+      }
+
+      .epigraph-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .epigraph-content {
+        position: relative;
+        z-index: 2;
+        max-width: 380px;
+      }
+
+      .epigraph-face-front .epigraph-content {
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .epigraph-face-front .epigraph-bg {
+        background-image: url("/ancient_papyrus_bg.jpeg");
+        background-position: center 40%;
+      }
+
+      .epigraph-face-front .epigraph-overlay {
+        background: rgba(42, 32, 18, 0.34);
+      }
+
+      .epigraph-face-back .epigraph-bg {
+        background-image: url("/rainbow-circuit-board-bg.png");
+        background-position: center center;
+      }
+
+      .epigraph-face-back .epigraph-overlay {
+        background: rgba(8, 18, 32, 0.68);
+      }
+
+      .epigraph-lines {
+        font-family: "Georgia", serif;
+        font-size: clamp(2.6rem, 7.4vw, 6.8rem);
+        line-height: 1.02;
+        color: rgba(47, 32, 20, 0.11);
+        font-style: italic;
+        margin: 0;
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        letter-spacing: 0.01em;
+        pointer-events: none;
+      }
+
+      .epigraph-translation {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        max-width: 30ch;
+        width: min(100%, 30ch);
+        font-family:
+          "Cormorant Garamond", "Palatino Linotype", "Book Antiqua", serif;
+        font-size: clamp(1.65rem, 3.5vw, 2.4rem);
+        font-weight: 600;
+        font-style: italic;
+        line-height: 1.34;
+        letter-spacing: 0.01em;
+        color: #170e08;
+        margin: 0 auto 18px;
+        padding: 8px 14px;
+        background: rgba(252, 245, 230, 0.76);
+        border-radius: 8px;
+        text-shadow: 0 1px 0 rgba(255, 247, 230, 0.5);
+      }
+
+      .epigraph-attribution {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        font-size: clamp(0.98rem, 1.45vw, 1.16rem);
+        font-weight: 500;
+        line-height: 1.45;
+        color: #2a1a0f;
+        letter-spacing: 0.035em;
+      }
+
+      .epigraph-front-quote {
+        margin: 0;
+        width: 100%;
+        min-height: 17.5rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .epigraph-attribution strong {
+        color: #2e1f13;
+      }
+
+      .epigraph-gold-word {
+        color: #d3af52;
+        font-weight: 700;
+        text-shadow: 0 1px 1px rgba(20, 12, 5, 0.45);
+      }
+
+      /* ── Tweet card (dark bg variant) ── */
+      .tweet-card {
+        max-width: 30ch;
+        width: min(100%, 30ch);
+        margin: 0 auto;
+        background: rgba(10, 16, 28, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 12px;
+        padding: 14px 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        backdrop-filter: blur(6px);
+        transition:
+          transform 0.2s ease,
+          box-shadow 0.2s ease,
+          border-color 0.2s ease;
+      }
+
+      .tweet-card:hover,
+      .tweet-card:focus-within {
+        transform: translateY(-3px);
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);
+        border-color: rgba(124, 196, 255, 0.55);
+      }
+
+      .tweet-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .tweet-user {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .tweet-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.26);
+      }
+
+      .tweet-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .tweet-name {
+        font-weight: 700;
+        font-size: 0.92rem;
+        color: #f5f7fa;
+        display: block;
+      }
+
+      .tweet-handle {
+        font-size: 0.82rem;
+        color: #b8c7d8;
+      }
+
+      .tweet-follow {
+        border: 1px solid #48a2ec;
+        color: #8ad0ff;
+        border-radius: 999px;
+        padding: 4px 14px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        text-decoration: none;
+        display: inline-block;
+      }
+
+      .tweet-follow:hover,
+      .tweet-follow:focus-visible {
+        background: rgba(72, 162, 236, 0.2);
+        border-color: rgba(138, 208, 255, 0.78);
+        outline: none;
+      }
+
+      .tweet-body {
+        font-size: 1rem;
+        line-height: 1.6;
+        font-weight: 400;
+        color: #edf3fb;
+        margin: 0 0 12px;
+        padding: 0;
+        background: transparent;
+        border-radius: 0;
+        text-shadow: none;
+      }
+
+      .tweet-time {
+        font-size: 0.78rem;
+        color: #9fb0c3;
+      }
+
+      /* ── Metaphor bar ── */
+      .metaphor-label {
+        background: #1a1a18;
+        padding: 20px 32px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .metaphor-item {
+        text-align: center;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #807060;
+        line-height: 1.6;
+        flex: 1;
+        max-width: 140px;
+      }
+
+      .metaphor-item strong {
+        display: block;
+        font-size: 0.78rem;
+        color: #c9a84c;
+        margin-bottom: 2px;
+      }
+
+      .metaphor-arrow {
+        display: flex;
+        align-items: center;
+        color: #c9a84c;
+        font-size: 1rem;
+        padding: 0 12px;
+      }
+
+      /* ── Main content ── */
+      .landing-content {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 64px 24px;
+      }
+
+      .section-label {
+        font-size: 0.7rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #a09080;
+        margin-bottom: 20px;
+      }
+
+      .footer-repo {
+        margin-top: 14px;
+      }
+
+      .footer-repo-link {
+        color: #7b6a58;
+        text-decoration: none;
+        font-size: 0.8rem;
+      }
+
+      .footer-repo-link:hover {
+        color: #5f4f3f;
+      }
+
+      .footer-logo {
+        display: block;
+        margin: 10px auto 0;
+        width: min(360px, 88vw);
+        height: auto;
+        opacity: 0.95;
+      }
+
+      @media (max-width: 700px) {
+        .hero-text h1 {
+          font-size: 1.9rem;
+        }
+        .epigraph-section {
+          min-height: auto;
+          padding: 0;
+        }
+
+        .epigraph-card-shell {
+          width: 100%;
+        }
+
+        .epigraph-flip-card {
+          min-height: 360px;
+        }
+
+        .epigraph-face {
+          border-radius: 0;
+          min-height: 360px;
+          padding: 48px 32px;
+          box-shadow: none;
+        }
+
+        .hero-context {
+          margin-top: -16px;
+          padding: 12px 12px 10px;
+          width: 100vw;
+          align-self: stretch;
+          font-size: clamp(1.15rem, 6vw, 1.56rem);
+          line-height: 1.32;
+          box-shadow: 0 8px 14px rgba(0, 0, 0, 0.16);
+        }
+
+        .hero-detail-row {
+          width: 100%;
+          margin: 0;
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+
+        .hero-detail-row .hero-context,
+        .hero-detail-row .hero-text {
+          border-radius: 0;
+        }
+
+        .hero-detail-row .hero-text {
+          padding: 28px 18px;
+          margin: 0;
+          width: 100%;
+          max-width: none;
+        }
+
+        .hero-detail-row .hero-context {
+          width: 100vw;
+          margin: 0;
+          padding-top: 14px;
+          box-shadow: 0 8px 14px rgba(0, 0, 0, 0.16);
+        }
+
+        .hero-detail-row .hero-context .hero-context-inner {
+          padding-bottom: 0;
+        }
+
+        .hero-context[data-ribbon-theme="paper"] {
+          background-size:
+            auto,
+            142% auto;
+        }
+
+        .hero-context[data-ribbon-theme="earthy"] {
+          background-size:
+            cover,
+            cover,
+            142% auto;
+        }
+
+        .hero-context[data-ribbon-theme="radiant"] {
+          background-size:
+            cover,
+            cover,
+            142% auto;
+        }
+
+        .epigraph-lines {
+          font-size: clamp(1.8rem, 12vw, 3.6rem);
+          line-height: 1.08;
+        }
+
+        .epigraph-translation {
+          max-width: 92%;
+          font-size: clamp(1.28rem, 7vw, 1.86rem);
+          line-height: 1.32;
+          padding: 8px 12px;
+        }
+
+        .tweet-body {
+          font-size: 1rem;
+          line-height: 1.6;
+        }
+
+        .epigraph-attribution {
+          font-size: clamp(0.95rem, 4.2vw, 1.08rem);
+          line-height: 1.4;
+        }
+        .metaphor-label {
+          flex-wrap: wrap;
+          gap: 8px;
+          justify-content: center;
+          padding: 16px 24px;
+        }
+        .metaphor-arrow {
+          display: none;
+        }
+        .metaphor-item {
+          max-width: 100px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Nav -->
+    <nav>
+      <span class="nav-brand">
+        <img
+          src="/nav-logo.png"
+          alt="Memnon"
+          style="
+            height: 28px;
+            width: auto;
+            vertical-align: middle;
+            margin-right: 8px;
+          "
+        />
+        Memnon
+      </span>
+    </nav>
+
+    <!-- Hero -->
+    <div class="landing-hero">
+      <div class="hero-image-wrap">
+        <img
+          src="/trebulla_and_the_colossi_of_memnon.png"
+          alt="Trebulla and the Colossi of Memnon"
+          class="hero-image"
+        />
+        <div class="hero-title-overlay">
+          <h1>Memnon</h1>
+          <div class="hero-subtitle">A personal scaffold for teachers</div>
+          <a
+            href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
+            class="hero-signin-btn"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path
+                d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.017 17.64 11.71 17.64 9.2z"
+                fill="#4285F4"
+              />
+              <path
+                d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
+                fill="#34A853"
+              />
+              <path
+                d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
+                fill="#EA4335"
+              />
+            </svg>
+            Sign in with Google
+          </a>
+        </div>
+      </div>
+      <div class="hero-detail-row">
+        <div class="hero-context" data-ribbon-theme="radiant">
+          <div class="hero-context-inner">
+            Memnon appears in the <em>Iliad</em> as the Ethiopian ally of Troy,
+            son of Eos (Dawn).
+            <a
+              href="https://en.wikipedia.org/wiki/Memnon"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Source for Memnon in Greek mythology"
+              ><span class="source-quill" aria-hidden="true"
+                ><svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
+                  <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
+                  <path d="M5 21l4-4" />
+                </svg></span
+              ></a
+            >
+            Centuries later, the Colossi at Thebes were linked
+            to his legend when one statue was said to "sing" at sunrise.
+            <a
+              href="https://www.worldhistory.org/Colossi_of_Memnon/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Source for Colossi of Memnon history"
+              ><span class="source-quill" aria-hidden="true"
+                ><svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
+                  <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
+                  <path d="M5 21l4-4" />
+                </svg></span
+              ></a
+            >
+            <br /><br />
+            Ancient visitors treated the site as a living record: they returned,
+            listened for the sound as a source of oracular insight, and left new
+            graffiti and inscriptions over earlier ones, including voices like
+            Trebulla's imagined here.
+            <a
+              href="https://en.wikipedia.org/wiki/Caecilia_Trebulla"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Source for Caecilia Trebulla"
+              ><span class="source-quill" aria-hidden="true"
+                ><svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
+                  <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
+                  <path d="M5 21l4-4" />
+                </svg></span
+              ></a
+            >
+          </div>
+        </div>
+        <div class="hero-text">
+          <p class="hero-description">
+            Every teaching day carries weight — the student who struggled, the
+            lesson that landed, the thing you can't quite find words for.
+            <strong>Memnon is where you put it down.</strong>
+            <br /><br />
+            Speak at the end of your day. Your voice is transcribed, filtered
+            through the wisdom traditions you've chosen, and returned to you as a
+            grounded reflection — one that addresses not just your to-do list but
+            <strong>the teacher you're trying to be.</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <div class="landing-content">
+      <div class="section-label">How it works</div>
       <div class="card">
-        <h2>How it works</h2>
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
-            <div class="step-title">Record on your phone</div>
-            <div class="step-desc">Use Voice Memos, then save to your Google Drive <strong>memnon-inbox</strong> folder.</div>
+            <div class="step-title">Speak your day</div>
+            <div class="step-desc">
+              Use the record button in the app. Speak freely — what happened,
+              what's on your mind, what you need to remember. Offload the
+              cognitive load.
+            </div>
           </div>
         </div>
         <div class="step">
           <div class="step-num">2</div>
           <div class="step-body">
-            <div class="step-title">Memnon processes it</div>
-            <div class="step-desc">Transcribed and summarized using AI — shaped by the lane you choose.</div>
+            <div class="step-title">The colossus processes it</div>
+            <div class="step-desc">
+              Your recording is transcribed and shaped by your chosen
+              pedagogical frameworks and wisdom voices — the traditions
+              authentic to you.
+            </div>
           </div>
         </div>
-        <div class="step" style="margin-bottom:0">
+        <div class="step" style="margin-bottom: 0">
           <div class="step-num">3</div>
           <div class="step-body">
-            <div class="step-title">Note lands in Drive</div>
-            <div class="step-desc">A structured Markdown note appears in your <strong>memnon-notes</strong> folder within about a minute.</div>
+            <div class="step-title">Receive the sound back</div>
+            <div class="step-desc">
+              A structured note lands in your <strong>memnon-notes</strong>
+              Google Drive folder — grounded reflection that speaks to the best
+              part of you, not just your to-do list.
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, signInWithCustomToken, onAuthStateChanged }
-      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc }
-      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    <!-- Metaphor bar -->
+    <div class="metaphor-label">
+      <div class="metaphor-item">
+        <strong>Your recordings</strong>
+        the sunlight
+      </div>
+      <div class="metaphor-arrow">→</div>
+      <div class="metaphor-item">
+        <strong>Memnon</strong>
+        the colossus
+      </div>
+      <div class="metaphor-arrow">→</div>
+      <div class="metaphor-item">
+        <strong>Your notes</strong>
+        the sound
+      </div>
+    </div>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
-      authDomain: "memnon-app.web.app",
-      projectId: "memnon-app",
-      storageBucket: "memnon-app.firebasestorage.app",
-      messagingSenderId: "714155490867",
-      appId: "1:714155490867:web:f382fddb58a596bede6d46"
-    };
+    <!-- Epigraphs -->
+    <div class="epigraph-section">
+      <div
+        class="epigraph-card-shell"
+        tabindex="0"
+        role="button"
+        aria-pressed="false"
+        aria-label="Flip between Trebulla and Driscoll cards"
+      >
+        <div class="epigraph-flip-card">
+          <div class="epigraph-face epigraph-face-front">
+            <div class="epigraph-bg"></div>
+            <div class="epigraph-overlay"></div>
+            <div class="epigraph-content">
+              <blockquote class="epigraph-front-quote">
+                <div class="epigraph-lines">
+                  Σήμερον ἡμῖν προσέφθεγξεν ὡς φίλοις καὶ οἰκείοις,<br />
+                  Μέμνων, Ἠοῦς καὶ Τιθωνοῦ παῖς.<br />
+                  ἆρα φύσις, ἡ πάντων δημιουργός,<br />
+                  λίθῳ αἴσθησιν καὶ φωνὴν ἔδωκεν;
+                </div>
+                <div class="epigraph-translation">
+                  Today he greeted us as friends and intimates,<br />
+                  <span class="epigraph-gold-word">Memnon</span>, son of Eos and
+                  Tithon.<br />
+                  Did Nature, creator of all,<br />
+                  give perception and voice to stone?
+                </div>
+                <div class="epigraph-attribution">
+                  <strong>Caecilia Trebulla</strong> — inscribed on the northern
+                  Colossus of Memnon, Thebes, 130 CE
+                </div>
+              </blockquote>
+            </div>
+          </div>
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+          <div class="epigraph-face epigraph-face-back">
+            <div class="epigraph-bg"></div>
+            <div class="epigraph-overlay"></div>
+            <div class="epigraph-content">
+              <div
+                class="tweet-card"
+                role="group"
+                aria-label="Archived quote by daisyowl"
+              >
+                <div class="tweet-header">
+                  <div class="tweet-user">
+                    <div class="tweet-avatar">
+                      <img
+                        src="https://cdn.bsky.app/img/avatar/plain/did:plc:zdffs5w2giazpfex6ttbdg2q/bafkreicdjptxp3ldgnaox6jzhmen4elgtbbz5jcqpojq4ox3aljbhadqo4"
+                        alt="Avatar of ben driscoll"
+                      />
+                    </div>
+                    <div>
+                      <span class="tweet-name">ben driscoll</span>
+                      <span class="tweet-handle">daisyowl.com</span>
+                    </div>
+                  </div>
+                  <a
+                    class="tweet-follow"
+                    href="https://bsky.app/profile/daisyowl.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open daisyowl on Bluesky"
+                    >Open Bluesky profile ↗</a
+                  >
+                </div>
+                <div class="tweet-body">
+                  if you ever code something that "feels like a hack but it
+                  works," just remember that a CPU is literally a rock that we
+                  tricked into thinking
+                </div>
+                <div class="tweet-time">
+                  Originally posted on X · 14 Mar 2017
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    const token = new URLSearchParams(window.location.search).get("token");
+    <!-- Footer -->
+    <footer
+      style="
+        text-align: center;
+        padding: 32px 24px;
+        font-size: 0.82rem;
+        color: #888;
+        background: #fff;
+        border-top: 1px solid #ede8e0;
+      "
+    >
+      <div class="footer-repo">
+        <a
+          class="footer-repo-link"
+          href="https://github.com/eitanfire/memnon"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Original public repo ↗</a
+        >
+        <img class="footer-logo" src="/memnon_logo.png" alt="Memnon logo" />
+      </div>
+      <div style="margin-top: 16px">
+        <a
+          href="/privacy"
+          style="color: #888; text-decoration: none; margin: 0 12px"
+          >Privacy Policy</a
+        >
+        <a
+          href="/terms"
+          style="color: #888; text-decoration: none; margin: 0 12px"
+          >Terms of Service</a
+        >
+        <span style="margin: 0 12px">© 2026 Memnon</span>
+      </div>
+    </footer>
 
-    if (token) {
-      history.replaceState({}, "", "/");
-      signInWithCustomToken(auth, token).catch(e => {
-        document.body.innerHTML += `<p style="color:red;text-align:center;padding:20px">Sign-in error: ${e.message}</p>`;
+    <script>
+      const flipCardShell = document.querySelector(".epigraph-card-shell");
+      const epigraphSection = document.querySelector(".epigraph-section");
+      let hasManualFlip = false;
+
+      function setFlipState(isFlipped) {
+        if (!flipCardShell) return;
+        flipCardShell.classList.toggle("is-flipped", isFlipped);
+        flipCardShell.setAttribute("aria-pressed", String(isFlipped));
+      }
+
+      if (flipCardShell) {
+        flipCardShell.addEventListener("click", (event) => {
+          if (event.target.closest("a")) return;
+          hasManualFlip = true;
+          setFlipState(!flipCardShell.classList.contains("is-flipped"));
+        });
+
+        flipCardShell.addEventListener("keydown", (event) => {
+          if (event.target.closest("a")) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            hasManualFlip = true;
+            setFlipState(!flipCardShell.classList.contains("is-flipped"));
+          }
+        });
+      }
+
+      const blueskyProfileLink = document.querySelector(".tweet-follow");
+      if (blueskyProfileLink) {
+        blueskyProfileLink.addEventListener("click", (event) => {
+          event.stopPropagation();
+        });
+      }
+
+      if (
+        epigraphSection &&
+        flipCardShell &&
+        "IntersectionObserver" in window
+      ) {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              if (
+                hasManualFlip ||
+                flipCardShell.classList.contains("is-flipped")
+              ) {
+                return;
+              }
+              setFlipState(true);
+              observer.disconnect();
+            });
+          },
+          { threshold: 0.55 },
+        );
+
+        observer.observe(epigraphSection);
+      }
+    </script>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+      import {
+        getAuth,
+        signInWithCustomToken,
+        onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+      import {
+        getFirestore,
+        doc,
+        getDoc,
+      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
+        authDomain: "memnon-app.web.app",
+        projectId: "memnon-app",
+        storageBucket: "memnon-app.firebasestorage.app",
+        messagingSenderId: "714155490867",
+        appId: "1:714155490867:web:f382fddb58a596bede6d46",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      const token = new URLSearchParams(window.location.search).get("token");
+
+      if (token) {
+        history.replaceState({}, "", "/");
+        signInWithCustomToken(auth, token).catch((e) => {
+          document.body.innerHTML += `<p style="color:red;text-align:center;padding:20px">Sign-in error: ${e.message}</p>`;
+        });
+      }
+
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) return;
+        const snap = await getDoc(doc(db, "users", user.uid));
+        const data = snap.exists() ? snap.data() : {};
+        window.location.href =
+          data.drive_connected && data.lane ? "/dashboard" : "/setup";
       });
-    }
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
-      const snap = await getDoc(doc(db, "users", user.uid));
-      const data = snap.exists() ? snap.data() : {};
-      window.location.href = (data.drive_connected && data.lane) ? "/dashboard" : "/setup";
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>

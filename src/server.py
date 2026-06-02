@@ -11,7 +11,7 @@ Routes:
   POST /logout        Clear session
 
 Run locally:
-  OPENAI_API_KEY=sk-... FLASK_SECRET=changeme python src/server.py
+    OPENAI_API_KEY=sk-... FLASK_SECRET=changeme PORT=5050 python src/server.py
 
 Deploy to Render:
   See render.yaml — set OPENAI_API_KEY + FLASK_SECRET + GOOGLE_CLIENT_SECRETS env vars.
@@ -214,4 +214,6 @@ def create_app():
 if __name__ == "__main__":
     os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")  # local HTTP dev only
     create_app()
-    app.run(debug=True, port=5000, use_reloader=False)
+    port = int(os.environ.get("PORT", "5050"))
+    log.info("Starting local server on http://localhost:%s", port)
+    app.run(debug=True, port=port, use_reloader=False)

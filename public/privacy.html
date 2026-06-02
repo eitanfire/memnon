@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Memnon</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+</head>
+<body>
+  <nav>
+    <a href="/" class="nav-brand" style="text-decoration:none;">🎙 Memnon</a>
+  </nav>
+
+  <div class="container" style="max-width:680px;">
+    <div style="margin-bottom:32px;">
+      <h1>Privacy Policy</h1>
+      <p class="muted">Last updated: June 1, 2026</p>
+    </div>
+
+    <div class="card">
+      <h2>What Memnon does</h2>
+      <p>
+        Memnon is a voice-memo processing service for teachers. You record audio —
+        in the browser, via the iOS share sheet, or by uploading a file — and Memnon
+        transcribes it, processes it using AI shaped by your chosen pedagogical and
+        reflective preferences, and saves a structured note to your Google Drive.
+        All your notes stay in your own Google Drive account.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>What data we collect</h2>
+      <p style="margin-bottom:12px;">
+        To provide the service, Memnon collects and stores the following:
+      </p>
+      <ul style="padding-left:20px; color:#444; line-height:2;">
+        <li>Your name and email address (from Google sign-in)</li>
+        <li>Your Google Drive OAuth tokens (to write notes to your Drive)</li>
+        <li>Your professional lane settings: subjects, grade levels, school name,
+            school state, and inferred academic standards</li>
+        <li>Your reflect lane settings: chosen voices and philosophical traditions</li>
+        <li>The ID of your <strong>memnon-notes</strong> Drive folder</li>
+        <li>Metadata about recent notes (title, date, summary, attribution) for
+            display in the app — stored in Firebase</li>
+      </ul>
+      <p style="margin-top:12px;">
+        We do <strong>not</strong> store your audio recordings. Audio is received,
+        transcribed in memory, and immediately discarded. Transcripts are used only
+        to generate your note and are not retained beyond the processing request.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>How we use Google Drive access</h2>
+      <p style="margin-bottom:12px;">
+        Memnon requests the <strong>drive.file</strong> scope, which limits access
+        to files and folders that Memnon itself creates. Specifically, Memnon uses
+        this access to:
+      </p>
+      <ul style="padding-left:20px; color:#444; line-height:2;">
+        <li>Create a <strong>memnon-notes</strong> folder in your Google Drive</li>
+        <li>Save structured Markdown notes to that folder after processing your recordings</li>
+      </ul>
+      <p style="margin-top:12px;">
+        Memnon does <strong>not</strong> read, modify, or access any other files or
+        folders in your Drive. It cannot see files you created or any other app created.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Audio processing</h2>
+      <p style="margin-bottom:12px;">
+        When you record or upload audio, it is sent over HTTPS to Memnon's server,
+        transcribed using OpenAI Whisper, and summarized using OpenAI GPT-4o-mini.
+        The audio and transcript are not stored after processing completes.
+      </p>
+      <p>
+        Memnon is designed for professional and personal reflection. Please do not
+        record audio containing sensitive personal information about others (student
+        names, health records, financial details) unless you are authorised to
+        process such information.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Third-party services</h2>
+      <p style="margin-bottom:12px;">
+        Memnon uses the following third-party services:
+      </p>
+      <ul style="padding-left:20px; color:#444; line-height:2;">
+        <li><strong>OpenAI Whisper</strong> — transcribes your audio. Subject to
+            <a href="https://openai.com/policies/privacy-policy" target="_blank" style="color:#2563eb;">OpenAI's Privacy Policy</a>.</li>
+        <li><strong>OpenAI GPT-4o-mini</strong> — generates summaries, insights,
+            and action items from your transcript.</li>
+        <li><strong>Google Firebase</strong> — provides authentication and stores
+            your account settings and note metadata.</li>
+        <li><strong>Google Drive API</strong> — writes notes to your Drive on
+            your behalf, using the drive.file scope.</li>
+        <li><strong>NCES ArcGIS API</strong> — used during setup to search for
+            your school by name. No personal data is sent; only your school name
+            search query.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Wisdom sources</h2>
+      <p>
+        Memnon includes a curated library of passages from philosophical, spiritual,
+        and literary traditions. These passages are used to ground your reflective
+        notes. No personal data is associated with which passages are selected.
+        Aggregate usage counts (which voices are used most often) are stored in your
+        user profile to support future features.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Data retention and deletion</h2>
+      <p>
+        Your account data (name, email, settings, Drive tokens, and note metadata)
+        is stored in Firebase Firestore for as long as your account is active.
+        To delete your account and all associated data, email
+        <a href="mailto:eitanfire@gmail.com" style="color:#2563eb;">eitanfire@gmail.com</a>.
+        We will remove your data within 30 days of your request.
+      </p>
+      <p style="margin-top:12px;">
+        Notes saved to your Google Drive are yours — Memnon does not delete them
+        and they remain entirely under your control.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Revoking access</h2>
+      <p>
+        You can revoke Memnon's access to your Google account at any time by visiting
+        <a href="https://myaccount.google.com/permissions" target="_blank" style="color:#2563eb;">
+          Google Account Permissions
+        </a>
+        and removing Memnon. This immediately stops any further access to your Drive.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Security</h2>
+      <p>
+        Drive access tokens are stored encrypted in Firebase Firestore and are used
+        only server-side to write notes. Tokens are never exposed to the browser
+        beyond the initial sign-in flow. All data is transmitted over HTTPS.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Children's privacy</h2>
+      <p>
+        Memnon is intended for use by educators and adults. We do not knowingly
+        collect personal information from children under 13. If you believe a child
+        has provided us with personal information, please contact us and we will
+        delete it promptly.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Contact</h2>
+      <p>
+        Questions or concerns about this policy?<br />
+        Email <a href="mailto:eitanfire@gmail.com" style="color:#2563eb;">eitanfire@gmail.com</a>.
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>
