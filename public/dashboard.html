@@ -9,6 +9,162 @@
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#f8f7f4" />
   <style>
+    .editorial-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+    .editorial-main {
+      min-width: 0;
+    }
+    .editorial-media {
+      position: relative;
+      overflow: hidden;
+      border-radius: 16px;
+      min-height: 240px;
+      border: 1px solid #e6dccd;
+      background: linear-gradient(180deg, #f7efe1, #e9ddc8);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+    .editorial-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .editorial-media-caption {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 250, 242, 0.9);
+      color: #5f4d37;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      box-shadow: 0 8px 18px rgba(68, 51, 28, 0.12);
+      backdrop-filter: blur(8px);
+    }
+    .editorial-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .editorial-copy {
+      color: #555;
+    }
+    .editorial-copy + .editorial-copy {
+      margin-top: 10px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .summary-tile {
+      border: 1px solid #e8e6e0;
+      border-radius: 10px;
+      padding: 16px;
+      background: #fffdfa;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+    .summary-tile-kicker {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #847564;
+      margin-bottom: 8px;
+    }
+    .summary-tile-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .summary-tile-copy {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 12px;
+    }
+    .summary-note {
+      color: #555;
+      margin-bottom: 0;
+      margin-top: 16px;
+    }
+    .record-mark {
+      font-size: 1.2rem;
+      line-height: 1;
+      margin-right: 2px;
+    }
+    .welcome-mark-frame {
+      flex-shrink: 0;
+      width: 124px;
+      height: 124px;
+      padding: 10px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 50% 28%, rgba(250, 233, 183, 0.96) 0 15%, rgba(250, 233, 183, 0.34) 16%, rgba(250, 233, 183, 0) 34%),
+        linear-gradient(180deg, #f1dfb7 0%, #e4c992 34%, #cfac73 68%, #a88660 100%);
+      border: 1px solid rgba(184, 147, 101, 0.58);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 249, 230, 0.78),
+        0 14px 28px rgba(93, 71, 42, 0.16);
+    }
+    .welcome-mark-link {
+      display: block;
+      color: inherit;
+      text-decoration: none;
+    }
+    .welcome-mark-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center center;
+      transform: scale(1);
+      transform-origin: center center;
+      display: block;
+      filter: drop-shadow(0 8px 16px rgba(94, 41, 20, 0.16));
+    }
+    .welcome-mark-link:hover .welcome-mark-frame,
+    .welcome-mark-link:focus-visible .welcome-mark-frame {
+      transform: translateY(-1px);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 249, 230, 0.78),
+        0 18px 32px rgba(93, 71, 42, 0.22);
+    }
+    .welcome-mark-link:focus-visible {
+      outline: none;
+    }
+    .welcome-mark-label {
+      margin-top: 6px;
+      text-align: center;
+      font-size: 0.74rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #7c6a55;
+    }
+    @media (max-width: 700px) {
+      .editorial-card {
+        grid-template-columns: 1fr;
+      }
+      .editorial-media {
+        order: 2;
+        min-height: 200px;
+      }
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+      .welcome-mark-frame {
+        width: 96px;
+        height: 96px;
+        padding: 8px;
+        border-radius: 22px;
+      }
+    }
+
     .note-item {
       border: 1px solid #e8e6e0; border-radius: 8px; padding: 14px 16px;
       margin-bottom: 12px; background: #fff;
@@ -50,14 +206,19 @@
       <div>
         <h1>Welcome back, <span id="first-name"></span> 👋</h1>
       </div>
-      <img src="/active-scema-logo-transparent-bg.png" alt="Active Schema" style="height:72px; width:auto; flex-shrink:0;" />
+      <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Edit dashboard portrait">
+        <div class="welcome-mark-frame">
+          <img id="welcome-mark-image" src="/corporate_memphis_king_memnon_looking_down.png" alt="Dashboard portrait" />
+        </div>
+        <div class="welcome-mark-label">Edit portrait</div>
+      </a>
     </div>
 
     <!-- Lane -->
-    <div class="card" style="position:relative; overflow:hidden;">
-      <img src="/artifacts.png" alt="" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 60%; opacity:0.08; pointer-events:none;" />
-      <div style="position:relative; display:flex; justify-content:space-between; align-items:flex-start;">
-        <div>
+    <div class="card editorial-card">
+      <div class="editorial-main">
+        <div class="editorial-header">
+          <div>
           <h2 id="lane-title">Loading…</h2>
           <p id="lane-desc" style="color:#555;"></p>
           <p style="margin-top:8px;">
@@ -65,46 +226,60 @@
           </p>
         </div>
         <a href="/setup" class="btn btn-outline" style="padding:7px 14px; font-size:0.8rem; white-space:nowrap;">
-          Change lane
+          Edit setup
         </a>
+        </div>
+        <p class="editorial-copy">
+          This section shapes how Memnon reads your notes when it turns experience into a usable reflection.
+        </p>
+      </div>
+      <div class="editorial-media" aria-hidden="true">
+        <img src="/sacred_objects.png" alt="" />
       </div>
     </div>
 
     <!-- Drive folders -->
-    <div class="card" style="position:relative; overflow:hidden;">
-      <img src="/sun_and_waves.png" alt="" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0.08; pointer-events:none;" />
-      <div style="position:relative;">
-      <h2>Your recordings</h2>
-      <p style="color:#555; margin-bottom:20px;">
-        Record here or share from Voice Memos. Notes are saved to your
-        <strong>memnon-notes</strong> folder in Google Drive within ~60 seconds.
-      </p>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-        <div style="position:relative; overflow:hidden; border:1px solid #e8e6e0; border-radius:10px; padding:16px;">
-          <img src="/explorers_journal.png" alt="" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0.10; pointer-events:none;" />
-          <div style="position:relative;">
-            <div style="margin-bottom:8px;"><img class="inline-mark" src="/nav-logo.png" alt="" style="width:1.6rem; height:1.6rem;" /></div>
-            <div style="font-weight:600; margin-bottom:4px;">Record here</div>
-            <div style="font-size:0.8rem; color:#888; margin-bottom:12px;">Processed instantly</div>
+    <div class="card editorial-card">
+      <div class="editorial-main">
+      <div class="editorial-header" style="margin-bottom:16px;">
+        <div>
+          <h2>Capture & Archive</h2>
+          <p class="editorial-copy">
+            Record directly in the app, then open your archive when the reflection is ready.
+          </p>
+        </div>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-tile">
+          <div>
+            <div class="summary-tile-kicker">Capture</div>
+            <div class="summary-tile-title">Record here</div>
+            <div class="summary-tile-copy">Processed instantly</div>
             <button id="record-btn" class="btn btn-primary" style="width:100%; justify-content:center; font-size:0.85rem; padding:8px 12px;">
-              <img class="inline-mark" src="/nav-logo.png" alt="" />
+              <span class="record-mark" aria-hidden="true">🎙</span>
               Record voice memo
             </button>
           </div>
         </div>
-        <div style="position:relative; overflow:hidden; border:1px solid #e8e6e0; border-radius:10px; padding:16px;">
-          <img src="/sound_waves.png" alt="" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0.10; pointer-events:none;" />
-          <div style="position:relative;">
-            <div style="font-size:1.4rem; margin-bottom:8px;">📝</div>
-            <div style="font-weight:600; margin-bottom:4px;">memnon-notes</div>
-            <div style="font-size:0.8rem; color:#888; margin-bottom:12px;">Your processed notes</div>
+        <div class="summary-tile">
+          <div>
+            <div class="summary-tile-kicker">Archive</div>
+            <div class="summary-tile-title">archive</div>
+            <div class="summary-tile-copy">Your saved reflections</div>
             <a id="notes-link" href="#" target="_blank"
                class="btn btn-primary" style="padding:7px 12px; font-size:0.8rem;">
-              Open in Drive ↗
+              Open archive ↗
             </a>
           </div>
         </div>
       </div>
+      <p class="summary-note">
+        Record here. Reflections are saved to your
+        <strong>archive</strong> in Google Drive within about a minute.
+      </p>
+      </div>
+      <div class="editorial-media" aria-hidden="true">
+        <img src="/sun_and_waves.png" alt="" />
       </div>
     </div>
 
@@ -168,13 +343,136 @@
     const API = "https://api-4hth6oktaa-uc.a.run.app";
 
     const LANE_LABELS = {
-      professional: { icon: "💼", label: "Professional lane" },
-      reflect:      { icon: "🌿", label: "Reflect lane" },
+      professional: { icon: "🏫", label: "Teaching Context" },
+      reflect:      { icon: "🌿", label: "Guiding Voices" },
     };
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db  = getFirestore(app);
+    const isStaticLocalhost =
+      window.location.hostname === "localhost" &&
+      (window.location.port === "8000" || window.location.port === "8080");
+    const routes = {
+      home: isStaticLocalhost ? "/index.html" : "/",
+      dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
+      setup: isStaticLocalhost ? "/setup.html" : "/setup",
+    };
+
+    const setupLinks = document.querySelectorAll('a[href="/setup"]');
+    setupLinks.forEach((link) => {
+      link.setAttribute("href", routes.setup);
+    });
+
+    document.getElementById("welcome-mark-link").setAttribute("href", `${routes.setup}#dashboard-portrait`);
+
+    const dashboardPortraitPresets = {
+      king_memnon: {
+        src: "/corporate_memphis_king_memnon_looking_down.png",
+        fit: "contain",
+        position: "center center",
+        scale: "1",
+      },
+      trebulla: {
+        src: "/corporate_memphis_%20version_of_trebulla_no_bg.png",
+        fit: "cover",
+        position: "center 12%",
+        scale: "1.5",
+      },
+      sound_waves: {
+        src: "/sound_waves.png",
+        fit: "cover",
+        position: "center center",
+        scale: "1",
+      },
+      sun_and_waves: {
+        src: "/sun_and_waves.png",
+        fit: "cover",
+        position: "center center",
+        scale: "1",
+      },
+    };
+
+    function getDashboardPortraitPreset(key) {
+      return dashboardPortraitPresets[key] || dashboardPortraitPresets.king_memnon;
+    }
+
+    function isDashboardPortraitPreset(key) {
+      return Object.prototype.hasOwnProperty.call(dashboardPortraitPresets, key);
+    }
+
+    function applyDashboardPortraitStyle(img, choice) {
+      if (!img) return;
+      let fit = "contain";
+      let position = "center center";
+      let scale = "1";
+      if (choice?.kind === "preset") {
+        const preset = getDashboardPortraitPreset(choice.preset);
+        fit = preset.fit || fit;
+        position = preset.position || position;
+        scale = preset.scale || scale;
+      } else if (choice?.kind === "drive") {
+        fit = "cover";
+      }
+      img.style.objectFit = fit;
+      img.style.objectPosition = position;
+      img.style.transform = `scale(${scale})`;
+    }
+    const portraitObjectUrls = new Map();
+
+    function normalizeDashboardImageConfig(raw) {
+      if (!raw || typeof raw !== "object") {
+        return { kind: "preset", preset: "king_memnon" };
+      }
+      if (raw.kind === "preset") {
+        return {
+          kind: "preset",
+          preset: isDashboardPortraitPreset(raw.preset) ? raw.preset : "king_memnon",
+        };
+      }
+      if (raw.kind === "drive" && raw.file_id) {
+        return {
+          kind: "drive",
+          file_id: raw.file_id,
+          name: raw.name || "Custom image",
+          mimeType: raw.mimeType || "image/png",
+        };
+      }
+      return { kind: "preset", preset: "king_memnon" };
+    }
+
+    async function resolveDashboardPortraitSrc(choice, token) {
+      const normalized = normalizeDashboardImageConfig(choice);
+      if (normalized.kind === "preset") {
+        return getDashboardPortraitPreset(normalized.preset).src;
+      }
+      if (portraitObjectUrls.has(normalized.file_id)) {
+        return portraitObjectUrls.get(normalized.file_id);
+      }
+      const res = await fetch(`${API}/profile-image/${normalized.file_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error("Could not load dashboard portrait");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      portraitObjectUrls.set(normalized.file_id, url);
+      return url;
+    }
+
+    async function applyDashboardPortrait(choice, token) {
+      const img = document.getElementById("welcome-mark-image");
+      if (!img) return;
+      const normalized = normalizeDashboardImageConfig(choice);
+      applyDashboardPortraitStyle(img, normalized);
+      try {
+        img.src = await resolveDashboardPortraitSrc(normalized, token);
+      } catch (e) {
+        console.error("Could not apply dashboard portrait:", e);
+        img.src = dashboardPortraitPresets.king_memnon.src;
+      }
+    }
 
     async function loadRecentNotes(uid) {
       try {
@@ -228,10 +526,10 @@
 
     // ── Shared auth token cache ──
     let _cachedToken = null;
-    async function getToken() {
+    async function getToken(forceRefresh = false) {
       const user = auth.currentUser;
       if (!user) return null;
-      _cachedToken = await user.getIdToken();
+      _cachedToken = await user.getIdToken(forceRefresh);
       return _cachedToken;
     }
 
@@ -242,34 +540,48 @@
       statusEl.textContent = "⏳ Uploading and processing…";
 
       try {
-        const token = await getToken();
-        const form = new FormData();
-        form.append("file", blob, filename);
-        const res = await fetch(`${API}/upload`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${token}` },
-          body: form,
-        });
+        async function sendUpload(forceRefresh = false) {
+          const token = await getToken(forceRefresh);
+          const form = new FormData();
+          form.append("file", blob, filename);
+          return fetch(`${API}/upload`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}` },
+            body: form,
+          });
+        }
+
+        let res = await sendUpload();
+        if (res.status === 401) {
+          res = await sendUpload(true);
+        }
+
         if (res.ok) {
           const data = await res.json();
           statusEl.style.background = "#f0fdf4";
           statusEl.style.color = "#15803d";
           statusEl.textContent = `✅ Note saved: ${data.note}`;
         } else {
+          if (res.status === 401) {
+            throw new Error("session expired");
+          }
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || res.statusText);
         }
       } catch (e) {
         statusEl.style.background = "#fef2f2";
         statusEl.style.color = "#dc2626";
-        statusEl.textContent = `❌ Upload failed: ${e.message}`;
+        statusEl.textContent =
+          e.message === "session expired"
+            ? "❌ Session expired. Refresh the page and sign in again."
+            : `❌ Upload failed: ${e.message}`;
       }
     }
 
     // ── Check for file shared via Share Target (PWA) ──
     async function checkSharedFile() {
       if (!window.location.search.includes("shared=1")) return;
-      history.replaceState({}, "", "/dashboard");
+      history.replaceState({}, "", routes.dashboard);
 
       const statusEl = document.getElementById("share-status");
       statusEl.style.display = "block";
@@ -313,7 +625,7 @@
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
-      if (!user) { window.location.href = "/"; return; }
+      if (!user) { window.location.href = routes.home; return; }
 
       const firstName = (user.displayName || user.email).split(" ")[0];
       document.getElementById("first-name").textContent = firstName;
@@ -334,8 +646,8 @@
         document.getElementById("lane-title").textContent = `${info.icon} ${info.label}`;
         document.getElementById("lane-desc").textContent =
           lane === "reflect"
-            ? "Personal reflections grounded in a tradition you chose."
-            : "Work notes enriched with best practices for your field.";
+            ? "Your reflections are brought into conversation with the thinkers, traditions, and frameworks you selected."
+            : "Your notes are interpreted in light of your classroom, your students, and the standards that shape your work.";
 
         const detail = data.profession || data.tradition || "";
         const detailEl = document.getElementById("lane-detail");
@@ -352,6 +664,8 @@
           notesEl.href = notesUrl;
           notesEl.onclick = e => { e.preventDefault(); window.open(notesUrl, "_blank"); };
         }
+
+        await applyDashboardPortrait(data.dashboard_image, token);
       }
 
       // Load recent notes with influenced_by
@@ -375,7 +689,7 @@
           mediaRecorder.onstop = async () => {
             const blob = new Blob(chunks, { type: "audio/webm" });
             const filename = `active-schema-${Date.now()}.webm`;
-            recordBtn.innerHTML = '<img class="inline-mark" src="/nav-logo.png" alt="" /> Record voice memo';
+            recordBtn.innerHTML = '<span class="record-mark" aria-hidden="true">🎙</span> Record voice memo';
             recordBtn.classList.remove("btn-danger");
             recordBtn.classList.add("btn-primary");
             stream.getTracks().forEach(t => t.stop());
@@ -394,7 +708,7 @@
 
     document.getElementById("signout-btn").addEventListener("click", async () => {
       await signOut(auth);
-      window.location.href = "/";
+      window.location.href = routes.home;
     });
   </script>
 </body>

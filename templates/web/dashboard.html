@@ -25,9 +25,19 @@
     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
       <div>
         <h2>
-          {{ lane_info.icon }} {{ lane_info.label }} lane
+          {% if user.lane == "reflect" %}
+            🌿 Guiding Voices
+          {% else %}
+            🏫 Teaching Context
+          {% endif %}
         </h2>
-        <p style="color: #555;">{{ lane_info.description }}</p>
+        <p style="color: #555;">
+          {% if user.lane == "reflect" %}
+            Your reflections are brought into conversation with the thinkers, traditions, and frameworks you selected.
+          {% else %}
+            Your notes are interpreted in light of your classroom, your students, and the standards that shape your work.
+          {% endif %}
+        </p>
         {% if user.profession %}
           <p style="margin-top: 8px;">
             <span class="tag">{{ user.profession }}</span>
@@ -40,7 +50,7 @@
         {% endif %}
       </div>
       <a href="/setup" class="btn btn-outline" style="padding: 7px 14px; font-size: 0.8rem; white-space: nowrap;">
-        Change lane
+        Edit setup
       </a>
     </div>
   </div>
@@ -49,7 +59,8 @@
   <div class="card">
     <h2>Your Google Drive folders</h2>
     <p style="margin-bottom: 20px; color: #555;">
-      Drop recordings into <strong>memnon-inbox</strong>. Notes appear in <strong>memnon-notes</strong> within ~60 seconds.
+      Drop recordings into <strong>memnon-inbox</strong>. Reflections appear in
+      <strong>archive</strong> within about a minute.
     </p>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -70,12 +81,12 @@
 
       <div style="border: 1px solid #e8e6e0; border-radius: 10px; padding: 16px;">
         <div style="font-size: 1.4rem; margin-bottom: 8px;">📝</div>
-        <div style="font-weight: 600; margin-bottom: 4px;">memnon-notes</div>
-        <div style="font-size: 0.8rem; color: #888; margin-bottom: 12px;">Your processed notes</div>
+        <div style="font-weight: 600; margin-bottom: 4px;">archive</div>
+        <div style="font-size: 0.8rem; color: #888; margin-bottom: 12px;">Your saved reflections</div>
         {% if notes_folder_link %}
           <a href="{{ notes_folder_link }}" target="_blank" class="btn btn-primary"
              style="padding: 7px 12px; font-size: 0.8rem;">
-            Open in Drive ↗
+            Open archive ↗
           </a>
         {% else %}
           <span class="muted">Created on first use</span>
@@ -110,7 +121,7 @@
       <div class="step-body">
         <div class="step-title">That's it</div>
         <div class="step-desc">
-          The note will be in your <strong>memnon-notes</strong> folder within about a minute.
+          The reflection will be in your <strong>archive</strong> within about a minute.
         </div>
       </div>
     </div>

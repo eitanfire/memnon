@@ -27,6 +27,7 @@ import os
 import re
 import secrets
 import urllib.parse
+import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -68,6 +69,8 @@ CORS(flask_app, origins=[
     "https://memnon-app.firebaseapp.com",
     "http://localhost:5000",
     "http://localhost:5050",
+    "http://localhost:8000",
+    "http://localhost:8080",
 ])
 
 # ── constants ─────────────────────────────────────────────────────────────────
@@ -81,6 +84,15 @@ DRIVE_SCOPES = [
 API_BASE = "https://api-4hth6oktaa-uc.a.run.app"
 REDIRECT_URI = f"{API_BASE}/auth/callback"
 FRONTEND_URL = "https://memnon.app"
+ALLOWED_FRONTEND_ORIGINS = {
+    "https://memnon.app",
+    "https://memnon-app.web.app",
+    "https://memnon-app.firebaseapp.com",
+    "http://localhost:5000",
+    "http://localhost:5050",
+    "http://localhost:8000",
+    "http://localhost:8080",
+}
 
 AUDIO_MIME_TYPES = {
     "audio/mp4", "audio/x-m4a", "audio/mpeg", "audio/mp3",
@@ -88,6 +100,8 @@ AUDIO_MIME_TYPES = {
     "audio/webm", "audio/ogg", "video/mp4",
 }
 AUDIO_EXTENSIONS = {".m4a", ".mp3", ".wav", ".aac", ".flac", ".mp4", ".webm", ".ogg"}
+IMAGE_MIME_PREFIX = "image/"
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -112,6 +126,31 @@ def _verify_firebase_token(req) -> str | None:
         return fb_auth.verify_id_token(header[7:])["uid"]
     except Exception:
         return None
+
+
+def _safe_frontend_return_url(candidate: str | None) -> str:
+    """Allow redirects only to known frontend origins."""
+    if not candidate:
+        return FRONTEND_URL
+    try:
+        parsed = urllib.parse.urlparse(candidate)
+    except Exception:
+        return FRONTEND_URL
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    if origin not in ALLOWED_FRONTEND_ORIGINS:
+        return FRONTEND_URL
+    path = parsed.path or "/"
+    safe_url = f"{origin}{path}"
+    if parsed.query:
+        safe_url += f"?{parsed.query}"
+    return safe_url
+
+
+def _append_query_params(url: str, params: dict[str, str]) -> str:
+    parsed = urllib.parse.urlparse(url)
+    query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+    query.update(params)
+    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
 def _drive_creds(uid: str) -> Credentials | None:
@@ -154,6 +193,17 @@ def _find_or_create_folder(service, name: str, parent_id: str | None = None) -> 
     if parent_id:
         meta["parents"] = [parent_id]
     return service.files().create(body=meta, fields="id").execute()["id"]
+
+
+def _drive_service_for_user(uid: str):
+    creds = _drive_creds(uid)
+    if not creds:
+        return None
+    return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+
+def _find_or_create_media_folder(service) -> str:
+    return _find_or_create_folder(service, "memnon-media")
 
 
 def _is_audio(f: dict) -> bool:
@@ -429,6 +479,9 @@ def auth_start():
 
     # Store both in Flask session for callback verification
     from flask import session
+    session["frontend_return_to"] = _safe_frontend_return_url(
+        request.args.get("return_to")
+    )
     session["oauth_state"]    = state
     session["code_verifier"]  = code_verifier
 
@@ -449,20 +502,22 @@ def auth_start():
 @flask_app.route("/auth/callback")
 def auth_callback():
     """Receive tokens, create/update Firebase user, mint custom token, redirect."""
+    from flask import session
+    frontend_return_to = _safe_frontend_return_url(session.get("frontend_return_to"))
     try:
-        from flask import session
         code  = request.args.get("code")
         state = request.args.get("state")
 
         if not code:
-            return redirect(f"{FRONTEND_URL}/?error=missing_code")
+            return redirect(_append_query_params(frontend_return_to, {"error": "missing_code"}))
 
         # Verify state to prevent CSRF
         if not state or state != session.get("oauth_state"):
-            return redirect(f"{FRONTEND_URL}/?error=invalid_state")
+            return redirect(_append_query_params(frontend_return_to, {"error": "invalid_state"}))
 
         code_verifier = session.pop("code_verifier", None)
         session.pop("oauth_state", None)
+        session.pop("frontend_return_to", None)
 
         # Exchange code for tokens with PKCE verifier
         cfg = _client_config()["web"]
@@ -530,9 +585,9 @@ def auth_callback():
 
     except Exception as exc:
         print(f"OAuth callback error: {exc}")
-        return redirect(f"{FRONTEND_URL}/?error=oauth_failed")
+        return redirect(_append_query_params(frontend_return_to, {"error": "oauth_failed"}))
 
-    return redirect(f"{FRONTEND_URL}/?token={custom_token}")
+    return redirect(_append_query_params(frontend_return_to, {"token": custom_token}))
 
 
 @flask_app.route("/setup", methods=["POST"])
@@ -556,9 +611,118 @@ def save_setup():
         "school_city":     data.get("school_city", ""),
         # Reflect lane voices config
         "reflect_config":  data.get("reflect_config", {}),
+        "dashboard_image": data.get("dashboard_image", {"kind": "preset", "preset": "king_memnon"}),
         "active": True,
     }, merge=True)
     return jsonify({"ok": True})
+
+
+@flask_app.route("/profile-images")
+def list_profile_images():
+    """Return recent Drive images accessible to the app for this user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    service = _drive_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Drive not connected"}), 403
+
+    try:
+        result = service.files().list(
+            q="mimeType contains 'image/' and trashed=false",
+            pageSize=24,
+            orderBy="modifiedTime desc",
+            fields="files(id,name,mimeType,modifiedTime,parents)",
+        ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Could not list profile images: {exc}")
+        return jsonify({"error": "Could not load Drive images"}), 502
+
+    return jsonify({
+        "files": result.get("files", []),
+    })
+
+
+@flask_app.route("/profile-image/upload", methods=["POST"])
+def upload_profile_image():
+    """Upload a custom dashboard image to Drive and return its file metadata."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    if "image" not in request.files:
+        return jsonify({"error": "missing image"}), 400
+
+    f = request.files["image"]
+    image_bytes = f.read()
+    mime_type = (f.mimetype or "").strip().lower()
+    filename = f.filename or f"dashboard-image-{datetime.now().strftime('%Y%m%d-%H%M%S')}.png"
+
+    if not mime_type.startswith(IMAGE_MIME_PREFIX):
+        return jsonify({"error": "unsupported image type"}), 400
+    if not image_bytes:
+        return jsonify({"error": "empty image"}), 400
+    if len(image_bytes) > MAX_IMAGE_BYTES:
+        return jsonify({"error": "image too large"}), 400
+
+    service = _drive_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Drive not connected"}), 403
+
+    folder_id = _find_or_create_media_folder(service)
+    media = MediaInMemoryUpload(image_bytes, mimetype=mime_type, resumable=False)
+    meta = {
+        "name": filename,
+        "parents": [folder_id],
+    }
+    try:
+        created = service.files().create(
+            body=meta,
+            media_body=media,
+            fields="id,name,mimeType,modifiedTime",
+        ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Could not upload profile image: {exc}")
+        return jsonify({"error": "image upload failed"}), 502
+
+    return jsonify({"file": created})
+
+
+@flask_app.route("/profile-image/<file_id>")
+def get_profile_image(file_id: str):
+    """Stream a Drive-backed dashboard image for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    service = _drive_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Drive not connected"}), 403
+
+    try:
+        meta = service.files().get(fileId=file_id, fields="id,name,mimeType").execute()
+        mime_type = meta.get("mimeType", "")
+        if not mime_type.startswith(IMAGE_MIME_PREFIX):
+            return jsonify({"error": "not an image"}), 400
+
+        buf = io.BytesIO()
+        dl = MediaIoBaseDownload(buf, service.files().get_media(fileId=file_id), chunksize=4 * 1024 * 1024)
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+    except Exception as exc:
+        print(f"[{uid}] Could not fetch profile image {file_id}: {exc}")
+        return jsonify({"error": "image unavailable"}), 404
+
+    return (
+        buf.getvalue(),
+        200,
+        {
+            "Content-Type": mime_type,
+            "Cache-Control": "private, max-age=300",
+        },
+    )
 
 
 @flask_app.route("/upload", methods=["POST"])
@@ -604,7 +768,16 @@ def upload_audio():
         _get_db().collection("users").document(uid).update({"notes_folder_id": notes_id})
 
     # Run pipeline
-    transcript = _transcribe(audio_bytes, filename, api_key)
+    try:
+        transcript = _transcribe(audio_bytes, filename, api_key)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            return jsonify({"error": "transcription service authentication failed"}), 502
+        return jsonify({"error": f"transcription failed ({exc.code})"}), 502
+    except Exception as exc:
+        print(f"[{uid}] Transcription error on upload: {exc}")
+        return jsonify({"error": "transcription failed"}), 502
+
     if len(transcript.split()) < 3:
         return jsonify({"error": "transcript too short"}), 400
 
@@ -617,12 +790,12 @@ def upload_audio():
         ai_result = {"title": Path(filename).stem, "summary": transcript[:300],
                      "action_items": [], "suggested_tags": [], "influenced_by": []}
 
+    note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
+                 ai_result.get("title", Path(filename).stem)[:60] + ".md")
     note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
     if sources_used:
         _record_source_usage(uid, sources_used)
     _store_note_metadata(uid, ai_result, sources_used, note_name)
-    note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
-                 ai_result.get("title", Path(filename).stem)[:60] + ".md")
 
     media = MediaInMemoryUpload(note_md.encode(), mimetype="text/plain", resumable=False)
     service.files().create(

@@ -66,26 +66,50 @@
         display: flex;
         flex-direction: column;
         align-items: stretch;
-        padding: 120px 0 0;
+        padding: 88px 0 0;
       }
 
       .hero-headline {
         width: min(94vw, 980px);
-        margin: 0 auto 18px;
-        text-align: center;
+        margin: 0 auto 24px;
+        display: block;
+      }
+
+      .hero-figure {
+        min-height: 430px;
+        border-radius: 28px;
+        overflow: hidden;
+        background: linear-gradient(180deg, #eee4d1, #dcc8ab);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.7),
+          0 18px 42px rgba(60, 40, 18, 0.16);
+      }
+
+      .hero-figure img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center top;
+        display: block;
+      }
+
+      .hero-copy {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        text-align: left;
+        align-items: flex-start;
       }
 
       .hero-brand-row {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 12px;
       }
 
       .hero-brand-logo {
-        width: 103px;
-        height: 103px;
-        object-fit: contain;
+        display: none;
       }
 
       .hero-brand-title {
@@ -112,7 +136,7 @@
 
       .hero-signin-btn {
         margin-top: 10px;
-        margin-bottom: 120px;
+        margin-bottom: 0;
         font-size: 0.95rem;
         padding: 10px 18px;
         display: inline-flex;
@@ -128,29 +152,39 @@
           0 10px 24px rgba(0, 0, 0, 0.3);
       }
 
+      @media (min-width: 900px) {
+        .hero-headline {
+          display: flex;
+          align-items: center;
+        }
+
+        .hero-copy {
+          margin-top: 0;
+        }
+      }
+
       .hero-signin-btn:hover {
         background: var(--color-white);
       }
 
       .hero-image-ribbon {
-        width: min(1180px, 96vw);
+        width: 100vw;
         height: 312px;
-        margin: 0 auto -36px;
+        margin: 0 0 28px;
         border-radius: 0;
         overflow: hidden;
         position: relative;
-        order: 2;
         z-index: 1;
         box-shadow: 0 10px 22px rgba(0, 0, 0, 0.2);
       }
 
       .hero-image-ribbon-track {
         position: absolute;
-        inset: -12px;
+        inset: 0;
         background-image: url("/corporate_memphis_trebulla.png");
         background-size: cover;
         background-position: center calc(36% + var(--ribbon-shift, 0px));
-        transform: scale(1.08);
+        transform: none;
       }
 
       .hero-context {
@@ -250,56 +284,34 @@
       }
 
       .hero-detail-row {
-        width: 100%;
-        margin: 0;
+        width: min(94vw, 980px);
+        margin: 0 auto;
         display: grid;
         grid-template-columns: 1fr;
-        gap: 18px;
+        gap: 36px;
         align-items: start;
       }
 
-      .hero-detail-row .hero-context {
-        width: 100vw;
-        margin: 0 calc(50% - 50vw) 0;
-        margin-bottom: -26px;
-        border-radius: 0;
-        padding: 20px 24px 16px;
-        order: 1;
-        border: 0;
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.16);
-        position: relative;
-        z-index: 4;
-      }
-
-      .hero-detail-row .hero-context .hero-context-inner {
-        padding-bottom: 0;
-      }
-
-      .hero-detail-row .hero-context[data-ribbon-theme="radiant"],
-      .hero-detail-row .hero-context[data-ribbon-theme="earthy"],
-      .hero-detail-row .hero-context[data-ribbon-theme="paper"] {
-        background-image: url("/ancient_papyrus_bg.jpeg");
-        background-size: cover;
-        background-repeat: no-repeat;
-        background-position: center 40%;
-      }
-
-      .hero-context strong {
+      .hero-context strong,
+      .hero-context-card strong {
         color: var(--color-gold-700);
       }
 
-      .hero-context a {
+      .hero-context a,
+      .hero-context-card a {
         color: var(--color-brown-700);
         font-weight: 600;
         text-decoration: underline;
         text-underline-offset: 2px;
       }
 
-      .hero-context a:hover {
+      .hero-context a:hover,
+      .hero-context-card a:hover {
         color: var(--color-brown-900);
       }
 
-      .hero-context .source-quill {
+      .hero-context .source-quill,
+      .hero-context-card .source-quill {
         display: inline-flex;
         margin-left: 0.15em;
         vertical-align: baseline;
@@ -308,7 +320,8 @@
         line-height: 1;
       }
 
-      .hero-context .source-quill svg {
+      .hero-context .source-quill svg,
+      .hero-context-card .source-quill svg {
         width: 0.95em;
         height: 0.95em;
         stroke: currentColor;
@@ -319,13 +332,18 @@
         filter: drop-shadow(0 1px 0 rgba(255, 239, 201, 0.35));
       }
 
-      .hero-context a:hover .source-quill {
+      .hero-context a:hover .source-quill,
+      .hero-context-card a:hover .source-quill {
         color: var(--color-brown-800);
       }
 
       @media (min-width: 1100px) {
         .hero-image-ribbon {
           height: 126px;
+        }
+
+        .hero-image-ribbon-track {
+          background-position: center calc(48% + var(--ribbon-shift, 0px));
         }
       }
 
@@ -352,18 +370,73 @@
       }
 
       .hero-text {
-        text-align: center;
-        padding: 36px 24px 0;
-        max-width: 600px;
+        text-align: left;
+        padding: 0;
+        max-width: none;
       }
 
       .hero-detail-row .hero-text {
-        width: min(1180px, 94vw);
-        max-width: min(1180px, 94vw);
-        padding: 30px 26px;
-        margin: 0 auto;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        position: relative;
+        z-index: 3;
+      }
+
+      .hero-card-shell {
+        width: 100%;
+        position: relative;
+        cursor: pointer;
         border-radius: 10px;
-        order: 3;
+      }
+
+      .hero-card-shell:focus-visible {
+        outline: 2px solid #c9a84c;
+        outline-offset: 5px;
+      }
+
+      .hero-flip-card {
+        position: relative;
+        min-height: 360px;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      .hero-card-shell .flip-hint {
+        top: 14px;
+        right: 14px;
+      }
+
+      .hero-face {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        padding: 30px 26px;
+        border-radius: 10px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(10px);
+        transition:
+          opacity 260ms ease,
+          transform 260ms ease,
+          visibility 0s linear 260ms;
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+      }
+
+      .hero-face.is-visible {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+        transition:
+          opacity 260ms ease,
+          transform 260ms ease,
+          visibility 0s linear 0s;
+      }
+
+      .hero-face-front {
         background-image:
           linear-gradient(
             180deg,
@@ -374,9 +447,40 @@
         background-size: cover;
         background-repeat: no-repeat;
         background-position: center;
-        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
-        position: relative;
-        z-index: 3;
+      }
+
+      .hero-face-back {
+        background-image: url("/ancient_papyrus_bg.jpeg");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center 40%;
+      }
+
+      .hero-context-card {
+        width: 100%;
+        text-align: center;
+        color: var(--color-sepia-900);
+        font-family: "Caveat", "Bradley Hand", "Segoe Script", cursive;
+        font-size: clamp(1.15rem, 2.05vw, 1.6rem);
+        line-height: 1.3;
+        letter-spacing: 0.01em;
+        border-radius: 0;
+        border: 0;
+        text-shadow: 0 1px 0 rgba(255, 248, 232, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .hero-context-copy {
+        width: 100%;
+      }
+
+      .hero-face-back .hero-thesis-label {
+        position: absolute;
+        top: 30px;
+        left: 26px;
+        margin-bottom: 0;
       }
 
       .hero-text h1 {
@@ -414,6 +518,10 @@
         max-width: none;
       }
 
+      .landing-spacer {
+        height: 32px;
+      }
+
       .hero-description strong {
         color: var(--color-stone-200);
         font-weight: 600;
@@ -423,7 +531,41 @@
         color: var(--color-gold-soft);
       }
 
-      /* ── Epigraph flip-card section ── */
+      .hero-thesis-label {
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--color-stone-500);
+        margin-bottom: 14px;
+        text-align: left;
+        font-style: normal;
+      }
+
+      .hero-thesis-lead {
+        font-size: clamp(1.08rem, 1.6vw, 1.22rem);
+        line-height: 1.85;
+        color: #f2ebe0;
+        margin: 0 0 18px;
+        max-width: none;
+      }
+
+      .hero-thesis-lead span {
+        display: block;
+        margin-top: 14px;
+        color: var(--color-gold-soft);
+        font-weight: 700;
+      }
+
+      .hero-thesis-support {
+        font-size: clamp(1.08rem, 1.6vw, 1.22rem);
+        line-height: 1.85;
+        color: var(--color-stone-300);
+        margin: 0;
+        max-width: none;
+      }
+
+
+      /* ── Epigraph reveal-card section ── */
       .epigraph-section {
         display: flex;
         justify-content: center;
@@ -436,7 +578,6 @@
       .epigraph-card-shell {
         width: min(780px, calc(100vw - 48px));
         position: relative;
-        perspective: 1600px;
         cursor: pointer;
         border-radius: 16px;
       }
@@ -450,8 +591,7 @@
         position: relative;
         min-height: 420px;
         width: 100%;
-        transform-style: preserve-3d;
-        transition: transform 1.08s cubic-bezier(0.25, 0.82, 0.22, 1);
+        overflow: hidden;
       }
 
       .flip-hint {
@@ -470,10 +610,6 @@
         pointer-events: none;
       }
 
-      .epigraph-card-shell.is-flipped .epigraph-flip-card {
-        transform: rotateY(180deg);
-      }
-
       .epigraph-face {
         position: absolute;
         inset: 0;
@@ -485,16 +621,28 @@
         border-radius: 16px;
         border: 1px solid rgba(255, 255, 255, 0.2);
         box-shadow: 0 20px 36px rgba(0, 0, 0, 0.28);
-        backface-visibility: hidden;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(10px);
+        transition:
+          opacity 260ms ease,
+          transform 260ms ease,
+          visibility 0s linear 260ms;
       }
 
-      .epigraph-card-shell:hover .epigraph-face,
-      .epigraph-card-shell:focus-visible .epigraph-face {
+      .epigraph-face.is-visible {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+        transition:
+          opacity 260ms ease,
+          transform 260ms ease,
+          visibility 0s linear 0s;
+      }
+
+      .epigraph-card-shell:hover .epigraph-face.is-visible,
+      .epigraph-card-shell:focus-visible .epigraph-face.is-visible {
         box-shadow: 0 26px 44px rgba(0, 0, 0, 0.34);
-      }
-
-      .epigraph-face-back {
-        transform: rotateY(180deg);
       }
 
       .epigraph-bg {
@@ -715,10 +863,17 @@
       /* ── Metaphor bar ── */
       .metaphor-label {
         background: var(--color-charcoal-900);
-        padding: 20px 32px;
+        width: 100vw;
+        margin: 0;
+        border-radius: 0;
+        padding: 22px 52px;
         display: flex;
         justify-content: center;
         align-items: center;
+        gap: 18px;
+        box-shadow:
+          0 18px 34px rgba(32, 24, 16, 0.12),
+          inset 0 1px 0 rgba(255, 251, 240, 0.08);
       }
 
       .metaphor-item {
@@ -729,7 +884,7 @@
         color: #807060;
         line-height: 1.6;
         flex: 1;
-        max-width: 140px;
+        max-width: 220px;
       }
 
       .metaphor-item strong {
@@ -744,17 +899,28 @@
         align-items: center;
         color: var(--color-gold-500);
         font-size: 1rem;
-        padding: 0 12px;
+        padding: 0 20px;
       }
 
       /* ── Main content ── */
       .landing-content {
-        max-width: 600px;
-        margin: -52px auto 0;
-        padding: 64px 24px;
-        background: var(--color-white);
+        width: min(94vw, 980px);
+        max-width: 980px;
+        margin: 32px auto 36px;
+        padding: 0 24px;
         position: relative;
         z-index: 3;
+      }
+
+      .landing-content .card {
+        border: 1px solid rgba(169, 142, 98, 0.28);
+        box-shadow:
+          0 18px 34px rgba(32, 24, 16, 0.08),
+          inset 0 1px 0 rgba(255, 251, 240, 0.72);
+      }
+
+      .landing-content .section-label {
+        margin-bottom: 24px;
       }
 
       .section-label {
@@ -817,25 +983,159 @@
       }
 
       .footer-repo {
-        margin-top: 14px;
+        width: min(820px, 92vw);
+        margin: 6px auto 0;
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid rgba(215, 205, 191, 0.88);
+        background:
+          linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(247, 241, 232, 0.96));
+        box-shadow:
+          0 16px 30px rgba(52, 38, 22, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.78);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 24px;
+        align-items: center;
+        text-align: center;
+      }
+
+      .footer-repo-copy {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .footer-repo-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        color: #554739;
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .footer-repo-github {
+        width: 1.15rem;
+        height: 1.15rem;
+        color: #2d241c;
+        flex-shrink: 0;
+      }
+
+      .footer-repo-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #2d241c;
+        margin: 0 0 8px;
+        max-width: 44ch;
+      }
+
+      .footer-repo-description {
+        font-size: 0.8rem;
+        line-height: 1.55;
+        color: #675747;
+        margin: 0 0 12px;
+        max-width: 58ch;
+      }
+
+      .footer-repo-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 0;
+      }
+
+      .footer-repo-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: rgba(124, 94, 58, 0.08);
+        border: 1px solid rgba(124, 94, 58, 0.14);
+        color: #6c5844;
+        font-size: 0.75rem;
+        letter-spacing: 0.03em;
+      }
+
+      .footer-repo-logo-link {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 100%;
+        padding: 8px;
+        border-radius: 18px;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      }
+
+      .footer-repo-logo-link:hover,
+      .footer-repo-logo-link:focus-visible {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.56);
+        box-shadow: 0 10px 20px rgba(52, 38, 22, 0.1);
+        outline: none;
+      }
+
+      .footer-repo-tooltip {
+        position: absolute;
+        right: calc(100% + 12px);
+        top: 50%;
+        transform: translateY(-50%) translateX(6px);
+        opacity: 0;
+        pointer-events: none;
+        white-space: nowrap;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(36, 24, 12, 0.92);
+        color: #f6ead5;
+        font-size: 0.76rem;
+        line-height: 1;
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.2);
+        transition: opacity 160ms ease, transform 160ms ease;
+      }
+
+      .footer-repo-logo-link:hover .footer-repo-tooltip,
+      .footer-repo-logo-link:focus-visible .footer-repo-tooltip {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
       }
 
       .footer-repo-link {
-        color: #7b6a58;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(92, 63, 22, 0.2);
+        background: rgba(255, 255, 255, 0.72);
+        color: #5c3f16;
         text-decoration: none;
-        font-size: 0.8rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        box-shadow: 0 8px 18px rgba(52, 38, 22, 0.08);
       }
 
       .footer-repo-link:hover {
-        color: #5f4f3f;
+        color: #3f2c14;
+        border-color: rgba(92, 63, 22, 0.32);
+        background: rgba(255, 255, 255, 0.9);
       }
 
       .footer-logo {
         display: block;
-        margin: 10px auto 0;
-        width: min(360px, 88vw);
+        margin: 0;
+        width: min(240px, 100%);
         height: auto;
         opacity: 0.95;
+        justify-self: center;
       }
 
       @media (max-width: 700px) {
@@ -889,6 +1189,24 @@
         .hero-detail-row .hero-context,
         .hero-detail-row .hero-text {
           border-radius: 0;
+        }
+
+        .hero-headline {
+          grid-template-columns: 1fr;
+          gap: 18px;
+        }
+
+        .hero-figure {
+          min-height: 320px;
+          border-radius: 22px;
+        }
+
+        .hero-copy {
+          text-align: center;
+        }
+
+        .hero-brand-row {
+          justify-content: center;
         }
 
         .hero-brand-logo {
@@ -1004,6 +1322,38 @@
           height: 110px;
           margin-top: 8px;
         }
+
+        .footer-repo-meta {
+          justify-content: center;
+        }
+
+        .footer-repo {
+          grid-template-columns: 1fr;
+          text-align: center;
+        }
+
+        .footer-repo-copy {
+          align-items: center;
+        }
+
+        .footer-repo-logo-link {
+          margin: 0 auto;
+        }
+
+        .footer-repo-tooltip {
+          right: 50%;
+          top: calc(100% + 10px);
+          transform: translateX(50%) translateY(-6px);
+        }
+
+        .footer-repo-logo-link:hover .footer-repo-tooltip,
+        .footer-repo-logo-link:focus-visible .footer-repo-tooltip {
+          transform: translateX(50%) translateY(0);
+        }
+
+        .footer-logo {
+          margin: 0 auto;
+        }
       }
     </style>
   </head>
@@ -1028,171 +1378,205 @@
     <!-- Hero -->
     <div class="landing-hero">
       <div class="hero-headline">
-        <div class="hero-brand-row">
-          <img class="hero-brand-logo" src="/nav-logo.png" alt="Memnon" />
-          <h1 class="hero-brand-title">Memnon</h1>
+        <!--
+        <div class="hero-figure" aria-hidden="true">
+          <img src="/king_memnon.png" alt="" />
         </div>
-        <div class="hero-subtitle">A personal scaffold for teachers</div>
-        <a
-          href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
-          class="hero-signin-btn"
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path
-              d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.017 17.64 11.71 17.64 9.2z"
-              fill="#4285F4"
-            />
-            <path
-              d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
-              fill="#34A853"
-            />
-            <path
-              d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
-              fill="#FBBC05"
-            />
-            <path
-              d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
-              fill="#EA4335"
-            />
-          </svg>
-          Sign in with Google
-        </a>
+        -->
+        <div class="hero-copy">
+          <div class="hero-brand-row">
+            <!-- <img class="hero-brand-logo" src="/king_memnon.png" alt="Memnon" /> -->
+            <h1 class="hero-brand-title">Memnon</h1>
+          </div>
+          <div class="hero-subtitle">A personal scaffold for teachers</div>
+          <a
+            href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
+            class="hero-signin-btn"
+            id="hero-signin-btn"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path
+                d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.017 17.64 11.71 17.64 9.2z"
+                fill="#4285F4"
+              />
+              <path
+                d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
+                fill="#34A853"
+              />
+              <path
+                d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
+                fill="#EA4335"
+              />
+            </svg>
+            Sign in with Google
+          </a>
+        </div>
       </div>
 
-      <!-- How it works -->
-      <div class="landing-content">
-        <div class="section-label">How it works</div>
-        <div class="card">
-          <div class="step step-media-right">
-            <div class="step-num">1</div>
-            <div class="step-body">
-              <div class="step-title">Unburden Your Mind</div>
-              <div class="step-desc">
-                Press record and speak freely. Capture what happened, what you're
-                carrying, and what you don't want to forget. Let the burden of
-                remembering leave your mind and enter the conversation.
-              </div>
-            </div>
-            <div class="step-media step-media-oval" aria-hidden="true">
-              <img src="/explorers_journal.png" alt="" />
-            </div>
-          </div>
-          <div class="step step-media-left">
-            <div class="step-num">2</div>
-            <div class="step-media step-media-oval" aria-hidden="true">
-              <img src="/artifacts.png" alt="" />
-            </div>
-            <div class="step-body">
-              <div class="step-title">Ground Your Thoughts</div>
-              <div class="step-desc">
-                Your words are brought into conversation with the voices,
-                traditions, and frameworks you trust. Experience becomes
-                perspective. Reflection finds deeper roots.
-              </div>
-            </div>
-          </div>
-          <div class="step step-media-right" style="margin-bottom: 0">
-            <div class="step-num">3</div>
-            <div class="step-body">
-              <div class="step-title">Hear Yourself Clearly</div>
-              <div class="step-desc">
-                A reflection is added to your archive-not merely a transcript,
-                but your own thinking returned to you with greater clarity.
-              </div>
-            </div>
-            <div class="step-media step-media-oval" aria-hidden="true">
-              <img class="step-img-portrait" src="/trebulla_portrait.png" alt="" />
-            </div>
-          </div>
-        </div>
+      <div class="hero-image-ribbon" aria-hidden="true">
+        <div class="hero-image-ribbon-track"></div>
       </div>
 
       <div class="hero-detail-row">
-        <div class="hero-context" data-ribbon-theme="radiant">
-          <div class="hero-context-inner">
-            Memnon appears in the <em>Iliad</em> as the Ethiopian ally of Troy,
-            son of Eos (Dawn).
-            <a
-              href="https://en.wikipedia.org/wiki/Memnon"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Source for Memnon in Greek mythology"
-              ><span class="source-quill" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
-                  <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
-                  <path d="M5 21l4-4" />
-                </svg></span
-              ></a
-            >
-            Centuries later, the Colossi at Thebes were linked
-            to his legend when one statue was said to "sing" at sunrise.
-            <a
-              href="https://www.worldhistory.org/Colossi_of_Memnon/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Source for Colossi of Memnon history"
-              ><span class="source-quill" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
-                  <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
-                  <path d="M5 21l4-4" />
-                </svg></span
-              ></a
-            >
-            <br /><br />
-            Ancient visitors treated the site as a living record: they returned,
-            listened for the sound as a source of oracular insight, and left new
-            graffiti and inscriptions over earlier ones, including voices like
-            Trebulla's imagined here.
-            <a
-              href="https://en.wikipedia.org/wiki/Caecilia_Trebulla"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Source for Caecilia Trebulla"
-              ><span class="source-quill" aria-hidden="true"
-                ><svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
-                  <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
-                  <path d="M5 21l4-4" />
-                </svg></span
-              ></a
-            >
-          </div>
-        </div>
-        <div class="hero-image-ribbon" aria-hidden="true">
-          <div class="hero-image-ribbon-track"></div>
-        </div>
         <div class="hero-text">
-          <p class="hero-description">
-            Every teaching day carries weight — the student who struggled, the
-            lesson that landed, the thing you can't quite find words for.
-            <strong>Memnon is where you put it down.</strong>
-            <br /><br />
-            Speak at the end of your day. Your voice is transcribed, filtered
-            through the wisdom traditions you've chosen, and returned to you as a
-            grounded reflection — one that addresses not just your to-do list but
-            <strong>the teacher you're trying to be.</strong>
-          </p>
+          <div
+            class="hero-card-shell"
+            tabindex="0"
+            role="button"
+            aria-pressed="false"
+            aria-label="Reveal image context"
+          >
+            <div class="flip-hint">Click to reveal</div>
+            <div class="hero-flip-card">
+              <div class="hero-face hero-face-front is-visible">
+                <div>
+                  <div class="hero-thesis-label">Why Memnon</div>
+                  <p class="hero-thesis-lead">
+                    Every teaching day carries weight — the student who struggled, the
+                    lesson that landed, the thing you can't quite find words for.
+                    <span>Memnon is where you put it down.</span>
+                  </p>
+                  <p class="hero-thesis-support">
+                    Speak at the end of your day. Your voice is transcribed, filtered
+                    through the wisdom traditions you've chosen, and returned to you as a
+                    grounded reflection — one that addresses not just your to-do list but
+                    the teacher you're trying to be.
+                  </p>
+                </div>
+              </div>
+
+              <div class="hero-face hero-face-back">
+                <div class="hero-context-card">
+                  <div class="hero-context-copy">
+                    <div class="hero-thesis-label">The Story Behind the Name</div>
+                    <div class="hero-context-inner">
+                      Memnon appears in the <em>Iliad</em> as the Ethiopian ally of Troy,
+                      son of Eos (Dawn).
+                      <a
+                        href="https://en.wikipedia.org/wiki/Memnon"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Source for Memnon in Greek mythology"
+                        ><span class="source-quill" aria-hidden="true"
+                          ><svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
+                            <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
+                            <path d="M5 21l4-4" />
+                          </svg></span
+                        ></a
+                      >
+                      Centuries later, the Colossi at Thebes were linked
+                      to his legend when one statue was said to "sing" at sunrise.
+                      <a
+                        href="https://www.worldhistory.org/Colossi_of_Memnon/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Source for Colossi of Memnon history"
+                        ><span class="source-quill" aria-hidden="true"
+                          ><svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
+                            <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
+                            <path d="M5 21l4-4" />
+                          </svg></span
+                        ></a
+                      >
+                      <br /><br />
+                      Ancient visitors treated the site as a living record: they returned,
+                      listened for the sound as a source of oracular insight, and left new
+                      graffiti and inscriptions over earlier ones, including voices like
+                      Trebulla's imagined here.
+                      <a
+                        href="https://en.wikipedia.org/wiki/Caecilia_Trebulla"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Source for Caecilia Trebulla"
+                        ><span class="source-quill" aria-hidden="true"
+                          ><svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M20 3c-5.4 1.1-9.6 4.5-12.4 9.8C6.2 15.5 6 18 7.2 20c2-0.7 4.2-2 6.4-4.2C17.9 11.5 19.9 8 20 3z" />
+                            <path d="M8 18c2.8-2.2 5.8-5.2 8.6-8.8" />
+                            <path d="M5 21l4-4" />
+                          </svg></span
+                        ></a
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
 
     <!-- Metaphor bar -->
+    <div class="landing-spacer" aria-hidden="true"></div>
     <div class="metaphor-label">
       <div class="metaphor-item">
-        <strong>Your recordings</strong>
-        the sunlight
+        <strong>Your recording</strong>
+        what happened today
+      </div>
+      <div class="metaphor-arrow">+</div>
+      <div class="metaphor-item">
+        <strong>Grounding thoughts</strong>
+        through teaching context and guiding voices
       </div>
       <div class="metaphor-arrow">→</div>
       <div class="metaphor-item">
-        <strong>Memnon</strong>
-        the colossus
+        <strong>Your reflection</strong>
+        returned with clarity
       </div>
-      <div class="metaphor-arrow">→</div>
-      <div class="metaphor-item">
-        <strong>Your notes</strong>
-        the sound
+    </div>
+
+    <!-- How it works -->
+    <div class="landing-content">
+      <div class="card">
+        <div class="section-label">How it works</div>
+        <div class="step step-media-right">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">Unburden Your Mind</div>
+            <div class="step-desc">
+              Press record and speak freely. Capture what happened, what you're
+              carrying, and what you don't want to forget. Let the burden of
+              remembering leave your mind and enter the conversation.
+            </div>
+          </div>
+          <div class="step-media step-media-oval" aria-hidden="true">
+            <img src="/explorers_journal.png" alt="" />
+          </div>
+        </div>
+        <div class="step step-media-left">
+          <div class="step-num">2</div>
+          <div class="step-media step-media-oval" aria-hidden="true">
+            <img src="/sacred_objects.png" alt="" />
+          </div>
+          <div class="step-body">
+            <div class="step-title">Ground Your Thoughts</div>
+            <div class="step-desc">
+              Your words are brought into conversation with the voices,
+              traditions, and frameworks you trust. Experience becomes
+              perspective. Reflection finds deeper roots.
+            </div>
+          </div>
+        </div>
+        <div class="step step-media-right" style="margin-bottom: 0">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">Hear Yourself Clearly</div>
+            <div class="step-desc">
+              A reflection is added to your archive-not merely a transcript,
+              but your own thinking returned to you with greater clarity.
+            </div>
+          </div>
+          <div class="step-media step-media-oval" aria-hidden="true">
+            <img class="step-img-portrait" src="/trebulla_portrait.png" alt="" />
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1203,11 +1587,11 @@
         tabindex="0"
         role="button"
         aria-pressed="false"
-        aria-label="Flip between Trebulla and Driscoll cards"
+        aria-label="Reveal alternate quote view"
       >
-        <div class="flip-hint">&#8635; Click to flip</div>
+        <div class="flip-hint">Click to reveal</div>
         <div class="epigraph-flip-card">
-          <div class="epigraph-face epigraph-face-front">
+          <div class="epigraph-face epigraph-face-front is-visible">
             <div class="epigraph-bg"></div>
             <div class="epigraph-overlay"></div>
             <div class="epigraph-content">
@@ -1291,14 +1675,52 @@
       "
     >
       <div class="footer-repo">
+        <div class="footer-repo-copy">
+          <div class="footer-repo-label">
+            <svg
+              class="footer-repo-github"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                fill="currentColor"
+                d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.38 7.86 10.9.58.1.79-.25.79-.56 0-.28-.01-1.2-.02-2.18-3.2.69-3.87-1.36-3.87-1.36-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.67 1.24 3.32.95.1-.74.4-1.24.73-1.53-2.56-.29-5.26-1.28-5.26-5.69 0-1.26.45-2.28 1.18-3.08-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.15 1.18A10.93 10.93 0 0112 6.03c.97 0 1.95.13 2.86.38 2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.77.11 3.06.74.8 1.18 1.82 1.18 3.08 0 4.42-2.7 5.39-5.27 5.68.41.36.78 1.06.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .31.21.67.8.56A11.5 11.5 0 0023.5 12C23.5 5.65 18.35.5 12 .5z"
+              />
+            </svg>
+            Original Open-Source Core
+          </div>
+          <p class="footer-repo-title">
+            The public repo at <strong>eitanfire/memnon</strong> is the original
+            local-first Memnon pipeline.
+          </p>
+          <p class="footer-repo-description">
+            It shows the reference architecture behind the project: iPhone capture,
+            local transcription with <code>whisper.cpp</code>, structured Markdown
+            output, and the TypeScript MCP server that makes notes queryable. The
+            repo is MIT-licensed, readable in an afternoon, and explicitly designed
+            to be forked and extended.
+          </p>
+          <div class="footer-repo-meta">
+            <span class="footer-repo-badge">Local-first voice pipeline</span>
+            <span class="footer-repo-badge">TypeScript MCP server</span>
+            <span class="footer-repo-badge">MIT licensed</span>
+            <span class="footer-repo-badge">Built to fork</span>
+          </div>
+          <p class="footer-repo-description" style="margin-top: 12px; margin-bottom: 0;">
+            Fork it, adapt the pipeline, and build your own companion tools on top of the original open-source core.
+          </p>
+        </div>
         <a
-          class="footer-repo-link"
+          class="footer-repo-logo-link"
           href="https://github.com/eitanfire/memnon"
           target="_blank"
           rel="noopener noreferrer"
-          >Original public repo ↗</a
+          aria-label="Open the eitanfire/memnon GitHub repository"
         >
-        <img class="footer-logo" src="/memnon_logo.png" alt="Memnon logo" />
+          <span class="footer-repo-tooltip">View repo ↗</span>
+          <img class="footer-logo" src="/memnon_logo.png" alt="Memnon logo" />
+        </a>
       </div>
       <div style="margin-top: 16px">
         <a
@@ -1316,29 +1738,59 @@
     </footer>
 
     <script>
-      const flipCardShell = document.querySelector(".epigraph-card-shell");
+      const revealCardShell = document.querySelector(".epigraph-card-shell");
+      const heroCardShell = document.querySelector(".hero-card-shell");
       const epigraphSection = document.querySelector(".epigraph-section");
       let hasManualFlip = false;
 
       function setFlipState(isFlipped) {
-        if (!flipCardShell) return;
-        flipCardShell.classList.toggle("is-flipped", isFlipped);
-        flipCardShell.setAttribute("aria-pressed", String(isFlipped));
+        if (!revealCardShell) return;
+        revealCardShell.classList.toggle("is-flipped", isFlipped);
+        revealCardShell.setAttribute("aria-pressed", String(isFlipped));
+        const front = revealCardShell.querySelector(".epigraph-face-front");
+        const back = revealCardShell.querySelector(".epigraph-face-back");
+        if (front) front.classList.toggle("is-visible", !isFlipped);
+        if (back) back.classList.toggle("is-visible", isFlipped);
       }
 
-      if (flipCardShell) {
-        flipCardShell.addEventListener("click", (event) => {
+      function setHeroCardFlipState(isFlipped) {
+        if (!heroCardShell) return;
+        heroCardShell.classList.toggle("is-flipped", isFlipped);
+        heroCardShell.setAttribute("aria-pressed", String(isFlipped));
+        const front = heroCardShell.querySelector(".hero-face-front");
+        const back = heroCardShell.querySelector(".hero-face-back");
+        if (front) front.classList.toggle("is-visible", !isFlipped);
+        if (back) back.classList.toggle("is-visible", isFlipped);
+      }
+
+      if (revealCardShell) {
+        revealCardShell.addEventListener("click", (event) => {
           if (event.target.closest("a")) return;
           hasManualFlip = true;
-          setFlipState(!flipCardShell.classList.contains("is-flipped"));
+          setFlipState(!revealCardShell.classList.contains("is-flipped"));
         });
 
-        flipCardShell.addEventListener("keydown", (event) => {
+        revealCardShell.addEventListener("keydown", (event) => {
           if (event.target.closest("a")) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             hasManualFlip = true;
-            setFlipState(!flipCardShell.classList.contains("is-flipped"));
+            setFlipState(!revealCardShell.classList.contains("is-flipped"));
+          }
+        });
+      }
+
+      if (heroCardShell) {
+        heroCardShell.addEventListener("click", (event) => {
+          if (event.target.closest("a")) return;
+          setHeroCardFlipState(!heroCardShell.classList.contains("is-flipped"));
+        });
+
+        heroCardShell.addEventListener("keydown", (event) => {
+          if (event.target.closest("a")) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setHeroCardFlipState(!heroCardShell.classList.contains("is-flipped"));
           }
         });
       }
@@ -1388,11 +1840,24 @@
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
+      const isStaticLocalhost =
+        window.location.hostname === "localhost" &&
+        (window.location.port === "8000" || window.location.port === "8080");
+      const routes = {
+        home: isStaticLocalhost ? "/index.html" : "/",
+        setup: isStaticLocalhost ? "/setup.html" : "/setup",
+        dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
+      };
+      const signinBtn = document.getElementById("hero-signin-btn");
+      if (signinBtn) {
+        const returnTo = `${window.location.origin}${routes.home}`;
+        signinBtn.href = `https://api-4hth6oktaa-uc.a.run.app/auth/start?return_to=${encodeURIComponent(returnTo)}`;
+      }
 
       const token = new URLSearchParams(window.location.search).get("token");
 
       if (token) {
-        history.replaceState({}, "", "/");
+        history.replaceState({}, "", routes.home);
         signInWithCustomToken(auth, token).catch((e) => {
           document.body.innerHTML += `<p style="color:red;text-align:center;padding:20px">Sign-in error: ${e.message}</p>`;
         });
@@ -1403,7 +1868,7 @@
         const snap = await getDoc(doc(db, "users", user.uid));
         const data = snap.exists() ? snap.data() : {};
         window.location.href =
-          data.drive_connected && data.lane ? "/dashboard" : "/setup";
+          data.drive_connected && data.lane ? routes.dashboard : routes.setup;
       });
     </script>
   </body>

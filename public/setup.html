@@ -72,6 +72,104 @@
     .voice-chip .vc-work { font-size: 0.72rem; color: #888; margin-top: 2px; }
     .voice-chip.selected .vc-name { color: #2563eb; }
 
+    /* ── Dashboard portrait UI ── */
+    .portrait-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      grid-auto-rows: 1fr;
+    }
+    .portrait-option {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      background: #fff;
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+    .portrait-option:hover {
+      border-color: #2563eb;
+      background: #f8faff;
+    }
+    .portrait-option.selected {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.12);
+      background: #eff6ff;
+    }
+    .portrait-option-image {
+      width: 100%;
+      height: 146px;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 10px;
+      background: linear-gradient(180deg, #f4ead7, #deccb0);
+      border: 1px solid #ebe0cf;
+    }
+    .portrait-option-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .portrait-option-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      min-height: 1.4em;
+    }
+    .portrait-option-meta {
+      font-size: 0.78rem;
+      color: #777;
+      line-height: 1.45;
+      min-height: 2.4em;
+    }
+    .portrait-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .portrait-preview {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid #e8e6e0;
+      background: #fffdfa;
+    }
+    .portrait-preview-shell {
+      width: min(100%, 220px);
+      margin: 0 auto;
+      padding: 12px;
+      border-radius: 28px;
+      background: linear-gradient(180deg, #f1dfb7 0%, #e4c992 34%, #cfac73 68%, #a88660 100%);
+      border: 1px solid rgba(184, 147, 101, 0.58);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 249, 230, 0.78),
+        0 14px 28px rgba(93, 71, 42, 0.16);
+    }
+    .portrait-preview-shell img {
+      width: 100%;
+      height: 240px;
+      display: block;
+      object-fit: contain;
+      object-position: center center;
+      transform: scale(1);
+      transform-origin: center center;
+      filter: drop-shadow(0 8px 16px rgba(94, 41, 20, 0.16));
+    }
+    .drive-images-empty {
+      font-size: 0.82rem;
+      color: #777;
+      padding: 12px 0 4px;
+    }
+    @media (max-width: 640px) {
+      .portrait-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* .passage-editor — customize passages feature commented out
     .passage-editor {
       margin-top: 12px; padding: 12px 14px;
@@ -99,7 +197,7 @@
     </div>
 
     <!-- ── Teaching context ── -->
-    <div class="card">
+    <div class="card" id="dashboard-portrait">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
         <span style="font-size:1.4rem;">🏫</span>
         <h2 style="margin:0;">Teaching Context</h2>
@@ -194,6 +292,45 @@
         <div id="customize-panel" style="display:none; margin-top:12px;"></div>
       </div>
       -->
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:1.4rem;">🖼️</span>
+        <h2 style="margin:0;">Dashboard Portrait</h2>
+      </div>
+      <p class="muted" style="margin-bottom:18px;">
+        Choose the image that appears beside your dashboard welcome. Start with a preset, use one from Drive, or upload one from your computer.
+      </p>
+
+      <div style="margin-bottom:18px;">
+        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Presets</div>
+        <div class="portrait-grid" id="preset-portrait-grid"></div>
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Custom image</div>
+        <div class="portrait-toolbar">
+          <button type="button" id="upload-portrait-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
+            Upload from computer
+          </button>
+          <button type="button" id="refresh-drive-images-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
+            Load from Drive
+          </button>
+        </div>
+        <input type="file" id="portrait-file-input" accept="image/*" style="display:none;" />
+        <div class="portrait-grid" id="drive-portrait-grid"></div>
+        <div class="drive-images-empty" id="drive-images-empty">
+          No custom Drive images loaded yet.
+        </div>
+      </div>
+
+      <div class="portrait-preview">
+        <div class="muted" style="font-size:0.75rem; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.08em; text-align:center;">Current dashboard portrait</div>
+        <div class="portrait-preview-shell">
+          <img id="portrait-preview-image" src="/corporate_memphis_king_memnon_looking_down.png" alt="Selected dashboard portrait preview" />
+        </div>
+      </div>
     </div>
 
     <button id="save-btn" class="btn btn-primary" style="width:100%; justify-content:center; font-size:1rem; padding:14px;">
@@ -482,6 +619,51 @@
     var selectedVoices = [];          // ordered — first is primary
     var customPassages = {};          // guide_id -> override text (commented out feature)
     var activeTraditionFilter = 'all';
+    const portraitPresets = {
+      king_memnon: {
+        kind: 'preset',
+        preset: 'king_memnon',
+        label: 'King Memnon',
+        meta: 'Default dashboard portrait',
+        preview: '/corporate_memphis_king_memnon_looking_down.png',
+        fit: 'contain',
+        position: 'center center',
+        scale: '1',
+      },
+      trebulla: {
+        kind: 'preset',
+        preset: 'trebulla',
+        label: 'Trebulla',
+        meta: 'Alternate portrait from the landing sequence',
+        preview: '/corporate_memphis_%20version_of_trebulla_no_bg.png',
+        fit: 'cover',
+        position: 'center 12%',
+        scale: '1.5',
+      },
+      sound_waves: {
+        kind: 'preset',
+        preset: 'sound_waves',
+        label: 'Sound Waves',
+        meta: 'Abstract avatar option',
+        preview: '/sound_waves.png',
+        fit: 'cover',
+        position: 'center center',
+        scale: '1',
+      },
+      sun_and_waves: {
+        kind: 'preset',
+        preset: 'sun_and_waves',
+        label: 'Sun and Waves',
+        meta: 'Abstract avatar option',
+        preview: '/sun_and_waves.png',
+        fit: 'cover',
+        position: 'center center',
+        scale: '1',
+      },
+    };
+    let dashboardImageChoice = { kind: 'preset', preset: 'king_memnon' };
+    let drivePortraitFiles = [];
+    const portraitObjectUrls = new Map();
 
     async function loadSources() {
       try {
@@ -574,6 +756,51 @@
       return sourcesData?.guides?.[gid]?.label || gid;
     }
 
+    function getPresetPreviewSrc(key) {
+      return portraitPresets[key]?.preview || portraitPresets.king_memnon.preview;
+    }
+
+    function applyPortraitImageStyle(img, choice) {
+      if (!img) return;
+      let fit = 'contain';
+      let position = 'center center';
+      let scale = '1';
+      if (choice?.kind === 'preset' && portraitPresets[choice.preset]) {
+        fit = portraitPresets[choice.preset].fit || fit;
+        position = portraitPresets[choice.preset].position || position;
+        scale = portraitPresets[choice.preset].scale || scale;
+      } else if (choice?.kind === 'drive') {
+        fit = 'cover';
+      }
+      img.style.objectFit = fit;
+      img.style.objectPosition = position;
+      img.style.transform = `scale(${scale})`;
+    }
+
+    function getDashboardImageKey(choice) {
+      if (!choice) return 'preset:king_memnon';
+      if (choice.kind === 'preset') return `preset:${choice.preset || 'king_memnon'}`;
+      return `drive:${choice.file_id || ''}`;
+    }
+
+    function normalizeDashboardImageConfig(raw) {
+      if (!raw || typeof raw !== 'object') {
+        return { kind: 'preset', preset: 'king_memnon' };
+      }
+      if (raw.kind === 'preset' && raw.preset && portraitPresets[raw.preset]) {
+        return { kind: 'preset', preset: raw.preset };
+      }
+      if (raw.kind === 'drive' && raw.file_id) {
+        return {
+          kind: 'drive',
+          file_id: raw.file_id,
+          name: raw.name || 'Custom image',
+          mimeType: raw.mimeType || 'image/png',
+        };
+      }
+      return { kind: 'preset', preset: 'king_memnon' };
+    }
+
     /* Customize passages feature commented out
     function updateCustomizePanel() { ... }
     function renderCustomizePanel() { ... }
@@ -581,8 +808,179 @@
     document.getElementById('customize-toggle').addEventListener('click', () => { ... });
     */
 
+    async function fetchProtectedImageSrc(fileId) {
+      if (!currentUser || !fileId) return '';
+      if (portraitObjectUrls.has(fileId)) return portraitObjectUrls.get(fileId);
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API}/profile-image/${fileId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Could not load image preview');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      portraitObjectUrls.set(fileId, url);
+      return url;
+    }
+
+    async function updatePortraitPreview() {
+      const img = document.getElementById('portrait-preview-image');
+      applyPortraitImageStyle(img, dashboardImageChoice);
+      if (dashboardImageChoice.kind === 'preset') {
+        img.src = getPresetPreviewSrc(dashboardImageChoice.preset);
+        return;
+      }
+      try {
+        img.src = await fetchProtectedImageSrc(dashboardImageChoice.file_id);
+      } catch (e) {
+        console.error('Could not load dashboard portrait preview:', e);
+      }
+    }
+
+    function updatePortraitSelectionUI() {
+      const selectedKey = getDashboardImageKey(dashboardImageChoice);
+      document.querySelectorAll('.portrait-option').forEach((el) => {
+        let key = '';
+        if (el.dataset.kind === 'preset') key = `preset:${el.dataset.key}`;
+        if (el.dataset.kind === 'drive') key = `drive:${el.dataset.fileId}`;
+        el.classList.toggle('selected', key === selectedKey);
+      });
+      updatePortraitPreview();
+    }
+
+    function buildPresetPortraitOptions() {
+      const container = document.getElementById('preset-portrait-grid');
+      container.innerHTML = '';
+      for (const [key, preset] of Object.entries(portraitPresets)) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'portrait-option';
+        card.dataset.kind = 'preset';
+        card.dataset.key = key;
+        card.innerHTML = `
+          <div class="portrait-option-image"><img src="${preset.preview}" alt="${preset.label}" /></div>
+          <div class="portrait-option-title">${preset.label}</div>
+          <div class="portrait-option-meta">${preset.meta}</div>
+        `;
+        applyPortraitImageStyle(card.querySelector('img'), { kind: 'preset', preset: key });
+        card.addEventListener('click', () => {
+          dashboardImageChoice = { kind: 'preset', preset: key };
+          updatePortraitSelectionUI();
+        });
+        container.appendChild(card);
+      }
+      updatePortraitSelectionUI();
+    }
+
+    function renderDrivePortraitOptions() {
+      const container = document.getElementById('drive-portrait-grid');
+      const empty = document.getElementById('drive-images-empty');
+      container.innerHTML = '';
+      if (!drivePortraitFiles.length) {
+        empty.style.display = 'block';
+        updatePortraitSelectionUI();
+        return;
+      }
+      empty.style.display = 'none';
+      drivePortraitFiles.forEach((file) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'portrait-option';
+        card.dataset.kind = 'drive';
+        card.dataset.fileId = file.id;
+        card.innerHTML = `
+          <div class="portrait-option-image"><img alt="${file.name}" /></div>
+          <div class="portrait-option-title">${file.name}</div>
+          <div class="portrait-option-meta">From Google Drive</div>
+        `;
+        const img = card.querySelector('img');
+        applyPortraitImageStyle(img, { kind: 'drive', file_id: file.id });
+        fetchProtectedImageSrc(file.id)
+          .then((src) => { img.src = src; })
+          .catch(() => { img.alt = `${file.name} preview unavailable`; });
+        card.addEventListener('click', () => {
+          dashboardImageChoice = {
+            kind: 'drive',
+            file_id: file.id,
+            name: file.name,
+            mimeType: file.mimeType || 'image/png',
+          };
+          updatePortraitSelectionUI();
+        });
+        container.appendChild(card);
+      });
+      updatePortraitSelectionUI();
+    }
+
+    async function loadDrivePortraits() {
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API}/profile-images`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error('Could not load Drive images');
+      }
+      const data = await res.json();
+      drivePortraitFiles = Array.isArray(data.files) ? data.files : [];
+      renderDrivePortraitOptions();
+    }
+
+    async function uploadPortraitFile(file) {
+      if (!currentUser || !file) return;
+      const token = await currentUser.getIdToken();
+      const form = new FormData();
+      form.append('image', file, file.name);
+      const res = await fetch(`${API}/profile-image/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Upload failed');
+      }
+      const data = await res.json();
+      const uploaded = data.file;
+      drivePortraitFiles = [
+        uploaded,
+        ...drivePortraitFiles.filter((f) => f.id !== uploaded.id),
+      ];
+      dashboardImageChoice = {
+        kind: 'drive',
+        file_id: uploaded.id,
+        name: uploaded.name,
+        mimeType: uploaded.mimeType || file.type || 'image/png',
+      };
+      renderDrivePortraitOptions();
+    }
+
     // Load sources on page load
     loadSources();
+    buildPresetPortraitOptions();
+
+    document.getElementById('upload-portrait-btn').addEventListener('click', () => {
+      document.getElementById('portrait-file-input').click();
+    });
+
+    document.getElementById('refresh-drive-images-btn').addEventListener('click', async () => {
+      try {
+        await loadDrivePortraits();
+      } catch (e) {
+        alert(e.message || 'Could not load Drive images.');
+      }
+    });
+
+    document.getElementById('portrait-file-input').addEventListener('change', async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        await uploadPortraitFile(file);
+      } catch (e) {
+        alert(e.message || 'Could not upload image.');
+      } finally {
+        event.target.value = '';
+      }
+    });
 
     // ── Pre-fill returning user ──
     function prefill(data) {
@@ -623,6 +1021,11 @@
         };
         applyVoices();
       }
+
+      if (data.dashboard_image) {
+        dashboardImageChoice = normalizeDashboardImageConfig(data.dashboard_image);
+        updatePortraitSelectionUI();
+      }
     }
   </script>
 
@@ -652,11 +1055,18 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    const isStaticLocalhost =
+      window.location.hostname === "localhost" &&
+      (window.location.port === "8000" || window.location.port === "8080");
+    const routes = {
+      home: isStaticLocalhost ? "/index.html" : "/",
+      dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
+    };
 
     let currentUser = null;
 
     auth.authStateReady().then(() => {
-      if (!auth.currentUser && !PREVIEW_MODE) window.location.href = "/";
+      if (!auth.currentUser && !PREVIEW_MODE) window.location.href = routes.home;
       if (PREVIEW_MODE && !auth.currentUser) {
         document.getElementById("nav-name").textContent = "Preview mode";
         const btn = document.getElementById("save-btn");
@@ -670,7 +1080,24 @@
       document.getElementById("nav-name").textContent = user.displayName || user.email;
       const snap = await getDoc(doc(db, "users", user.uid));
       if (snap.exists()) prefill(snap.data());
+      try {
+        await loadDrivePortraits();
+      } catch (e) {
+        console.error("Could not load Drive portraits:", e);
+      }
     });
+
+    async function postSetup(body, forceRefresh = false) {
+      const token = await currentUser.getIdToken(forceRefresh);
+      return fetch(`${API}/setup`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    }
 
     document.getElementById("save-btn").addEventListener("click", async () => {
       if (!currentUser) {
@@ -694,6 +1121,7 @@
         tradition: selectedVoices.length > 0
           ? (sourcesData?.guides?.[selectedVoices[0]]?.tradition || "secular")
           : "secular",
+        dashboard_image: dashboardImageChoice,
         subjects: document.getElementById("subjects").value.trim(),
         grade_levels: Array.from(selectedGrades),
         school_state,
@@ -711,21 +1139,21 @@
         body.school_city     = confirmedSchool.city;
       }
 
-      const token = await currentUser.getIdToken();
-      const res = await fetch(`${API}/setup`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
+      let res = await postSetup(body);
+      if (res.status === 401) {
+        res = await postSetup(body, true);
+      }
 
       if (res.ok) {
-        window.location.href = "/dashboard";
+        window.location.href = routes.dashboard;
       } else {
         btn.disabled = false;
         btn.textContent = "Save and go to dashboard →";
+        if (res.status === 401) {
+          alert("Your session expired. Refresh the page and sign in again.");
+          return;
+        }
+        console.error("Setup save failed:", res.status, await res.text().catch(() => ""));
         alert("Something went wrong. Please try again.");
       }
     });

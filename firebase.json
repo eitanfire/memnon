@@ -9,6 +9,13 @@
     ],
     "rewrites": [
       {
+        "source": "api{,/**}",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
