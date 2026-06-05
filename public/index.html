@@ -20,6 +20,10 @@
     />
     <link
       rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap"
+    />
+    <link
+      rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&display=swap"
     />
     <link
@@ -27,73 +31,96 @@
       href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap"
     />
     <style>
+      :root {
+        --color-white: #ffffff;
+        --color-white-94: rgba(255, 255, 255, 0.94);
+        --color-ink-900: #1f2328;
+        --color-ink-700: #3a3f46;
+        --color-warm-ink-900: #24180c;
+        --color-sepia-900: #2c2014;
+        --color-gold-500: #c9a84c;
+        --color-gold-700: #6d4f25;
+        --color-gold-soft: #f8e6bf;
+        --color-brown-700: #5c3f16;
+        --color-brown-900: #3b2608;
+        --color-brown-800: #4b3210;
+        --color-brown-600: #7a5a28;
+        --color-stone-600: #a89070;
+        --color-stone-500: #a09080;
+        --color-stone-400: #c8bfaf;
+        --color-stone-300: #efe6d7;
+        --color-stone-200: #e8dcc8;
+        --color-charcoal-900: #1a1a18;
+        --color-footer-text: #888;
+        --color-footer-border: #ede8e0;
+      }
+
       /* ── Landing-specific styles ── */
       body {
-        background: #faf9f6;
+        background: var(--color-white);
       }
 
       .landing-hero {
         width: 100%;
-        background: #1a1a18;
+        background: var(--color-white);
         display: flex;
         flex-direction: column;
         align-items: stretch;
-        padding: 0 0 48px;
+        padding: 120px 0 0;
       }
 
-      .hero-image {
-        width: 100%;
-        max-height: 430px;
-        object-fit: cover;
-        object-position: center 30%;
-        display: block;
-        margin-top: 0;
-        border-radius: 0;
-      }
-
-      .hero-image-wrap {
-        position: relative;
-      }
-
-      .hero-title-overlay {
-        position: absolute;
-        top: 18px;
-        left: 50%;
-        transform: translateX(-50%);
+      .hero-headline {
+        width: min(94vw, 980px);
+        margin: 0 auto 18px;
         text-align: center;
-        width: min(92vw, 760px);
-        z-index: 4;
       }
 
-      .hero-title-overlay h1 {
-        font-family: "Georgia", "Times New Roman", serif;
-        font-size: clamp(2rem, 4.6vw, 3.2rem);
-        font-weight: 400;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: #d3b062;
-        margin: 0 0 4px;
-        text-shadow:
-          0 2px 6px rgba(0, 0, 0, 0.68),
-          0 10px 22px rgba(0, 0, 0, 0.62);
+      .hero-brand-row {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
       }
 
-      .hero-title-overlay .hero-subtitle {
-        text-shadow:
-          0 1px 4px rgba(0, 0, 0, 0.62),
-          0 8px 18px rgba(0, 0, 0, 0.55);
+      .hero-brand-logo {
+        width: 103px;
+        height: 103px;
+        object-fit: contain;
+      }
+
+      .hero-brand-title {
+        font-family: "Manrope", "Avenir Next", "Helvetica Neue", sans-serif;
+        font-size: clamp(2rem, 5vw, 3.3rem);
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        text-transform: none;
+        color: var(--color-ink-900);
+        margin: 0;
+        text-shadow: none;
+      }
+
+      .hero-headline .hero-subtitle {
+        font-family: "Manrope", "Avenir Next", "Helvetica Neue", sans-serif;
+        font-size: clamp(1rem, 2vw, 1.2rem);
+        font-weight: 500;
+        color: var(--color-ink-700);
+        font-style: normal;
+        letter-spacing: 0.01em;
+        margin-top: 8px;
+        text-shadow: none;
       }
 
       .hero-signin-btn {
         margin-top: 10px;
+        margin-bottom: 120px;
         font-size: 0.95rem;
         padding: 10px 18px;
         display: inline-flex;
         align-items: center;
         gap: 10px;
         text-decoration: none;
-        background: rgba(255, 255, 255, 0.94);
-        color: #24180c;
+        background: var(--color-white-94);
+        color: var(--color-warm-ink-900);
         border: 1px solid rgba(0, 0, 0, 0.24);
         border-radius: 999px;
         box-shadow:
@@ -102,7 +129,28 @@
       }
 
       .hero-signin-btn:hover {
-        background: #ffffff;
+        background: var(--color-white);
+      }
+
+      .hero-image-ribbon {
+        width: min(1180px, 96vw);
+        height: 312px;
+        margin: 0 auto -36px;
+        border-radius: 0;
+        overflow: hidden;
+        position: relative;
+        order: 2;
+        z-index: 1;
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.2);
+      }
+
+      .hero-image-ribbon-track {
+        position: absolute;
+        inset: -12px;
+        background-image: url("/corporate_memphis_trebulla.png");
+        background-size: cover;
+        background-position: center calc(36% + var(--ribbon-shift, 0px));
+        transform: scale(1.08);
       }
 
       .hero-context {
@@ -111,7 +159,7 @@
         padding: 18px 24px 16px;
         align-self: stretch;
         text-align: center;
-        color: #2c2014;
+        color: var(--color-sepia-900);
         font-family: "Caveat", "Bradley Hand", "Segoe Script", cursive;
         font-size: clamp(1.15rem, 2.05vw, 1.6rem);
         line-height: 1.3;
@@ -123,8 +171,8 @@
         background-image:
           linear-gradient(
             180deg,
-            rgba(252, 244, 226, 0.42),
-            rgba(238, 220, 180, 0.34)
+            rgba(255, 255, 255, 0.92),
+            rgba(255, 255, 255, 0.92)
           ),
           url("/weathered-paper-v2.png");
         background-repeat: no-repeat, no-repeat;
@@ -142,8 +190,8 @@
         background-image:
           linear-gradient(
             180deg,
-            rgba(252, 244, 226, 0.42),
-            rgba(238, 220, 180, 0.34)
+            rgba(255, 255, 255, 0.92),
+            rgba(255, 255, 255, 0.92)
           ),
           url("/weathered-paper-v2.png");
         background-repeat: no-repeat, no-repeat;
@@ -213,12 +261,14 @@
       .hero-detail-row .hero-context {
         width: 100vw;
         margin: 0 calc(50% - 50vw) 0;
+        margin-bottom: -26px;
         border-radius: 0;
         padding: 20px 24px 16px;
         order: 1;
         border: 0;
         box-shadow: 0 8px 16px rgba(0, 0, 0, 0.16);
         position: relative;
+        z-index: 4;
       }
 
       .hero-detail-row .hero-context .hero-context-inner {
@@ -228,31 +278,25 @@
       .hero-detail-row .hero-context[data-ribbon-theme="radiant"],
       .hero-detail-row .hero-context[data-ribbon-theme="earthy"],
       .hero-detail-row .hero-context[data-ribbon-theme="paper"] {
-        background-image:
-          linear-gradient(
-            180deg,
-            rgba(252, 244, 226, 0.42),
-            rgba(238, 220, 180, 0.34)
-          ),
-          url("/ancient_papyrus_bg.jpeg");
-        background-size: cover, cover;
-        background-repeat: no-repeat, no-repeat;
-        background-position: center, center 40%;
+        background-image: url("/ancient_papyrus_bg.jpeg");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center 40%;
       }
 
       .hero-context strong {
-        color: #6d4f25;
+        color: var(--color-gold-700);
       }
 
       .hero-context a {
-        color: #5c3f16;
+        color: var(--color-brown-700);
         font-weight: 600;
         text-decoration: underline;
         text-underline-offset: 2px;
       }
 
       .hero-context a:hover {
-        color: #3b2608;
+        color: var(--color-brown-900);
       }
 
       .hero-context .source-quill {
@@ -260,7 +304,7 @@
         margin-left: 0.15em;
         vertical-align: baseline;
         transform: translateY(1px) rotate(-10deg);
-        color: #7a5a28;
+        color: var(--color-brown-600);
         line-height: 1;
       }
 
@@ -276,14 +320,12 @@
       }
 
       .hero-context a:hover .source-quill {
-        color: #4b3210;
+        color: var(--color-brown-800);
       }
 
       @media (min-width: 1100px) {
-        .hero-image {
-          width: min(1240px, 84vw);
-          max-height: 360px;
-          margin: 0 auto;
+        .hero-image-ribbon {
+          height: 126px;
         }
       }
 
@@ -321,18 +363,20 @@
         padding: 30px 26px;
         margin: 0 auto;
         border-radius: 10px;
-        order: 2;
+        order: 3;
         background-image:
           linear-gradient(
             180deg,
-            rgba(16, 20, 30, 0.74),
-            rgba(10, 12, 20, 0.82)
+            rgba(26, 26, 24, 0.9),
+            rgba(26, 26, 24, 0.9)
           ),
           url("/slate.png");
         background-size: cover;
         background-repeat: no-repeat;
         background-position: center;
         box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+        position: relative;
+        z-index: 3;
       }
 
       .hero-text h1 {
@@ -341,7 +385,7 @@
         font-weight: 400;
         letter-spacing: 0.12em;
         text-transform: uppercase;
-        color: #c9a84c;
+        color: var(--color-gold-500);
         margin-bottom: 6px;
       }
 
@@ -349,7 +393,7 @@
         font-family: "Georgia", serif;
         font-style: italic;
         font-size: 1rem;
-        color: #a89070;
+        color: var(--color-stone-600);
         letter-spacing: 0.04em;
         margin-bottom: 32px;
       }
@@ -357,24 +401,26 @@
       .hero-description {
         font-size: 0.97rem;
         line-height: 1.8;
-        color: #c8bfaf;
+        color: var(--color-stone-400);
         max-width: 520px;
         margin: 0 auto 36px;
       }
 
       .hero-detail-row .hero-description {
-        color: #efe6d7;
+        font-size: clamp(1.08rem, 1.6vw, 1.22rem);
+        line-height: 1.85;
+        color: var(--color-stone-300);
         margin: 0;
         max-width: none;
       }
 
       .hero-description strong {
-        color: #e8dcc8;
+        color: var(--color-stone-200);
         font-weight: 600;
       }
 
       .hero-detail-row .hero-description strong {
-        color: #f8e6bf;
+        color: var(--color-gold-soft);
       }
 
       /* ── Epigraph flip-card section ── */
@@ -405,7 +451,23 @@
         min-height: 420px;
         width: 100%;
         transform-style: preserve-3d;
-        transition: transform 0.72s cubic-bezier(0.25, 0.82, 0.22, 1);
+        transition: transform 1.08s cubic-bezier(0.25, 0.82, 0.22, 1);
+      }
+
+      .flip-hint {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 5;
+        background: rgba(12, 14, 20, 0.64);
+        color: #f2e5ca;
+        border: 1px solid rgba(255, 236, 192, 0.38);
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 0.72rem;
+        letter-spacing: 0.03em;
+        line-height: 1;
+        pointer-events: none;
       }
 
       .epigraph-card-shell.is-flipped .epigraph-flip-card {
@@ -652,7 +714,7 @@
 
       /* ── Metaphor bar ── */
       .metaphor-label {
-        background: #1a1a18;
+        background: var(--color-charcoal-900);
         padding: 20px 32px;
         display: flex;
         justify-content: center;
@@ -673,14 +735,14 @@
       .metaphor-item strong {
         display: block;
         font-size: 0.78rem;
-        color: #c9a84c;
+        color: var(--color-gold-500);
         margin-bottom: 2px;
       }
 
       .metaphor-arrow {
         display: flex;
         align-items: center;
-        color: #c9a84c;
+        color: var(--color-gold-500);
         font-size: 1rem;
         padding: 0 12px;
       }
@@ -688,16 +750,70 @@
       /* ── Main content ── */
       .landing-content {
         max-width: 600px;
-        margin: 0 auto;
+        margin: -52px auto 0;
         padding: 64px 24px;
+        background: var(--color-white);
+        position: relative;
+        z-index: 3;
       }
 
       .section-label {
         font-size: 0.7rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: #a09080;
+        color: var(--color-stone-500);
         margin-bottom: 20px;
+      }
+
+      .landing-content .step {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr) 132px;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .landing-content .step.step-media-left {
+        grid-template-columns: 28px 132px minmax(0, 1fr);
+      }
+
+      .landing-content .step.step-media-left .step-body {
+        grid-column: 3;
+      }
+
+      .landing-content .step.step-media-left .step-media {
+        grid-column: 2;
+      }
+
+      .step-media {
+        width: 132px;
+        height: 96px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(210, 196, 168, 0.7);
+        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.12);
+      }
+
+      .step-media img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .step-media-oval {
+        width: 120px;
+        height: 113px;
+        border: 2px solid rgba(191, 152, 89, 0.9);
+        border-radius: 999px;
+        clip-path: ellipse(49% 50% at 50% 50%);
+        box-shadow:
+          0 0 0 1px rgba(87, 57, 24, 0.28) inset,
+          0 5px 10px rgba(0, 0, 0, 0.16);
+      }
+
+      .step-img-portrait {
+        transform: scale(1.12);
+        transform-origin: center;
       }
 
       .footer-repo {
@@ -735,6 +851,13 @@
           width: 100%;
         }
 
+          .flip-hint {
+            top: 10px;
+            right: 10px;
+            font-size: 0.68rem;
+            padding: 5px 9px;
+          }
+
         .epigraph-flip-card {
           min-height: 360px;
         }
@@ -768,6 +891,18 @@
           border-radius: 0;
         }
 
+        .hero-brand-logo {
+          width: 84px;
+          height: 84px;
+        }
+
+        .hero-image-ribbon {
+          width: 100%;
+          height: 214px;
+          border-radius: 0;
+          margin: 0 0 -20px;
+        }
+
         .hero-detail-row .hero-text {
           padding: 28px 18px;
           margin: 0;
@@ -778,6 +913,7 @@
         .hero-detail-row .hero-context {
           width: 100vw;
           margin: 0;
+          margin-bottom: -14px;
           padding-top: 14px;
           box-shadow: 0 8px 14px rgba(0, 0, 0, 0.16);
         }
@@ -839,6 +975,35 @@
         .metaphor-item {
           max-width: 100px;
         }
+
+        .landing-content .step,
+        .landing-content .step.step-media-left {
+          grid-template-columns: 28px minmax(0, 1fr);
+          align-items: flex-start;
+        }
+
+        .landing-content .step.step-media-left .step-body,
+        .landing-content .step.step-media-left .step-media {
+          grid-column: auto;
+        }
+
+        .landing-content .step.step-media-left .step-body {
+          grid-column: 2;
+          grid-row: 1;
+        }
+
+        .landing-content .step.step-media-left .step-media {
+          grid-column: 2;
+          grid-row: 2;
+        }
+
+        .step-media {
+          grid-column: 2;
+          width: 100%;
+          max-width: 240px;
+          height: 110px;
+          margin-top: 8px;
+        }
       }
     </style>
   </head>
@@ -862,41 +1027,86 @@
 
     <!-- Hero -->
     <div class="landing-hero">
-      <div class="hero-image-wrap">
-        <img
-          src="/trebulla_and_the_colossi_of_memnon.png"
-          alt="Trebulla and the Colossi of Memnon"
-          class="hero-image"
-        />
-        <div class="hero-title-overlay">
-          <h1>Memnon</h1>
-          <div class="hero-subtitle">A personal scaffold for teachers</div>
-          <a
-            href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
-            class="hero-signin-btn"
-          >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path
-                d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.017 17.64 11.71 17.64 9.2z"
-                fill="#4285F4"
-              />
-              <path
-                d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
-                fill="#34A853"
-              />
-              <path
-                d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
-                fill="#FBBC05"
-              />
-              <path
-                d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
-                fill="#EA4335"
-              />
-            </svg>
-            Sign in with Google
-          </a>
+      <div class="hero-headline">
+        <div class="hero-brand-row">
+          <img class="hero-brand-logo" src="/nav-logo.png" alt="Memnon" />
+          <h1 class="hero-brand-title">Memnon</h1>
+        </div>
+        <div class="hero-subtitle">A personal scaffold for teachers</div>
+        <a
+          href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
+          class="hero-signin-btn"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path
+              d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.017 17.64 11.71 17.64 9.2z"
+              fill="#4285F4"
+            />
+            <path
+              d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
+              fill="#34A853"
+            />
+            <path
+              d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+              fill="#FBBC05"
+            />
+            <path
+              d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
+              fill="#EA4335"
+            />
+          </svg>
+          Sign in with Google
+        </a>
+      </div>
+
+      <!-- How it works -->
+      <div class="landing-content">
+        <div class="section-label">How it works</div>
+        <div class="card">
+          <div class="step step-media-right">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">Unburden Your Mind</div>
+              <div class="step-desc">
+                Press record and speak freely. Capture what happened, what you're
+                carrying, and what you don't want to forget. Let the burden of
+                remembering leave your mind and enter the conversation.
+              </div>
+            </div>
+            <div class="step-media step-media-oval" aria-hidden="true">
+              <img src="/explorers_journal.png" alt="" />
+            </div>
+          </div>
+          <div class="step step-media-left">
+            <div class="step-num">2</div>
+            <div class="step-media step-media-oval" aria-hidden="true">
+              <img src="/artifacts.png" alt="" />
+            </div>
+            <div class="step-body">
+              <div class="step-title">Ground Your Thoughts</div>
+              <div class="step-desc">
+                Your words are brought into conversation with the voices,
+                traditions, and frameworks you trust. Experience becomes
+                perspective. Reflection finds deeper roots.
+              </div>
+            </div>
+          </div>
+          <div class="step step-media-right" style="margin-bottom: 0">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">Hear Yourself Clearly</div>
+              <div class="step-desc">
+                A reflection is added to your archive-not merely a transcript,
+                but your own thinking returned to you with greater clarity.
+              </div>
+            </div>
+            <div class="step-media step-media-oval" aria-hidden="true">
+              <img class="step-img-portrait" src="/trebulla_portrait.png" alt="" />
+            </div>
+          </div>
         </div>
       </div>
+
       <div class="hero-detail-row">
         <div class="hero-context" data-ribbon-theme="radiant">
           <div class="hero-context-inner">
@@ -950,6 +1160,9 @@
             >
           </div>
         </div>
+        <div class="hero-image-ribbon" aria-hidden="true">
+          <div class="hero-image-ribbon-track"></div>
+        </div>
         <div class="hero-text">
           <p class="hero-description">
             Every teaching day carries weight — the student who struggled, the
@@ -961,46 +1174,6 @@
             grounded reflection — one that addresses not just your to-do list but
             <strong>the teacher you're trying to be.</strong>
           </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- How it works -->
-    <div class="landing-content">
-      <div class="section-label">How it works</div>
-      <div class="card">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-body">
-            <div class="step-title">Speak your day</div>
-            <div class="step-desc">
-              Use the record button in the app. Speak freely — what happened,
-              what's on your mind, what you need to remember. Offload the
-              cognitive load.
-            </div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-body">
-            <div class="step-title">The colossus processes it</div>
-            <div class="step-desc">
-              Your recording is transcribed and shaped by your chosen
-              pedagogical frameworks and wisdom voices — the traditions
-              authentic to you.
-            </div>
-          </div>
-        </div>
-        <div class="step" style="margin-bottom: 0">
-          <div class="step-num">3</div>
-          <div class="step-body">
-            <div class="step-title">Receive the sound back</div>
-            <div class="step-desc">
-              A structured note lands in your <strong>memnon-notes</strong>
-              Google Drive folder — grounded reflection that speaks to the best
-              part of you, not just your to-do list.
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -1032,6 +1205,7 @@
         aria-pressed="false"
         aria-label="Flip between Trebulla and Driscoll cards"
       >
+        <div class="flip-hint">&#8635; Click to flip</div>
         <div class="epigraph-flip-card">
           <div class="epigraph-face epigraph-face-front">
             <div class="epigraph-bg"></div>
@@ -1111,9 +1285,9 @@
         text-align: center;
         padding: 32px 24px;
         font-size: 0.82rem;
-        color: #888;
-        background: #fff;
-        border-top: 1px solid #ede8e0;
+        color: var(--color-footer-text);
+        background: var(--color-white);
+        border-top: 1px solid var(--color-footer-border);
       "
     >
       <div class="footer-repo">
@@ -1129,12 +1303,12 @@
       <div style="margin-top: 16px">
         <a
           href="/privacy"
-          style="color: #888; text-decoration: none; margin: 0 12px"
+          style="color: var(--color-footer-text); text-decoration: none; margin: 0 12px"
           >Privacy Policy</a
         >
         <a
           href="/terms"
-          style="color: #888; text-decoration: none; margin: 0 12px"
+          style="color: var(--color-footer-text); text-decoration: none; margin: 0 12px"
           >Terms of Service</a
         >
         <span style="margin: 0 12px">© 2026 Memnon</span>
@@ -1176,30 +1350,17 @@
         });
       }
 
-      if (
-        epigraphSection &&
-        flipCardShell &&
-        "IntersectionObserver" in window
-      ) {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              if (!entry.isIntersecting) return;
-              if (
-                hasManualFlip ||
-                flipCardShell.classList.contains("is-flipped")
-              ) {
-                return;
-              }
-              setFlipState(true);
-              observer.disconnect();
-            });
-          },
-          { threshold: 0.55 },
-        );
+      const heroRibbonTrack = document.querySelector(".hero-image-ribbon-track");
 
-        observer.observe(epigraphSection);
+      function updateHeroRibbonShift() {
+        if (!heroRibbonTrack) return;
+        const scrollY = window.scrollY || window.pageYOffset || 0;
+        const shift = Math.max(-36, Math.min(36, (scrollY - 120) * 0.12));
+        heroRibbonTrack.style.setProperty("--ribbon-shift", `${shift.toFixed(1)}px`);
       }
+
+      updateHeroRibbonShift();
+      window.addEventListener("scroll", updateHeroRibbonShift, { passive: true });
     </script>
 
     <script type="module">

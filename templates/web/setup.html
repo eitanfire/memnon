@@ -8,14 +8,14 @@
 <div class="container" style="max-width: 600px;">
 
   <div style="margin-bottom: 28px;">
-    <h1>Set up your lane</h1>
-    <p class="muted">Choose how Memnon shapes your notes. You can change this anytime.</p>
+    <h1>Set up Memnon</h1>
+    <p class="muted">Choose the teaching context and guiding voices that will shape your reflections. You can change this anytime.</p>
   </div>
 
   <form method="POST" action="/setup">
 
     <div class="card">
-      <h2>Choose a lane</h2>
+      <h2>Choose how Memnon should frame your notes</h2>
       <div class="lane-cards">
         {% for key, lane in lanes.items() %}
         <label class="lane-card {% if loop.first %}selected{% endif %}" id="card-{{ key }}">
@@ -32,7 +32,7 @@
 
     <!-- Reflect: tradition picker -->
     <div class="card field-group" id="field-reflect">
-      <label for="tradition">🌿 Grounding tradition</label>
+      <label for="tradition">🌿 Guiding voices</label>
       <p class="muted" style="margin-bottom: 12px;">
         Memnon will weave relevant themes from this tradition into your reflection summaries.
       </p>
@@ -49,12 +49,12 @@
 
     <!-- Professional: profession field -->
     <div class="card field-group visible" id="field-professional">
-      <label for="profession">💼 Your profession or field</label>
+      <label for="profession">🏫 Teaching context</label>
       <p class="muted" style="margin-bottom: 12px;">
-        Memnon will surface best practices and frame action items for your specific work.
+        Memnon will use this to interpret your notes in light of your classroom and day-to-day work.
       </p>
       <input type="text" name="profession" id="profession"
-             placeholder="e.g. high school CS teacher, product manager, nurse practitioner…" />
+             placeholder="e.g. 5th grade teacher, high school chemistry teacher, instructional coach…" />
     </div>
 
     <button type="submit" class="btn btn-primary" style="align-self: flex-start;">

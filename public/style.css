@@ -17,7 +17,28 @@ nav {
   justify-content: space-between;
 }
 
-.nav-brand { font-size: 1.1rem; font-weight: 600; }
+.nav-brand {
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-mark,
+.inline-mark {
+  display: inline-block;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.brand-mark {
+  width: 26px;
+  height: 26px;
+}
+.inline-mark {
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: middle;
+}
 .nav-right  { display: flex; align-items: center; gap: 12px; font-size: 0.875rem; }
 
 .container { max-width: 720px; margin: 0 auto; padding: 40px 24px; }

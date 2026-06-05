@@ -85,7 +85,7 @@
 </head>
 <body>
   <nav>
-    <span class="nav-brand">🎙 Memnon</span>
+    <span class="nav-brand"><img class="brand-mark" src="/nav-logo.png" alt="" /> Memnon</span>
     <div class="nav-right">
       <span id="nav-name" class="muted"></span>
     </div>
@@ -94,19 +94,18 @@
   <div class="container" style="max-width:600px;">
 
     <div style="margin-bottom:28px;">
-      <h1>Set up your lanes</h1>
-      <p class="muted">This shapes how Memnon processes your recordings. You can change it anytime in settings.</p>
+      <h1>Set up Memnon</h1>
+      <p class="muted">Choose the teaching context and guiding voices that will shape your reflections. You can change this anytime in settings.</p>
     </div>
 
-    <!-- ── PROFESSIONAL LANE (Teacher) ── -->
+    <!-- ── Teaching context ── -->
     <div class="card">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-        <span style="font-size:1.4rem;">💼</span>
-        <h2 style="margin:0;">Professional lane</h2>
+        <span style="font-size:1.4rem;">🏫</span>
+        <h2 style="margin:0;">Teaching Context</h2>
       </div>
       <p class="muted" style="margin-bottom:20px;">
-        Your voice notes will be processed through the lens of evidence-based teaching practice,
-        relevant standards, and the realities of your classroom.
+        Memnon uses this to interpret your recordings in light of your classroom, your students, and the standards that shape your work.
       </p>
 
       <!-- School search -->
@@ -161,15 +160,14 @@
       </div>
     </div>
 
-    <!-- ── REFLECT LANE — Voices ── -->
+    <!-- ── Guiding voices ── -->
     <div class="card">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
         <span style="font-size:1.4rem;">🌿</span>
-        <h2 style="margin:0;">Reflect lane</h2>
+        <h2 style="margin:0;">Guiding Voices</h2>
       </div>
       <p class="muted" style="margin-bottom:20px;">
-        Choose the voices you want in conversation with your reflections.
-        Memnon selects relevant passages from their work to ground your notes in real wisdom.
+        Choose the thinkers, traditions, and frameworks you want Memnon to bring into conversation with your reflections.
       </p>
 
       <!-- Tradition filter pills -->
@@ -181,7 +179,7 @@
       <!-- Voice chips -->
       <div style="margin-bottom:6px;">
         <div style="display:flex; justify-content:space-between; align-items:baseline;">
-          <label style="margin-bottom:4px;">Your voices <span class="muted" style="font-size:0.78rem;">(select up to 5)</span></label>
+          <label style="margin-bottom:4px;">Selected voices <span class="muted" style="font-size:0.78rem;">(select up to 5)</span></label>
           <span id="voice-count" class="muted" style="font-size:0.78rem;">0 selected</span>
         </div>
         <div id="voice-chips" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;"></div>
@@ -645,6 +643,11 @@
     };
 
     const API = "https://api-4hth6oktaa-uc.a.run.app";
+    const params = new URLSearchParams(window.location.search);
+    const PREVIEW_MODE =
+      params.has("preview") ||
+      window.location.port === "8000" ||
+      window.location.port === "8080";
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -653,7 +656,12 @@
     let currentUser = null;
 
     auth.authStateReady().then(() => {
-      if (!auth.currentUser) window.location.href = "/";
+      if (!auth.currentUser && !PREVIEW_MODE) window.location.href = "/";
+      if (PREVIEW_MODE && !auth.currentUser) {
+        document.getElementById("nav-name").textContent = "Preview mode";
+        const btn = document.getElementById("save-btn");
+        btn.textContent = "Preview mode — sign in to save";
+      }
     });
 
     onAuthStateChanged(auth, async (user) => {
@@ -665,7 +673,12 @@
     });
 
     document.getElementById("save-btn").addEventListener("click", async () => {
-      if (!currentUser) return;
+      if (!currentUser) {
+        if (PREVIEW_MODE) {
+          alert("Preview mode only. Open the authenticated app to save setup.");
+        }
+        return;
+      }
 
       const btn = document.getElementById("save-btn");
       btn.disabled = true;
