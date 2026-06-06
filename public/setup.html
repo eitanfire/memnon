@@ -206,6 +206,30 @@
         Memnon uses this to interpret your recordings in light of your classroom, your students, and the standards that shape your work.
       </p>
 
+      <div style="margin-bottom:20px;">
+        <label for="preferred-name">What should Memnon call you?</label>
+        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">
+          This is the name Memnon will use in reflections and audio.
+        </p>
+        <input type="text" id="preferred-name" placeholder="e.g. Eitan" />
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label for="spoken-name">How should your name sound out loud?</label>
+        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">
+          Optional. Use a phonetic spelling if that helps the audio say it correctly, e.g. “Ay-tahn”.
+        </p>
+        <input type="text" id="spoken-name" placeholder="Optional pronunciation for audio" />
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label for="preferred-pronouns">Preferred pronouns</label>
+        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">
+          e.g. he/him, she/her, they/them
+        </p>
+        <input type="text" id="preferred-pronouns" placeholder="e.g. he/him" />
+      </div>
+
       <!-- School search -->
       <div style="margin-bottom:20px;">
         <label>Where do you teach?</label>
@@ -300,35 +324,32 @@
         <h2 style="margin:0;">Dashboard Portrait</h2>
       </div>
       <p class="muted" style="margin-bottom:18px;">
-        Choose the image that appears beside your dashboard welcome. Start with a preset, use one from Drive, or upload one from your computer.
+        Use the default Sound Waves image, or upload one of your own.
       </p>
 
       <div style="margin-bottom:18px;">
-        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Presets</div>
+        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Default</div>
         <div class="portrait-grid" id="preset-portrait-grid"></div>
       </div>
 
       <div style="margin-bottom:10px;">
-        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Custom image</div>
+        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Upload your own</div>
         <div class="portrait-toolbar">
           <button type="button" id="upload-portrait-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
             Upload from computer
-          </button>
-          <button type="button" id="refresh-drive-images-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
-            Load from Drive
           </button>
         </div>
         <input type="file" id="portrait-file-input" accept="image/*" style="display:none;" />
         <div class="portrait-grid" id="drive-portrait-grid"></div>
         <div class="drive-images-empty" id="drive-images-empty">
-          No custom Drive images loaded yet.
+          No custom image uploaded yet.
         </div>
       </div>
 
       <div class="portrait-preview">
         <div class="muted" style="font-size:0.75rem; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.08em; text-align:center;">Current dashboard portrait</div>
         <div class="portrait-preview-shell">
-          <img id="portrait-preview-image" src="/corporate_memphis_king_memnon_looking_down.png" alt="Selected dashboard portrait preview" />
+          <img id="portrait-preview-image" src="/sound_waves.png" alt="Selected dashboard portrait preview" />
         </div>
       </div>
     </div>
@@ -620,48 +641,18 @@
     var customPassages = {};          // guide_id -> override text (commented out feature)
     var activeTraditionFilter = 'all';
     const portraitPresets = {
-      king_memnon: {
-        kind: 'preset',
-        preset: 'king_memnon',
-        label: 'King Memnon',
-        meta: 'Default dashboard portrait',
-        preview: '/corporate_memphis_king_memnon_looking_down.png',
-        fit: 'contain',
-        position: 'center center',
-        scale: '1',
-      },
-      trebulla: {
-        kind: 'preset',
-        preset: 'trebulla',
-        label: 'Trebulla',
-        meta: 'Alternate portrait from the landing sequence',
-        preview: '/corporate_memphis_%20version_of_trebulla_no_bg.png',
-        fit: 'cover',
-        position: 'center 12%',
-        scale: '1.5',
-      },
       sound_waves: {
         kind: 'preset',
         preset: 'sound_waves',
         label: 'Sound Waves',
-        meta: 'Abstract avatar option',
+        meta: 'Default dashboard portrait',
         preview: '/sound_waves.png',
         fit: 'cover',
         position: 'center center',
         scale: '1',
       },
-      sun_and_waves: {
-        kind: 'preset',
-        preset: 'sun_and_waves',
-        label: 'Sun and Waves',
-        meta: 'Abstract avatar option',
-        preview: '/sun_and_waves.png',
-        fit: 'cover',
-        position: 'center center',
-        scale: '1',
-      },
     };
-    let dashboardImageChoice = { kind: 'preset', preset: 'king_memnon' };
+    let dashboardImageChoice = { kind: 'preset', preset: 'sound_waves' };
     let drivePortraitFiles = [];
     const portraitObjectUrls = new Map();
 
@@ -757,7 +748,7 @@
     }
 
     function getPresetPreviewSrc(key) {
-      return portraitPresets[key]?.preview || portraitPresets.king_memnon.preview;
+      return portraitPresets[key]?.preview || portraitPresets.sound_waves.preview;
     }
 
     function applyPortraitImageStyle(img, choice) {
@@ -778,14 +769,14 @@
     }
 
     function getDashboardImageKey(choice) {
-      if (!choice) return 'preset:king_memnon';
-      if (choice.kind === 'preset') return `preset:${choice.preset || 'king_memnon'}`;
+      if (!choice) return 'preset:sound_waves';
+      if (choice.kind === 'preset') return `preset:${choice.preset || 'sound_waves'}`;
       return `drive:${choice.file_id || ''}`;
     }
 
     function normalizeDashboardImageConfig(raw) {
       if (!raw || typeof raw !== 'object') {
-        return { kind: 'preset', preset: 'king_memnon' };
+        return { kind: 'preset', preset: 'sound_waves' };
       }
       if (raw.kind === 'preset' && raw.preset && portraitPresets[raw.preset]) {
         return { kind: 'preset', preset: raw.preset };
@@ -798,7 +789,7 @@
           mimeType: raw.mimeType || 'image/png',
         };
       }
-      return { kind: 'preset', preset: 'king_memnon' };
+      return { kind: 'preset', preset: 'sound_waves' };
     }
 
     /* Customize passages feature commented out
@@ -890,7 +881,7 @@
         card.innerHTML = `
           <div class="portrait-option-image"><img alt="${file.name}" /></div>
           <div class="portrait-option-title">${file.name}</div>
-          <div class="portrait-option-meta">From Google Drive</div>
+          <div class="portrait-option-meta">Uploaded image</div>
         `;
         const img = card.querySelector('img');
         applyPortraitImageStyle(img, { kind: 'drive', file_id: file.id });
@@ -962,14 +953,6 @@
       document.getElementById('portrait-file-input').click();
     });
 
-    document.getElementById('refresh-drive-images-btn').addEventListener('click', async () => {
-      try {
-        await loadDrivePortraits();
-      } catch (e) {
-        alert(e.message || 'Could not load Drive images.');
-      }
-    });
-
     document.getElementById('portrait-file-input').addEventListener('change', async (event) => {
       const file = event.target.files?.[0];
       if (!file) return;
@@ -984,6 +967,9 @@
 
     // ── Pre-fill returning user ──
     function prefill(data) {
+      if (data.preferred_name) document.getElementById('preferred-name').value = data.preferred_name;
+      if (data.spoken_name) document.getElementById('spoken-name').value = data.spoken_name;
+      if (data.preferred_pronouns) document.getElementById('preferred-pronouns').value = data.preferred_pronouns;
       if (data.subjects) document.getElementById('subjects').value = data.subjects;
 
       if (Array.isArray(data.grade_levels) && data.grade_levels.length) {
@@ -1083,7 +1069,7 @@
       try {
         await loadDrivePortraits();
       } catch (e) {
-        console.error("Could not load Drive portraits:", e);
+        console.error("Could not load uploaded portraits:", e);
       }
     });
 
@@ -1118,6 +1104,9 @@
       const body = {
         lane: "professional",
         profession: "teacher",
+        preferred_name: document.getElementById("preferred-name").value.trim(),
+        spoken_name: document.getElementById("spoken-name").value.trim(),
+        preferred_pronouns: document.getElementById("preferred-pronouns").value.trim(),
         tradition: selectedVoices.length > 0
           ? (sourcesData?.guides?.[selectedVoices[0]]?.tradition || "secular")
           : "secular",

@@ -26,6 +26,7 @@ import json
 import os
 import re
 import secrets
+import tempfile
 import urllib.parse
 import urllib.error
 import urllib.request
@@ -44,6 +45,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
+from audio_generation import synthesize_reflection_mp3
 from lanes import build_prompt
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
@@ -206,6 +208,14 @@ def _find_or_create_media_folder(service) -> str:
     return _find_or_create_folder(service, "memnon-media")
 
 
+def _find_or_create_recordings_folder(service) -> str:
+    return _find_or_create_folder(service, "memnon-recordings")
+
+
+def _find_or_create_reflections_folder(service) -> str:
+    return _find_or_create_folder(service, "memnon-reflections")
+
+
 def _is_audio(f: dict) -> bool:
     return (f.get("mimeType") in AUDIO_MIME_TYPES or
             any(f.get("name", "").lower().endswith(ext) for ext in AUDIO_EXTENSIONS))
@@ -366,6 +376,104 @@ def _record_source_usage(uid: str, sources_used: list) -> None:
         print(f"[{uid}] Warning: could not record source usage: {exc}")
 
 
+def _build_grounded_reflection_script(
+    transcript: str,
+    ai: dict,
+    sources_used: list[dict],
+    user_data: dict,
+    api_key: str,
+) -> str:
+    """Turn the grounded note into a spoken reflection script."""
+    preferred_name = (user_data.get("preferred_name") or user_data.get("name") or "the teacher").strip()
+    spoken_name = (user_data.get("spoken_name") or preferred_name).strip()
+    preferred_pronouns = (user_data.get("preferred_pronouns") or "").strip()
+    grades = ", ".join(user_data.get("grade_levels") or [])
+    subjects = user_data.get("subjects") or ""
+    context_bits = []
+    if subjects:
+        context_bits.append(f"subjects: {subjects}")
+    if grades:
+        context_bits.append(f"grades: {grades}")
+    school_state = user_data.get("school_state") or ""
+    if school_state:
+        context_bits.append(f"state: {school_state}")
+    if preferred_pronouns:
+        context_bits.append(f"pronouns: {preferred_pronouns}")
+    context_line = "; ".join(context_bits) if context_bits else "teaching context not specified"
+
+    source_lines = []
+    for source in sources_used[:3]:
+        excerpt = source.get("excerpt", "").strip()
+        because = ""
+        for item in ai.get("influenced_by", []):
+            if item.get("source_id") == source.get("source_id"):
+                because = item.get("because", "").strip()
+                break
+        detail = f'{source.get("author", "")} ({source.get("ref", "")}): "{excerpt}"'
+        if because:
+            detail += f"\nConnection: {because}"
+        source_lines.append(detail)
+    sources_block = "\n\n".join(source_lines) if source_lines else "(no guiding voices selected)"
+
+    payload = json.dumps({
+        "title": ai.get("title", ""),
+        "summary": ai.get("summary", ""),
+        "insight": ai.get("insight", ""),
+        "best_practice": ai.get("best_practice", ""),
+        "concerns": ai.get("concerns", ""),
+        "action_items": ai.get("action_items", []),
+    }, ensure_ascii=False)
+
+    prompt = f"""You are writing a spoken grounded reflection for {preferred_name}.
+
+This script will be narrated back to {preferred_name} as audio.
+It should feel thoughtful, warm, and concise, like a trusted instructional coach
+helping them hear the day more clearly.
+
+Person context: display name: {preferred_name}; spoken name for audio: {spoken_name}; {context_line}
+
+Original transcript:
+---
+{transcript}
+---
+
+Structured reflection:
+{payload}
+
+Guiding voices actually selected for this reflection:
+{sources_block}
+
+Return strict JSON only:
+{{
+  "reflection_script": "A spoken script of 130 to 220 words. No bullet points. No greeting. No sign-off. Weave in the guiding voices naturally when they genuinely fit, but do not quote long passages."
+}}
+
+Rules:
+- Sound natural when read aloud
+- Begin with the lived classroom moment, then deepen it
+- Use the guiding voices as grounding, not decoration
+- End with one clear line they can carry into tomorrow
+- Refer to {preferred_name} by name where natural
+- Respect these pronouns when needed: {preferred_pronouns or "use neutral phrasing if possible"}
+- If the script uses their name, write it in the spoken form "{spoken_name}" so the narrator says it correctly
+- Return JSON only
+"""
+
+    result = _summarize(prompt, api_key)
+    return (result.get("reflection_script") or "").strip()
+
+
+def _generate_grounded_reflection_audio(script_text: str, stem: str) -> bytes:
+    """Synthesize the spoken reflection as MP3 bytes."""
+    if not script_text.strip():
+        raise ValueError("grounded reflection script is empty")
+    safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", stem).strip("-") or "grounded-reflection"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / f"{safe_stem}.mp3"
+        synthesize_reflection_mp3(script_text, output_path)
+        return output_path.read_bytes()
+
+
 def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, notes_id: str):
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
@@ -485,17 +593,19 @@ def auth_start():
     session["oauth_state"]    = state
     session["code_verifier"]  = code_verifier
 
-    params = urllib.parse.urlencode({
+    params = {
         "client_id":              cfg["client_id"],
         "redirect_uri":           REDIRECT_URI,
         "response_type":          "code",
         "scope":                  " ".join(DRIVE_SCOPES),
         "access_type":            "offline",
-        "prompt":                 "consent",
         "state":                  state,
         "code_challenge":         code_challenge,
         "code_challenge_method":  "S256",
-    })
+    }
+    if request.args.get("force_consent") == "1":
+        params["prompt"] = "consent"
+    params = urllib.parse.urlencode(params)
     return redirect(f"https://accounts.google.com/o/oauth2/auth?{params}")
 
 
@@ -600,6 +710,9 @@ def save_setup():
     _get_db().collection("users").document(uid).set({
         "lane":           data.get("lane", "professional"),
         "profession":     data.get("profession", "teacher"),
+        "preferred_name": data.get("preferred_name", ""),
+        "spoken_name": data.get("spoken_name", ""),
+        "preferred_pronouns": data.get("preferred_pronouns", ""),
         "tradition":      data.get("tradition", "secular"),
         # Teaching-specific fields
         "grade_levels":    data.get("grade_levels", []),
@@ -611,7 +724,7 @@ def save_setup():
         "school_city":     data.get("school_city", ""),
         # Reflect lane voices config
         "reflect_config":  data.get("reflect_config", {}),
-        "dashboard_image": data.get("dashboard_image", {"kind": "preset", "preset": "king_memnon"}),
+        "dashboard_image": data.get("dashboard_image", {"kind": "preset", "preset": "sound_waves"}),
         "active": True,
     }, merge=True)
     return jsonify({"ok": True})
@@ -725,6 +838,160 @@ def get_profile_image(file_id: str):
     )
 
 
+@flask_app.route("/recordings")
+def list_recordings():
+    """Return recent recordings saved by the app for this user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    service = _drive_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Drive not connected"}), 403
+
+    doc = _get_db().collection("users").document(uid).get()
+    if not doc.exists:
+        return jsonify({"files": []})
+    user_data = doc.to_dict()
+
+    recordings_id = user_data.get("recordings_folder_id")
+    if not recordings_id:
+        return jsonify({"files": []})
+
+    try:
+        result = service.files().list(
+            q=f"'{recordings_id}' in parents and trashed=false",
+            pageSize=8,
+            orderBy="createdTime desc",
+            fields="files(id,name,mimeType,createdTime,modifiedTime,size)",
+        ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Could not list recordings: {exc}")
+        return jsonify({"error": "Could not load recordings"}), 502
+
+    files = [f for f in result.get("files", []) if _is_audio(f)]
+    return jsonify({"files": files})
+
+
+@flask_app.route("/recording/<file_id>")
+def get_recording(file_id: str):
+    """Stream a Drive-backed recording for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    service = _drive_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Drive not connected"}), 403
+
+    try:
+        meta = service.files().get(
+            fileId=file_id,
+            fields="id,name,mimeType,size,parents",
+        ).execute()
+        if not _is_audio(meta):
+            return jsonify({"error": "not a recording"}), 400
+
+        buf = io.BytesIO()
+        dl = MediaIoBaseDownload(
+            buf,
+            service.files().get_media(fileId=file_id),
+            chunksize=4 * 1024 * 1024,
+        )
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+    except Exception as exc:
+        print(f"[{uid}] Could not fetch recording {file_id}: {exc}")
+        return jsonify({"error": "recording unavailable"}), 404
+
+    return (
+        buf.getvalue(),
+        200,
+        {
+            "Content-Type": meta.get("mimeType", "audio/webm"),
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@flask_app.route("/reflections")
+def list_reflections():
+    """Return recent grounded reflection audio files saved by the app for this user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    service = _drive_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Drive not connected"}), 403
+
+    doc = _get_db().collection("users").document(uid).get()
+    if not doc.exists:
+        return jsonify({"files": []})
+    user_data = doc.to_dict()
+
+    reflections_id = user_data.get("reflections_folder_id")
+    if not reflections_id:
+        return jsonify({"files": []})
+
+    try:
+        result = service.files().list(
+            q=f"'{reflections_id}' in parents and trashed=false",
+            pageSize=8,
+            orderBy="createdTime desc",
+            fields="files(id,name,mimeType,createdTime,modifiedTime,size)",
+        ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Could not list reflections: {exc}")
+        return jsonify({"error": "Could not load reflections"}), 502
+
+    files = [f for f in result.get("files", []) if _is_audio(f)]
+    return jsonify({"files": files})
+
+
+@flask_app.route("/reflection/<file_id>")
+def get_reflection(file_id: str):
+    """Stream a Drive-backed grounded reflection audio file for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    service = _drive_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Drive not connected"}), 403
+
+    try:
+        meta = service.files().get(
+            fileId=file_id,
+            fields="id,name,mimeType,size,parents",
+        ).execute()
+        if not _is_audio(meta):
+            return jsonify({"error": "not a reflection"}), 400
+
+        buf = io.BytesIO()
+        dl = MediaIoBaseDownload(
+            buf,
+            service.files().get_media(fileId=file_id),
+            chunksize=4 * 1024 * 1024,
+        )
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+    except Exception as exc:
+        print(f"[{uid}] Could not fetch reflection {file_id}: {exc}")
+        return jsonify({"error": "reflection unavailable"}), 404
+
+    return (
+        buf.getvalue(),
+        200,
+        {
+            "Content-Type": meta.get("mimeType", "audio/mpeg"),
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
 @flask_app.route("/upload", methods=["POST"])
 def upload_audio():
     """Accept a direct audio upload, run it through the pipeline, save note to Drive."""
@@ -737,10 +1004,12 @@ def upload_audio():
         f = request.files["file"]
         audio_bytes = f.read()
         filename = f.filename or f"upload-{datetime.now().strftime('%Y%m%d-%H%M%S')}.webm"
+        upload_mime_type = f.mimetype or "audio/webm"
     else:
         audio_bytes = request.get_data()
         filename = request.headers.get("X-Filename",
                    f"upload-{datetime.now().strftime('%Y%m%d-%H%M%S')}.webm")
+        upload_mime_type = request.headers.get("Content-Type", "audio/webm")
 
     if len(audio_bytes) < 4096:
         return jsonify({"error": "audio too short"}), 400
@@ -766,6 +1035,15 @@ def upload_audio():
     if not notes_id:
         notes_id = _find_or_create_folder(service, "memnon-notes")
         _get_db().collection("users").document(uid).update({"notes_folder_id": notes_id})
+
+    recordings_id = user_data.get("recordings_folder_id")
+    if not recordings_id:
+        recordings_id = _find_or_create_recordings_folder(service)
+        _get_db().collection("users").document(uid).update({"recordings_folder_id": recordings_id})
+    reflections_id = user_data.get("reflections_folder_id")
+    if not reflections_id:
+        reflections_id = _find_or_create_reflections_folder(service)
+        _get_db().collection("users").document(uid).update({"reflections_folder_id": reflections_id})
 
     # Run pipeline
     try:
@@ -803,8 +1081,46 @@ def upload_audio():
         media_body=media, fields="id",
     ).execute()
 
+    audio_ext = Path(filename).suffix or ".webm"
+    recording_name = f"{datetime.now().strftime('%Y-%m-%d %H-%M-%S')} — recording{audio_ext}"
+    audio_media = MediaInMemoryUpload(audio_bytes, mimetype=upload_mime_type, resumable=False)
+    service.files().create(
+        body={"name": recording_name, "parents": [recordings_id]},
+        media_body=audio_media,
+        fields="id,name",
+    ).execute()
+
+    reflection_name = None
+    try:
+        reflection_script = _build_grounded_reflection_script(
+            transcript,
+            ai_result,
+            sources_used,
+            user_data,
+            api_key,
+        )
+        if reflection_script:
+            reflection_bytes = _generate_grounded_reflection_audio(
+                reflection_script,
+                ai_result.get("title", Path(filename).stem),
+            )
+            reflection_title = ai_result.get("title", Path(filename).stem)[:60].strip() or "Grounded Reflection"
+            reflection_name = f"{datetime.now().strftime('%Y-%m-%d')} — {reflection_title}.mp3"
+            reflection_media = MediaInMemoryUpload(
+                reflection_bytes,
+                mimetype="audio/mpeg",
+                resumable=False,
+            )
+            service.files().create(
+                body={"name": reflection_name, "parents": [reflections_id]},
+                media_body=reflection_media,
+                fields="id,name",
+            ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Grounded reflection audio failed: {exc}")
+
     print(f"[{uid}] Direct upload note saved: {note_name}")
-    return jsonify({"ok": True, "note": note_name})
+    return jsonify({"ok": True, "note": note_name, "reflection_audio": reflection_name})
 
 
 @flask_app.route("/me")

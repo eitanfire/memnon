@@ -94,6 +94,38 @@
       margin-bottom: 0;
       margin-top: 16px;
     }
+    .recording-player-wrap {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #ece5d9;
+    }
+    .recording-player-wrap:first-of-type {
+      margin-top: 14px;
+    }
+    .recording-player-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #847564;
+      margin-bottom: 8px;
+    }
+    .recording-player-name {
+      font-size: 0.78rem;
+      color: #6a655c;
+      margin-bottom: 8px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .recording-player audio {
+      width: 100%;
+      height: 34px;
+    }
+    .recording-player-empty {
+      font-size: 0.78rem;
+      color: #8a857d;
+      line-height: 1.5;
+    }
     .record-mark {
       font-size: 1.2rem;
       line-height: 1;
@@ -208,7 +240,7 @@
       </div>
       <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Edit dashboard portrait">
         <div class="welcome-mark-frame">
-          <img id="welcome-mark-image" src="/corporate_memphis_king_memnon_looking_down.png" alt="Dashboard portrait" />
+          <img id="welcome-mark-image" src="/sound_waves.png" alt="Dashboard portrait" />
         </div>
         <div class="welcome-mark-label">Edit portrait</div>
       </a>
@@ -229,7 +261,7 @@
           Edit setup
         </a>
         </div>
-        <p class="editorial-copy">
+        <p class="editorial-copy" id="lane-copy">
           This section shapes how Memnon reads your notes when it turns experience into a usable reflection.
         </p>
       </div>
@@ -270,12 +302,18 @@
                class="btn btn-primary" style="padding:7px 12px; font-size:0.8rem;">
               Open archive ↗
             </a>
+            <div class="recording-player-wrap">
+              <div class="recording-player-label">Latest grounded reflection</div>
+              <div id="reflection-player-container" class="recording-player">
+                <div class="recording-player-empty">Your latest grounded reflection will appear here after processing.</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
       <p class="summary-note">
-        Record here. Reflections are saved to your
-        <strong>archive</strong> in Google Drive within about a minute.
+        Record here. Memnon turns the memo into a grounded spoken reflection and saves it to your
+        <strong>archive</strong> in Google Drive.
       </p>
       </div>
       <div class="editorial-media" aria-hidden="true">
@@ -341,7 +379,6 @@
     };
 
     const API = "https://api-4hth6oktaa-uc.a.run.app";
-
     const LANE_LABELS = {
       professional: { icon: "🏫", label: "Teaching Context" },
       reflect:      { icon: "🌿", label: "Guiding Voices" },
@@ -367,26 +404,8 @@
     document.getElementById("welcome-mark-link").setAttribute("href", `${routes.setup}#dashboard-portrait`);
 
     const dashboardPortraitPresets = {
-      king_memnon: {
-        src: "/corporate_memphis_king_memnon_looking_down.png",
-        fit: "contain",
-        position: "center center",
-        scale: "1",
-      },
-      trebulla: {
-        src: "/corporate_memphis_%20version_of_trebulla_no_bg.png",
-        fit: "cover",
-        position: "center 12%",
-        scale: "1.5",
-      },
       sound_waves: {
         src: "/sound_waves.png",
-        fit: "cover",
-        position: "center center",
-        scale: "1",
-      },
-      sun_and_waves: {
-        src: "/sun_and_waves.png",
         fit: "cover",
         position: "center center",
         scale: "1",
@@ -394,7 +413,7 @@
     };
 
     function getDashboardPortraitPreset(key) {
-      return dashboardPortraitPresets[key] || dashboardPortraitPresets.king_memnon;
+      return dashboardPortraitPresets[key] || dashboardPortraitPresets.sound_waves;
     }
 
     function isDashboardPortraitPreset(key) {
@@ -419,15 +438,76 @@
       img.style.transform = `scale(${scale})`;
     }
     const portraitObjectUrls = new Map();
+    const reflectionObjectUrls = new Map();
+
+    function formatList(items) {
+      return items.filter(Boolean).join(", ");
+    }
+
+    function summarizeTeachingContext(data) {
+      const subjects = (data.subjects || "").trim();
+      const grades = Array.isArray(data.grade_levels) ? data.grade_levels : [];
+      const standards = Array.isArray(data.state_standards) ? data.state_standards : [];
+      const schoolName = (data.school_name || "").trim();
+      const schoolState = (data.school_state || "").trim();
+
+      const detailParts = [];
+      if (subjects) detailParts.push(subjects);
+      if (grades.length) detailParts.push(`Grades ${formatList(grades)}`);
+      if (schoolState) detailParts.push(schoolState);
+      if (schoolName) detailParts.push(schoolName);
+
+      const descParts = [];
+      if (subjects && grades.length) {
+        descParts.push(`Memnon reads your notes through your ${subjects} teaching context across grades ${formatList(grades)}.`);
+      } else if (subjects) {
+        descParts.push(`Memnon reads your notes through your ${subjects} teaching context.`);
+      } else if (grades.length) {
+        descParts.push(`Memnon reads your notes through your work with grades ${formatList(grades)}.`);
+      } else {
+        descParts.push("Memnon reads your notes in light of your classroom, your students, and the standards that shape your work.");
+      }
+      if (standards.length) {
+        descParts.push(`It can also ground reflections in ${standards.length === 1 ? "the standard" : "the standards"} you selected.`);
+      }
+
+      return {
+        description: descParts.join(" "),
+        detail: detailParts.join(" · "),
+        copy: standards.length
+          ? `This section shapes how Memnon turns classroom experience into reflection using your teaching context and ${standards.length} selected standard${standards.length === 1 ? "" : "s"}.`
+          : "This section shapes how Memnon turns classroom experience into a usable reflection using the teaching context you set up.",
+      };
+    }
+
+    function summarizeGuidingVoices(data) {
+      const selectedGuides = data.reflect_config?.selected_guides || [];
+      const tradition = (data.tradition || "").trim();
+      const detailParts = [];
+      if (selectedGuides.length) {
+        detailParts.push(`${selectedGuides.length} guiding voice${selectedGuides.length === 1 ? "" : "s"}`);
+      }
+      if (tradition) detailParts.push(tradition);
+
+      return {
+        description: selectedGuides.length
+          ? `Your reflections are brought into conversation with the ${selectedGuides.length} guiding voice${selectedGuides.length === 1 ? "" : "s"} and traditions you selected in setup.`
+          : "Your reflections are brought into conversation with the thinkers, traditions, and frameworks you selected.",
+        detail: detailParts.join(" · "),
+        copy: selectedGuides.length
+          ? "This section shapes how Memnon turns experience into reflection by grounding it in the voices you chose."
+          : "This section shapes how Memnon reads your notes when it turns experience into a usable reflection.",
+      };
+    }
 
     function normalizeDashboardImageConfig(raw) {
       if (!raw || typeof raw !== "object") {
-        return { kind: "preset", preset: "king_memnon" };
+        return { kind: "preset", preset: "sound_waves" };
       }
       if (raw.kind === "preset") {
         return {
           kind: "preset",
-          preset: isDashboardPortraitPreset(raw.preset) ? raw.preset : "king_memnon",
+          preset: isDashboardPortraitPreset(raw.preset) ? raw.preset : "sound_waves",
         };
       }
       if (raw.kind === "drive" && raw.file_id) {
@@ -438,7 +518,7 @@
           mimeType: raw.mimeType || "image/png",
         };
       }
-      return { kind: "preset", preset: "king_memnon" };
+      return { kind: "preset", preset: "sound_waves" };
     }
 
     async function resolveDashboardPortraitSrc(choice, token) {
@@ -470,7 +550,62 @@
         img.src = await resolveDashboardPortraitSrc(normalized, token);
       } catch (e) {
         console.error("Could not apply dashboard portrait:", e);
-        img.src = dashboardPortraitPresets.king_memnon.src;
+        img.src = dashboardPortraitPresets.sound_waves.src;
+      }
+    }
+
+    async function loadLatestAudio(token, options) {
+      const {
+        listPath,
+        streamPath,
+        containerId,
+        emptyMessage,
+        errorMessage,
+        fallbackName,
+        cache,
+      } = options;
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      try {
+        const res = await fetch(`${API}${listPath}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          throw new Error(`Could not load ${listPath}`);
+        }
+        const data = await res.json();
+        const files = Array.isArray(data.files) ? data.files : [];
+        if (!files.length) {
+          container.innerHTML = `<div class="recording-player-empty">${emptyMessage}</div>`;
+          return;
+        }
+        const latest = files[0];
+        let playerSrc = cache.get(latest.id);
+        if (!playerSrc) {
+          const audioRes = await fetch(`${API}${streamPath}/${latest.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!audioRes.ok) {
+            throw new Error(`Could not load audio from ${streamPath}`);
+          }
+          const audioBlob = await audioRes.blob();
+          playerSrc = URL.createObjectURL(audioBlob);
+          cache.set(latest.id, playerSrc);
+        }
+        const displayName = (latest.name || fallbackName).replace(/\.(mp3|m4a|wav|webm|ogg|aac|flac)$/i, "");
+        container.innerHTML = `
+          <div class="recording-player-name">${displayName}</div>
+          <audio controls preload="none" src="${playerSrc}"></audio>
+        `;
+        const audio = container.querySelector("audio");
+        if (audio) {
+          audio.addEventListener("error", () => {
+            container.innerHTML = `<div class="recording-player-empty">${errorMessage}</div>`;
+          }, { once: true });
+        }
+      } catch (e) {
+        console.error(`Could not load audio for ${containerId}:`, e);
+        container.innerHTML = `<div class="recording-player-empty">${errorMessage}</div>`;
       }
     }
 
@@ -642,17 +777,19 @@
         const data = await res.json();
         const lane = data.lane || "professional";
         const info = LANE_LABELS[lane] || LANE_LABELS.professional;
+        const summary = lane === "reflect"
+          ? summarizeGuidingVoices(data)
+          : summarizeTeachingContext(data);
 
         document.getElementById("lane-title").textContent = `${info.icon} ${info.label}`;
-        document.getElementById("lane-desc").textContent =
-          lane === "reflect"
-            ? "Your reflections are brought into conversation with the thinkers, traditions, and frameworks you selected."
-            : "Your notes are interpreted in light of your classroom, your students, and the standards that shape your work.";
+        document.getElementById("lane-desc").textContent = summary.description;
+        document.getElementById("lane-copy").textContent = summary.copy;
 
-        const detail = data.profession || data.tradition || "";
+        const detail = summary.detail;
         const detailEl = document.getElementById("lane-detail");
         if (detail) {
           detailEl.textContent = detail;
+          detailEl.style.display = "inline-flex";
         } else {
           detailEl.style.display = "none";
         }
@@ -666,6 +803,15 @@
         }
 
         await applyDashboardPortrait(data.dashboard_image, token);
+        await loadLatestAudio(token, {
+          listPath: "/reflections",
+          streamPath: "/reflection",
+          containerId: "reflection-player-container",
+          emptyMessage: "Your latest grounded reflection will appear here after processing.",
+          errorMessage: "The latest grounded reflection could not be loaded.",
+          fallbackName: "Latest grounded reflection",
+          cache: reflectionObjectUrls,
+        });
       }
 
       // Load recent notes with influenced_by
@@ -694,6 +840,16 @@
             recordBtn.classList.add("btn-primary");
             stream.getTracks().forEach(t => t.stop());
             await uploadAudio(blob, filename);
+            const refreshedToken = await getToken(true);
+            await loadLatestAudio(refreshedToken, {
+              listPath: "/reflections",
+              streamPath: "/reflection",
+              containerId: "reflection-player-container",
+              emptyMessage: "Your latest grounded reflection will appear here after processing.",
+              errorMessage: "The latest grounded reflection could not be loaded.",
+              fallbackName: "Latest grounded reflection",
+              cache: reflectionObjectUrls,
+            });
           };
           mediaRecorder.start();
           recordBtn.textContent = "⏹ Stop recording";

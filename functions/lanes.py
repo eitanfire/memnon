@@ -422,13 +422,17 @@ Watch for and address when present:
 """
 
 
-def teaching_prompt(transcript: str, user: dict, max_tags: int = 5) -> str:
+def teaching_prompt(transcript: str, user: dict, max_tags: int = 5) -> tuple[str, list[dict]]:
+    preferred_name = (user.get("preferred_name") or user.get("name") or "the teacher").strip()
+    preferred_pronouns = (user.get("preferred_pronouns") or "").strip()
     grades       = user.get("grade_levels") or []
     subjects     = user.get("subjects") or ""
     standards    = user.get("state_standards") or []
     school_state = user.get("school_state") or ""
     formative    = user.get("formative_docs") or []
     prof_docs    = user.get("professional_docs") or []
+    reflect_config  = user.get("reflect_config") or {}
+    selected_guides = reflect_config.get("selected_guides") or []
 
     grade_str    = ", ".join(grades) if grades else "unspecified grades"
     subject_str  = subjects if subjects else "unspecified subjects"
@@ -450,15 +454,60 @@ def teaching_prompt(transcript: str, user: dict, max_tags: int = 5) -> str:
             doc_sections.append("\n".join(lines))
     docs_block = ("\n\nUser's documents:\n" + "\n\n".join(doc_sections)) if doc_sections else ""
 
-    return f"""You are a dedicated instructional coach for a teacher{state_str} \
+    themes = extract_themes(transcript)
+    selected = select_passages(selected_guides, themes) if selected_guides else []
+    sources_used = build_sources_used(selected)
+
+    passage_lines = []
+    for item in selected:
+        g = item["guide"]
+        p = item["passage"]
+        passage_lines.append(
+            f'{g["label"]} ({g.get("work","")}, {p.get("ref","")}):\n"{p["text"]}"'
+        )
+    passages_block = "\n\n".join(passage_lines)
+    voice_names = [item["guide"]["label"] for item in selected]
+    voices_context = ", ".join(voice_names) if voice_names else ""
+    voices_block = (
+        "\n\nThis person has also chosen the following guiding voices. Use them as living "
+        "conversation partners where they genuinely sharpen the reflection:\n\n"
+        f"{passages_block}\n"
+    ) if passages_block else ""
+    influenced_schema = """
+  "influenced_by": [
+    {
+      "source_id": "exact source_id from the guiding-voice passages above",
+      "because": "one sentence: why this passage connected to what the teacher shared"
+    }
+  ],""" if passages_block else ""
+    influenced_rules = """
+- influenced_by entries must correspond to source_ids from the guiding-voice passages above
+- If none of the guiding voices genuinely apply, return an empty influenced_by array""" if passages_block else ""
+    voices_context_line = (
+        f"\n{preferred_name} selected these guiding voices: {voices_context}."
+        if voices_context else ""
+    )
+    identity_bits = []
+    if preferred_pronouns:
+        identity_bits.append(f"pronouns: {preferred_pronouns}")
+    identity_line = (
+        f"\nTeacher identity: name: {preferred_name}; " + "; ".join(identity_bits) + "."
+        if identity_bits else f"\nTeacher identity: name: {preferred_name}."
+    )
+
+    prompt = f"""You are a dedicated instructional coach for {preferred_name}{state_str} \
 teaching {subject_str} at the {grade_str} level.
 
-They recorded the following voice note about their teaching day:
+{identity_line}
+
+{preferred_name} recorded the following voice note about their teaching day:
 
 ---
 {transcript}
 ---
 {docs_block}
+{voices_context_line}
+{voices_block.replace("The teacher has also chosen", f"{preferred_name} has also chosen") if voices_block else ""}
 {TEACHING_FRAMEWORKS}
 {TEACHING_CONCERNS}
 {stds_str}
@@ -476,6 +525,7 @@ Respond with strict JSON only — no markdown wrapper, no extra keys.
   ],
   "concerns": "One sentence naming any equity, student-wellbeing, or sustainability concern — or null.",
   "best_practice": "One evidence-based practice that directly applies. Name the framework.",
+{influenced_schema}
   "suggested_tags": ["up to {max_tags} lowercase tags including grade band, subject, framework"]
 }}
 
@@ -483,8 +533,14 @@ Rules:
 - Return only the JSON object
 - No invented facts about students or events not mentioned
 - Max {max_tags} tags
+- Honor their lived experience first, then add pedagogy and guiding voices
+- Use the guiding voices only where they genuinely fit; do not force them
+- Refer to {preferred_name} by name where natural
+- Respect these pronouns when needed: {preferred_pronouns or "use neutral phrasing if possible"}
+{influenced_rules}
 - Tone: warm, collegial, specific — trusted coach who knows their context
 """
+    return prompt, sources_used
 
 
 # ── Lane registry ─────────────────────────────────────────────────────────────
@@ -521,7 +577,7 @@ def build_prompt(lane: str, transcript: str, user: dict, max_tags: int = 5) -> t
             or "professor" in profession
         )
         if is_teacher:
-            return teaching_prompt(transcript, user, max_tags), []
+            return teaching_prompt(transcript, user, max_tags)
         return professional_prompt(transcript, profession, max_tags), []
 
     else:
