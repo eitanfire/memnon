@@ -11,20 +11,21 @@ OUTPUT_PREFIX="$2"
 MODEL="${3:-/opt/homebrew/share/whisper-cpp/models/ggml-base.en.bin}"
 LANGUAGE="${4:-en}"
 
-WAV_TMP="$(mktemp /tmp/memnon_XXXXXX.wav)"
-INPUT_TMP="$(mktemp /tmp/memnon_XXXXXX.m4a)"
+WAV_TMP="$(mktemp /tmp/memnon_wav_XXXXXX)"
+INPUT_TMP="$(mktemp /tmp/memnon_input_XXXXXX)"
 trap 'rm -f "$WAV_TMP" "$INPUT_TMP"' EXIT
 
 # Copy input locally first — avoids iCloud Drive VFS deadlock when ffmpeg
 # tries to open a file that hasn't fully materialised on disk yet
 cp "$INPUT" "$INPUT_TMP"
 
-"$FFMPEG" -i "$INPUT_TMP" -ar 16000 -ac 1 -c:a pcm_s16le "$WAV_TMP" -y -loglevel error
+"$FFMPEG" -i "$INPUT_TMP" -ar 16000 -ac 1 -c:a pcm_s16le -f wav "$WAV_TMP" -y -loglevel error
 
 "$WHISPER" \
   -m "$MODEL" \
   -f "$WAV_TMP" \
   -l "$LANGUAGE" \
+  -ng \
   -nt \
   -otxt \
   -of "$OUTPUT_PREFIX"
