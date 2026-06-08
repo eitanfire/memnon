@@ -72,6 +72,15 @@
       background: #fffdfa;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
     }
+    .summary-tile.featured {
+      border-color: #d9c39b;
+      background:
+        radial-gradient(circle at top right, rgba(244, 223, 180, 0.35), rgba(244, 223, 180, 0) 42%),
+        linear-gradient(180deg, #fffdfa 0%, #f9f3e7 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.72),
+        0 14px 28px rgba(90, 68, 36, 0.08);
+    }
     .summary-tile-kicker {
       font-size: 0.72rem;
       font-weight: 700;
@@ -99,6 +108,14 @@
       padding-top: 12px;
       border-top: 1px solid #ece5d9;
     }
+    .summary-tile.featured .recording-player-wrap {
+      margin-top: 14px;
+      padding: 14px;
+      border-top: none;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    }
     .recording-player-wrap:first-of-type {
       margin-top: 14px;
     }
@@ -116,6 +133,10 @@
       margin-bottom: 8px;
       line-height: 1.45;
       word-break: break-word;
+    }
+    .summary-tile.featured .recording-player-name {
+      font-size: 0.82rem;
+      color: #554735;
     }
     .recording-player audio {
       width: 100%;
@@ -217,9 +238,35 @@
     .influenced-source { font-weight: 600; color: #333; }
     .influenced-excerpt { font-style: italic; color: #666; font-size: 0.77rem; margin-top: 2px; }
     .influenced-because { color: #2563eb; font-size: 0.77rem; margin-top: 2px; }
+    .tasks-panel-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .task-item {
+      border: 1px solid #ece5d9;
+      border-radius: 10px;
+      padding: 12px 14px;
+      background: #fffdfa;
+    }
+    .task-title {
+      font-weight: 600;
+      color: #4d3f2f;
+      margin-bottom: 4px;
+    }
+    .task-meta {
+      font-size: 0.78rem;
+      color: #8a7d6d;
+      line-height: 1.45;
+    }
+    .task-empty {
+      font-size: 0.82rem;
+      color: #7d7467;
+      line-height: 1.55;
+    }
   </style>
 </head>
-<body>
+<body class="dashboard-page">
   <nav>
     <span class="nav-brand"><img class="brand-mark" src="/nav-logo.png" alt="" /> Memnon</span>
     <div class="nav-right">
@@ -230,13 +277,15 @@
     </div>
   </nav>
 
-  <div class="container">
+  <div class="container app-shell dashboard-shell">
 
     <div id="upload-status" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:8px; background:#eff6ff; color:#1d4ed8; font-size:0.875rem;"></div>
 
-    <div style="margin-bottom:28px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
-      <div>
+    <div class="card dashboard-hero">
+      <div class="dashboard-hero-copy">
+        <div class="page-hero-kicker">Dashboard</div>
         <h1>Welcome back, <span id="first-name"></span> 👋</h1>
+        <p>Record, receive, and revisit reflections shaped by your teaching context and guiding voices.</p>
       </div>
       <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Edit dashboard portrait">
         <div class="welcome-mark-frame">
@@ -247,7 +296,7 @@
     </div>
 
     <!-- Lane -->
-    <div class="card editorial-card">
+    <div class="card editorial-card dashboard-secondary-card">
       <div class="editorial-main">
         <div class="editorial-header">
           <div>
@@ -277,7 +326,7 @@
         <div>
           <h2>Capture & Archive</h2>
           <p class="editorial-copy">
-            Record directly in the app, then open your archive when the reflection is ready.
+            Record in the app, then return when the reflection is ready.
           </p>
         </div>
       </div>
@@ -293,7 +342,7 @@
             </button>
           </div>
         </div>
-        <div class="summary-tile">
+        <div class="summary-tile featured">
           <div>
             <div class="summary-tile-kicker">Archive</div>
             <div class="summary-tile-title">archive</div>
@@ -303,16 +352,16 @@
               Open archive ↗
             </a>
             <div class="recording-player-wrap">
-              <div class="recording-player-label">Latest grounded reflection</div>
+              <div class="recording-player-label" id="reflection-player-label">Latest reflection</div>
               <div id="reflection-player-container" class="recording-player">
-                <div class="recording-player-empty">Your latest grounded reflection will appear here after processing.</div>
+                <div class="recording-player-empty">Your latest reflection will appear here after processing.</div>
               </div>
             </div>
           </div>
         </div>
       </div>
       <p class="summary-note">
-        Record here. Memnon turns the memo into a grounded spoken reflection and saves it to your
+        <span id="archive-summary-copy">Record here. Memnon turns the memo into a spoken reflection and saves it to your</span>
         <strong>archive</strong> in Google Drive.
       </p>
       </div>
@@ -321,8 +370,23 @@
       </div>
     </div>
 
+    <div class="card dashboard-secondary-card" id="tasks-card" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:8px;">
+        <div>
+          <h2 style="margin-bottom:6px;">Current tasks</h2>
+          <p class="muted" style="margin:0;">
+            Optional read-only context from the Google Tasks list you selected in setup.
+          </p>
+        </div>
+        <a href="/setup" class="btn btn-outline" style="padding:7px 14px; font-size:0.8rem; white-space:nowrap;">
+          Edit task settings
+        </a>
+      </div>
+      <div id="tasks-panel" class="task-empty">Loading tasks…</div>
+    </div>
+
     <!-- Recent Notes -->
-    <div class="card" id="recent-notes-card" style="display:none;">
+    <div class="card dashboard-secondary-card" id="recent-notes-card" style="display:none;">
       <h2>Recent notes</h2>
       <div id="recent-notes-list" style="margin-top:14px;"></div>
     </div>
@@ -364,7 +428,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut }
+    import { getAuth, onAuthStateChanged, signOut, signInWithCustomToken }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getFirestore, collection, query, orderBy, limit, getDocs }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -383,10 +447,26 @@
       professional: { icon: "🏫", label: "Teaching Context" },
       reflect:      { icon: "🌿", label: "Guiding Voices" },
     };
+    const REFLECTION_STYLE_LABELS = {
+      practical: "Practical guidance",
+      grounded: "Grounded reflection",
+      complete: "Complete reflection",
+    };
+    const REFLECTION_STYLE_ARCHIVE_COPY = {
+      practical: "Record here. Memnon turns the memo into a practical spoken reflection and saves it to your",
+      grounded: "Record here. Memnon turns the memo into a grounded spoken reflection and saves it to your",
+      complete: "Record here. Memnon turns the memo into a complete spoken reflection that combines practical guidance with grounded reflection, and saves it to your",
+    };
 
+    const params = new URLSearchParams(window.location.search);
+    const PREVIEW_MODE =
+      params.has("preview") ||
+      window.location.port === "8000" ||
+      window.location.port === "8080";
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db  = getFirestore(app);
+    const callbackToken = params.get("token");
     const isStaticLocalhost =
       window.location.hostname === "localhost" &&
       (window.location.port === "8000" || window.location.port === "8080");
@@ -396,9 +476,56 @@
       setup: isStaticLocalhost ? "/setup.html" : "/setup",
     };
 
+    function applyDashboardPreviewState() {
+      document.getElementById("first-name").textContent = "there";
+      document.getElementById("nav-name").textContent = "Preview mode";
+      document.getElementById("lane-title").textContent = "🏫 Teaching Context";
+      document.getElementById("lane-desc").textContent = "Memnon reads your notes through your teaching context and the standards frameworks you selected.";
+      document.getElementById("lane-detail").textContent = "Complete reflection · Preview mode";
+      document.getElementById("lane-detail").style.display = "inline-flex";
+      document.getElementById("lane-copy").textContent = "This mode combines practical classroom guidance with grounded reflection, using the teaching context you set up.";
+      updateReflectionArchiveLabels("complete");
+
+      const recordBtn = document.getElementById("record-btn");
+      if (recordBtn) {
+        recordBtn.disabled = true;
+        recordBtn.textContent = "Preview mode — sign in to record";
+      }
+
+      const player = document.getElementById("reflection-player-container");
+      if (player) {
+        player.innerHTML = `<div class="recording-player-empty">Preview mode only. Sign in to generate and play reflections.</div>`;
+      }
+    }
+
     const setupLinks = document.querySelectorAll('a[href="/setup"]');
     setupLinks.forEach((link) => {
       link.setAttribute("href", routes.setup);
+    });
+
+    let callbackSignInPromise = Promise.resolve();
+
+    if (callbackToken) {
+      callbackSignInPromise = signInWithCustomToken(auth, callbackToken)
+        .then(() => {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete("token");
+          window.history.replaceState({}, "", cleanUrl.toString());
+        })
+        .catch((e) => {
+          console.error("Custom-token sign-in failed:", e);
+        });
+    }
+
+    auth.authStateReady().then(async () => {
+      await callbackSignInPromise;
+      if (!auth.currentUser) {
+        if (PREVIEW_MODE) {
+          applyDashboardPreviewState();
+          return;
+        }
+        window.location.href = routes.home;
+      }
     });
 
     document.getElementById("welcome-mark-link").setAttribute("href", `${routes.setup}#dashboard-portrait`);
@@ -439,12 +566,20 @@
     }
     const portraitObjectUrls = new Map();
     const reflectionObjectUrls = new Map();
+    const GOOGLE_TASKS_URL = "https://tasks.google.com/tasks/";
+    let currentReflectionStyle = "complete";
 
     function formatList(items) {
       return items.filter(Boolean).join(", ");
     }
 
+    function reflectionStyleKey(data) {
+      return data.reflection_style in REFLECTION_STYLE_LABELS ? data.reflection_style : "complete";
+    }
+
     function summarizeTeachingContext(data) {
+      const styleKey = reflectionStyleKey(data);
+      const reflectionStyle = REFLECTION_STYLE_LABELS[styleKey];
       const subjects = (data.subjects || "").trim();
       const grades = Array.isArray(data.grade_levels) ? data.grade_levels : [];
       const standards = Array.isArray(data.state_standards) ? data.state_standards : [];
@@ -459,28 +594,47 @@
 
       const descParts = [];
       if (subjects && grades.length) {
-        descParts.push(`Memnon reads your notes through your ${subjects} teaching context across grades ${formatList(grades)}.`);
+        descParts.push(`${subjects} across grades ${formatList(grades)}.`);
       } else if (subjects) {
-        descParts.push(`Memnon reads your notes through your ${subjects} teaching context.`);
+        descParts.push(`${subjects}.`);
       } else if (grades.length) {
-        descParts.push(`Memnon reads your notes through your work with grades ${formatList(grades)}.`);
+        descParts.push(`Grades ${formatList(grades)}.`);
       } else {
-        descParts.push("Memnon reads your notes in light of your classroom, your students, and the standards that shape your work.");
+        descParts.push("Your classroom context shapes the return you receive.");
       }
       if (standards.length) {
-        descParts.push(`It can also ground reflections in ${standards.length === 1 ? "the standard" : "the standards"} you selected.`);
+        descParts.push(`${standards.length} standards framework${standards.length === 1 ? "" : "s"} selected.`);
       }
 
       return {
         description: descParts.join(" "),
-        detail: detailParts.join(" · "),
+        detail: [reflectionStyle, ...detailParts].filter(Boolean).join(" · "),
         copy: standards.length
-          ? `This section shapes how Memnon turns classroom experience into reflection using your teaching context and ${standards.length} selected standard${standards.length === 1 ? "" : "s"}.`
-          : "This section shapes how Memnon turns classroom experience into a usable reflection using the teaching context you set up.",
+          ? styleKey === "complete"
+            ? `Practical guidance and grounded reflection, shaped by your teaching context and ${standards.length} selected framework${standards.length === 1 ? "" : "s"}.`
+            : `${reflectionStyle}, shaped by your teaching context and ${standards.length} selected framework${standards.length === 1 ? "" : "s"}.`
+          : styleKey === "complete"
+            ? "Practical guidance and grounded reflection, shaped by the teaching context you set up."
+            : `${reflectionStyle}, shaped by the teaching context you set up.`,
       };
     }
 
+    function updateReflectionArchiveLabels(styleKey) {
+      const style = styleKey in REFLECTION_STYLE_LABELS ? styleKey : "complete";
+      currentReflectionStyle = style;
+      const label = document.getElementById("reflection-player-label");
+      const summary = document.getElementById("archive-summary-copy");
+      if (label) {
+        label.textContent = `Latest ${REFLECTION_STYLE_LABELS[style].toLowerCase()}`;
+      }
+      if (summary) {
+        summary.textContent = REFLECTION_STYLE_ARCHIVE_COPY[style];
+      }
+    }
+
     function summarizeGuidingVoices(data) {
+      const styleKey = reflectionStyleKey(data);
+      const reflectionStyle = REFLECTION_STYLE_LABELS[styleKey];
       const selectedGuides = data.reflect_config?.selected_guides || [];
       const tradition = (data.tradition || "").trim();
       const detailParts = [];
@@ -491,12 +645,16 @@
 
       return {
         description: selectedGuides.length
-          ? `Your reflections are brought into conversation with the ${selectedGuides.length} guiding voice${selectedGuides.length === 1 ? "" : "s"} and traditions you selected in setup.`
-          : "Your reflections are brought into conversation with the thinkers, traditions, and frameworks you selected.",
-        detail: detailParts.join(" · "),
+          ? `${selectedGuides.length} guiding voice${selectedGuides.length === 1 ? "" : "s"} selected${tradition ? ` · ${tradition}` : ""}.`
+          : "Thinkers and traditions selected in setup.",
+        detail: [reflectionStyle, ...detailParts].filter(Boolean).join(" · "),
         copy: selectedGuides.length
-          ? "This section shapes how Memnon turns experience into reflection by grounding it in the voices you chose."
-          : "This section shapes how Memnon reads your notes when it turns experience into a usable reflection.",
+          ? styleKey === "complete"
+            ? "Practical guidance and grounded reflection, drawing on the voices you chose."
+            : `${reflectionStyle}, drawing on the voices you chose.`
+          : styleKey === "complete"
+            ? "Practical guidance and grounded reflection."
+            : `${reflectionStyle}, using the reflective voices you selected.`,
       };
     }
 
@@ -654,6 +812,74 @@
       }
     }
 
+    function formatTaskDueDate(raw) {
+      if (!raw) return "";
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
+    }
+
+    async function loadCurrentTasks(token, profile) {
+      const card = document.getElementById("tasks-card");
+      const panel = document.getElementById("tasks-panel");
+      const connected = !!profile.google_tasks_connected;
+      const configuredList = (profile.google_tasks_list_id || "").trim();
+
+      if (!connected && !configuredList) {
+        card.style.display = "none";
+        return;
+      }
+
+      card.style.display = "block";
+
+      if (!connected) {
+        panel.innerHTML = `<div class="task-empty">Google Tasks is not connected. Use <a href="${routes.setup}">setup</a> to connect one read-only task list.</div>`;
+        return;
+      }
+
+      if (!configuredList) {
+        panel.innerHTML = `<div class="task-empty">Choose a default task list in <a href="${routes.setup}">setup</a> to show current tasks here.</div>`;
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/tasks?limit=5`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          throw new Error("Could not load tasks");
+        }
+        const data = await res.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (!items.length) {
+          panel.innerHTML = `<div class="task-empty">No open tasks in ${data.tasklist_name || "this list"} right now. <a href="${data.tasks_web_url || GOOGLE_TASKS_URL}" target="_blank" rel="noreferrer">Open Google Tasks ↗</a></div>`;
+          return;
+        }
+        panel.innerHTML = `
+          <div class="tasks-panel-list">
+            ${items.map((item) => `
+              <div class="task-item">
+                <div class="task-title">${item.title || "Untitled task"}</div>
+                <div class="task-meta">
+                  ${formatTaskDueDate(item.due) ? `Due ${formatTaskDueDate(item.due)}` : "No due date"}
+                  ${item.notes ? ` · ${item.notes.slice(0, 100)}` : ""}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+          <div class="task-empty" style="margin-top:12px;">
+            <a href="${data.tasks_web_url || GOOGLE_TASKS_URL}" target="_blank" rel="noreferrer">Open Google Tasks ↗</a>
+          </div>
+        `;
+      } catch (e) {
+        console.error("Could not load current tasks:", e);
+        panel.innerHTML = `<div class="task-empty">Current tasks could not be loaded right now.</div>`;
+      }
+    }
+
     // ── Register service worker (PWA Share Target) ──
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(console.error);
@@ -760,7 +986,7 @@
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
-      if (!user) { window.location.href = routes.home; return; }
+      if (!user) return;
 
       const firstName = (user.displayName || user.email).split(" ")[0];
       document.getElementById("first-name").textContent = firstName;
@@ -780,6 +1006,7 @@
         const summary = lane === "reflect"
           ? summarizeGuidingVoices(data)
           : summarizeTeachingContext(data);
+        updateReflectionArchiveLabels(data.reflection_style || "complete");
 
         document.getElementById("lane-title").textContent = `${info.icon} ${info.label}`;
         document.getElementById("lane-desc").textContent = summary.description;
@@ -807,9 +1034,9 @@
           listPath: "/reflections",
           streamPath: "/reflection",
           containerId: "reflection-player-container",
-          emptyMessage: "Your latest grounded reflection will appear here after processing.",
-          errorMessage: "The latest grounded reflection could not be loaded.",
-          fallbackName: "Latest grounded reflection",
+          emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[data.reflection_style || "complete"] || "Complete").toLowerCase()} reflection will appear here after processing.`,
+          errorMessage: "The latest reflection could not be loaded.",
+          fallbackName: `Latest ${(REFLECTION_STYLE_LABELS[data.reflection_style || "complete"] || "Complete").toLowerCase()} reflection`,
           cache: reflectionObjectUrls,
         });
       }
@@ -845,9 +1072,9 @@
               listPath: "/reflections",
               streamPath: "/reflection",
               containerId: "reflection-player-container",
-              emptyMessage: "Your latest grounded reflection will appear here after processing.",
-              errorMessage: "The latest grounded reflection could not be loaded.",
-              fallbackName: "Latest grounded reflection",
+              emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[currentReflectionStyle] || "Complete").toLowerCase()} reflection will appear here after processing.`,
+              errorMessage: "The latest reflection could not be loaded.",
+              fallbackName: "Latest reflection",
               cache: reflectionObjectUrls,
             });
           };
@@ -863,6 +1090,10 @@
     });
 
     document.getElementById("signout-btn").addEventListener("click", async () => {
+      if (PREVIEW_MODE && !auth.currentUser) {
+        window.location.href = routes.home;
+        return;
+      }
       await signOut(auth);
       window.location.href = routes.home;
     });

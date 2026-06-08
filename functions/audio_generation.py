@@ -36,3 +36,15 @@ def synthesize_reflection_mp3(
 
     asyncio.run(_run())
     return dest
+
+
+def synthesize_reflection_bytes(
+    text: str,
+    *,
+    voice: str = "en-IE-EmilyNeural",
+    rate: str = "+0%",
+) -> bytes:
+    """Return synthesized MP3 bytes for `text`."""
+    output_path = Path("/tmp") / f"memnon-preview-{voice}.mp3"
+    synthesize_reflection_mp3(text, output_path, voice=voice, rate=rate)
+    return output_path.read_bytes()

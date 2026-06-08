@@ -9,12 +9,30 @@
   <style>
     /* ── Grade chips ── */
     .grade-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .grade-selection-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .grade-selection-row .grade-chips {
+      flex: 1 1 260px;
+      margin-top: 0;
+      min-width: 0;
+    }
     .grade-chip {
       padding: 5px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 500;
       border: 1px solid #ddd; background: #fff; cursor: pointer;
       transition: all 0.15s; user-select: none;
     }
     .grade-chip.selected { background: #eff6ff; border-color: #2563eb; color: #2563eb; font-weight: 600; }
+    .grade-chip.is-hidden {
+      display: none;
+    }
+    .grade-edit-row {
+      display: flex;
+      flex: 0 0 auto;
+    }
 
     /* ── School search autocomplete ── */
     .school-search-wrap { position: relative; }
@@ -61,6 +79,7 @@
     .tradition-pill.active { background: #eff6ff; border-color: #2563eb; color: #2563eb; font-weight: 600; }
 
     .voice-chip {
+      position: relative;
       display: inline-flex; flex-direction: column;
       padding: 8px 14px; border-radius: 8px; font-size: 0.82rem;
       border: 1px solid #ddd; background: #fff; cursor: pointer;
@@ -68,9 +87,213 @@
     }
     .voice-chip:hover { border-color: #2563eb; background: #f8faff; }
     .voice-chip.selected { background: #eff6ff; border-color: #2563eb; }
+    .voice-chip.selected::after {
+      content: "✓";
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+    }
     .voice-chip .vc-name { font-weight: 600; color: #1a1a1a; }
     .voice-chip .vc-work { font-size: 0.72rem; color: #888; margin-top: 2px; }
     .voice-chip.selected .vc-name { color: #2563eb; }
+    .voice-chip:focus-visible,
+    .mode-option:focus-visible,
+    .narration-voice-option:focus-visible {
+      outline: 2px solid rgba(37, 99, 235, 0.24);
+      outline-offset: 2px;
+    }
+    .narration-voice-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .narration-voice-option {
+      position: relative;
+      border: 1px solid #e8e6e0;
+      border-radius: 12px;
+      padding: 12px 12px 11px;
+      background: #fffdfa;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+    .narration-voice-option:hover {
+      border-color: #cdb790;
+      box-shadow: 0 10px 18px rgba(92, 69, 38, 0.08);
+    }
+    .narration-voice-option.selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.08), 0 12px 20px rgba(37, 99, 235, 0.08);
+    }
+    .narration-voice-option.selected::after {
+      content: "✓";
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 0.76rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+    }
+    .narration-voice-name {
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 4px;
+    }
+    .narration-voice-meta {
+      font-size: 0.76rem;
+      color: #777;
+    }
+    .voice-preview-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .voice-preview-status {
+      font-size: 0.8rem;
+      color: #777;
+    }
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .mode-option {
+      position: relative;
+      border: 1px solid #e8e6e0;
+      border-radius: 12px;
+      padding: 14px 14px 12px;
+      background: #fffdfa;
+      cursor: pointer;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      text-align: left;
+    }
+    .mode-option:hover {
+      border-color: #cdb790;
+      box-shadow: 0 10px 18px rgba(92, 69, 38, 0.08);
+    }
+    .mode-option.selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.08), 0 12px 20px rgba(37, 99, 235, 0.08);
+    }
+    .mode-option.selected::after {
+      content: "✓";
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 0.76rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+    }
+    .mode-option-title {
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 6px;
+    }
+    .mode-option-copy {
+      font-size: 0.8rem;
+      color: #6b665f;
+      line-height: 1.5;
+    }
+    .drawer-card {
+      overflow: hidden;
+    }
+    .drawer-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      background: none;
+      border: none;
+      padding: 0;
+      text-align: left;
+      cursor: pointer;
+    }
+    .drawer-toggle-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .drawer-toggle-copy {
+      margin-top: 4px;
+      font-size: 0.78rem;
+      color: #766b5e;
+      line-height: 1.4;
+    }
+    .drawer-chevron {
+      font-size: 0.95rem;
+      color: #7a7368;
+      transition: transform 0.18s ease;
+      flex-shrink: 0;
+    }
+    .drawer-card.is-open .drawer-chevron {
+      transform: rotate(180deg);
+    }
+    .drawer-content {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height 0.24s ease, opacity 0.18s ease, margin-top 0.18s ease;
+      margin-top: 0;
+    }
+    .drawer-card.is-open .drawer-content {
+      opacity: 1;
+      margin-top: 18px;
+    }
+    .field-stack {
+      display: grid;
+      gap: 16px;
+    }
+    .field-block {
+      display: grid;
+      gap: 6px;
+    }
+    .field-block.compact {
+      gap: 5px;
+    }
+    .field-help {
+      margin-bottom: 0;
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+    .tasks-helper {
+      font-size: 0.8rem;
+      color: #777;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
 
     /* ── Dashboard portrait UI ── */
     .portrait-grid {
@@ -80,6 +303,7 @@
       grid-auto-rows: 1fr;
     }
     .portrait-option {
+      position: relative;
       display: flex;
       flex-direction: column;
       height: 100%;
@@ -99,9 +323,26 @@
       box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.12);
       background: #eff6ff;
     }
+    .portrait-option.selected::after {
+      content: "✓";
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 0.76rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+    }
     .portrait-option-image {
       width: 100%;
-      height: 146px;
+      height: 128px;
       border-radius: 10px;
       overflow: hidden;
       margin-bottom: 10px;
@@ -132,17 +373,17 @@
       margin-bottom: 12px;
     }
     .portrait-preview {
-      margin-top: 16px;
-      padding: 16px;
+      margin-top: 12px;
+      padding: 14px;
       border-radius: 14px;
       border: 1px solid #e8e6e0;
       background: #fffdfa;
     }
     .portrait-preview-shell {
-      width: min(100%, 220px);
+      width: min(100%, 180px);
       margin: 0 auto;
-      padding: 12px;
-      border-radius: 28px;
+      padding: 10px;
+      border-radius: 24px;
       background: linear-gradient(180deg, #f1dfb7 0%, #e4c992 34%, #cfac73 68%, #a88660 100%);
       border: 1px solid rgba(184, 147, 101, 0.58);
       box-shadow:
@@ -151,7 +392,7 @@
     }
     .portrait-preview-shell img {
       width: 100%;
-      height: 240px;
+      height: 190px;
       display: block;
       object-fit: contain;
       object-position: center center;
@@ -169,7 +410,6 @@
         grid-template-columns: 1fr;
       }
     }
-
     /* .passage-editor — customize passages feature commented out
     .passage-editor {
       margin-top: 12px; padding: 12px 14px;
@@ -181,7 +421,7 @@
     */
   </style>
 </head>
-<body>
+<body class="setup-page">
   <nav>
     <span class="nav-brand"><img class="brand-mark" src="/nav-logo.png" alt="" /> Memnon</span>
     <div class="nav-right">
@@ -189,51 +429,69 @@
     </div>
   </nav>
 
-  <div class="container" style="max-width:600px;">
+  <div class="container app-shell setup-shell">
 
-    <div style="margin-bottom:28px;">
-      <h1>Set up Memnon</h1>
-      <p class="muted">Choose the teaching context and guiding voices that will shape your reflections. You can change this anytime in settings.</p>
+    <div class="page-hero">
+      <div class="page-hero-kicker">Set up Memnon</div>
+      <h1>Ground your reflection</h1>
+      <p class="page-hero-copy">Choose the reflection style, teaching context, and guiding voices that shape each return.</p>
+    </div>
+
+    <div class="card setup-feature-card">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:1.4rem;">🧭</span>
+        <h2 style="margin:0;">Reflection Style</h2>
+      </div>
+      <p class="muted" style="margin-bottom:18px;">
+        Choose what comes back after you record.
+      </p>
+      <div class="mode-grid" id="reflection-style-grid"></div>
     </div>
 
     <!-- ── Teaching context ── -->
-    <div class="card" id="dashboard-portrait">
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-        <span style="font-size:1.4rem;">🏫</span>
-        <h2 style="margin:0;">Teaching Context</h2>
-      </div>
-      <p class="muted" style="margin-bottom:20px;">
-        Memnon uses this to interpret your recordings in light of your classroom, your students, and the standards that shape your work.
-      </p>
-
-      <div style="margin-bottom:20px;">
+    <div class="card drawer-card is-open" id="dashboard-portrait" data-drawer="teaching-context">
+      <button type="button" class="drawer-toggle" aria-expanded="true" aria-controls="teaching-context-content">
+        <div style="min-width:0;">
+          <div class="drawer-toggle-main">
+            <span style="font-size:1.4rem;">🏫</span>
+            <h2 style="margin:0;">Teaching Context</h2>
+          </div>
+          <div class="drawer-toggle-copy">
+            Classroom, school, subject, and standards frameworks.
+          </div>
+        </div>
+        <span class="drawer-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="drawer-content" id="teaching-context-content">
+      <div class="field-stack">
+      <div class="field-block">
         <label for="preferred-name">What should Memnon call you?</label>
-        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">
+        <p class="muted field-help">
           This is the name Memnon will use in reflections and audio.
         </p>
         <input type="text" id="preferred-name" placeholder="e.g. Eitan" />
       </div>
 
-      <div style="margin-bottom:20px;">
+      <div class="field-block">
         <label for="spoken-name">How should your name sound out loud?</label>
-        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">
+        <p class="muted field-help">
           Optional. Use a phonetic spelling if that helps the audio say it correctly, e.g. “Ay-tahn”.
         </p>
         <input type="text" id="spoken-name" placeholder="Optional pronunciation for audio" />
       </div>
 
-      <div style="margin-bottom:20px;">
+      <div class="field-block">
         <label for="preferred-pronouns">Preferred pronouns</label>
-        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">
+        <p class="muted field-help">
           e.g. he/him, she/her, they/them
         </p>
         <input type="text" id="preferred-pronouns" placeholder="e.g. he/him" />
       </div>
 
       <!-- School search -->
-      <div style="margin-bottom:20px;">
+      <div class="field-block">
         <label>Where do you teach?</label>
-        <p class="muted" style="font-size:0.8rem; margin-bottom:8px;">
+        <p class="muted field-help">
           Search your school — we'll automatically set your state, grade band, and relevant standards.
         </p>
         <div class="school-search-wrap" id="school-search-wrap">
@@ -259,38 +517,53 @@
       </div>
 
       <!-- Standards preview (auto-populated) -->
-      <div id="standards-section" style="display:none; margin-bottom:20px;">
-        <div class="muted" style="font-size:0.78rem; margin-bottom:6px;">Standards we'll reference:</div>
+      <div id="standards-section" style="display:none;">
+        <div class="muted" style="font-size:0.78rem; margin-bottom:6px;">Standards frameworks we'll reference:</div>
         <div id="standards-chips"></div>
       </div>
 
       <!-- Subjects -->
-      <div style="margin-bottom:20px;">
+      <div class="field-block compact">
         <label for="subjects">What subject(s) do you teach?</label>
-        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">e.g. Algebra, 9th Grade English, AP Biology, Elementary Art</p>
+        <p class="muted field-help">e.g. Algebra, 9th Grade English, AP Biology, Elementary Art</p>
         <input type="text" id="subjects"
                placeholder="e.g. Middle school science, AP Computer Science" />
       </div>
 
       <!-- Grade levels -->
-      <div>
+      <div class="field-block compact">
         <label>What grade levels do you teach?</label>
-        <p class="muted" style="font-size:0.8rem; margin-bottom:8px;">
+        <p class="muted field-help">
           Select all that apply. Auto-suggested from your school — adjust as needed.
         </p>
-        <div class="grade-chips" id="grade-chips"></div>
+        <div class="grade-selection-row">
+          <div class="grade-chips" id="grade-chips"></div>
+          <div class="grade-edit-row" id="grade-edit-row" style="display:none;">
+            <button type="button" id="edit-grades-btn" class="btn btn-outline" style="padding:6px 12px; font-size:0.78rem;">
+              Edit grades
+            </button>
+          </div>
+        </div>
+      </div>
+      </div>
       </div>
     </div>
 
     <!-- ── Guiding voices ── -->
-    <div class="card">
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-        <span style="font-size:1.4rem;">🌿</span>
-        <h2 style="margin:0;">Guiding Voices</h2>
-      </div>
-      <p class="muted" style="margin-bottom:20px;">
-        Choose the thinkers, traditions, and frameworks you want Memnon to bring into conversation with your reflections.
-      </p>
+    <div class="card drawer-card" data-drawer="guiding-voices">
+      <button type="button" class="drawer-toggle" aria-expanded="false" aria-controls="guiding-voices-content">
+        <div style="min-width:0;">
+          <div class="drawer-toggle-main">
+            <span style="font-size:1.4rem;">🌿</span>
+            <h2 style="margin:0;">Guiding Voices</h2>
+          </div>
+          <div class="drawer-toggle-copy">
+            Thinkers and traditions that shape grounded reflection.
+          </div>
+        </div>
+        <span class="drawer-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="drawer-content" id="guiding-voices-content">
 
       <!-- Tradition filter pills -->
       <div style="margin-bottom:14px;">
@@ -316,15 +589,16 @@
         <div id="customize-panel" style="display:none; margin-top:12px;"></div>
       </div>
       -->
+      </div>
     </div>
 
-    <div class="card">
+    <div class="card setup-secondary-card">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
         <span style="font-size:1.4rem;">🖼️</span>
         <h2 style="margin:0;">Dashboard Portrait</h2>
       </div>
       <p class="muted" style="margin-bottom:18px;">
-        Use the default Sound Waves image, or upload one of your own.
+        Use Sound Waves, or upload one of your own.
       </p>
 
       <div style="margin-bottom:18px;">
@@ -354,13 +628,82 @@
       </div>
     </div>
 
-    <button id="save-btn" class="btn btn-primary" style="width:100%; justify-content:center; font-size:1rem; padding:14px;">
-      Save and go to dashboard →
-    </button>
+    <div class="card setup-secondary-card" style="display:none;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:1.4rem;">✅</span>
+        <h2 style="margin:0;">Google Tasks</h2>
+      </div>
+      <p class="muted" style="margin-bottom:18px;">
+        Memnon can read one Google Tasks list as optional context, without turning your reflections into a to-do list.
+      </p>
+
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px;">
+        <button type="button" id="connect-tasks-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
+          Connect Google Tasks
+        </button>
+        <span id="tasks-connection-status" class="tasks-helper" style="margin-top:0;">
+          Google Tasks is not connected yet.
+        </span>
+      </div>
+
+      <div id="tasks-list-wrap" style="display:none; margin-bottom:18px;">
+        <label for="google-tasks-list">Default task list</label>
+        <p class="muted" style="margin-bottom:8px; font-size:0.8rem;">
+          Memnon will always use the top tasks from this list as light background context, then bring in further tasks only when they clearly relate to what you recorded.
+        </p>
+        <div id="single-tasklist-note" class="tasks-helper" style="display:none; margin-top:0; margin-bottom:8px;"></div>
+        <select id="google-tasks-list">
+          <option value="">— Select a task list —</option>
+        </select>
+      </div>
+      <p class="tasks-helper">
+        Memnon will keep this contextual. It will always hold your top tasks in view, but it will only foreground additional tasks when they clearly overlap with your reflection.
+      </p>
+    </div>
+
+    <div class="card setup-secondary-card">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:1.4rem;">🔊</span>
+        <h2 style="margin:0;">Narration Voice</h2>
+      </div>
+      <p class="muted" style="margin-bottom:18px;">
+        Choose the voice Memnon uses when reading reflections aloud.
+      </p>
+      <div class="narration-voice-grid" id="narration-voice-grid"></div>
+      <div class="voice-preview-row">
+        <button type="button" id="preview-voice-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
+          Preview voice
+        </button>
+        <span id="voice-preview-status" class="voice-preview-status">
+          Preview line: “Did Nature, creator of all, give perception and voice to stone?”
+        </span>
+      </div>
+      <audio id="voice-preview-audio" preload="none" style="display:none; width:100%; margin-top:12px;" controls></audio>
+    </div>
+
+    <div class="page-actions" style="display:grid; gap:10px; margin-top:4px;">
+      <button id="save-btn" class="btn btn-primary" style="width:100%; justify-content:center; font-size:1rem; padding:14px;">
+        Save and go to dashboard →
+      </button>
+      <a id="cancel-link" href="/dashboard" class="btn btn-outline" style="width:100%; justify-content:center; font-size:0.95rem; padding:12px 14px;">
+        Return without saving
+      </a>
+    </div>
 
   </div>
 
   <script>
+    let currentUser = null;
+    const API = "https://api-4hth6oktaa-uc.a.run.app";
+    const isStaticLocalhost =
+      window.location.hostname === "localhost" &&
+      (window.location.port === "8000" || window.location.port === "8080");
+    const routes = {
+      home: isStaticLocalhost ? "/index.html" : "/",
+      setup: isStaticLocalhost ? "/setup.html" : "/setup",
+      dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
+    };
+
     // ══════════════════════════════════════════════════════════
     // NCES API — ported from Teach League (ncesAPI.js)
     // ══════════════════════════════════════════════════════════
@@ -461,6 +804,7 @@
     // ══════════════════════════════════════════════════════════
     const GRADES = ["K","1","2","3","4","5","6","7","8","9","10","11","12","College"];
     var selectedGrades = new Set();
+    let gradePickerExpanded = true;
 
     const chipsEl = document.getElementById("grade-chips");
     GRADES.forEach(g => {
@@ -476,9 +820,24 @@
           selectedGrades.add(g);
           chip.classList.add("selected");
         }
+        if (selectedGrades.size > 0) {
+          gradePickerExpanded = false;
+        }
+        updateGradeChipVisibility();
       });
       chipsEl.appendChild(chip);
     });
+
+    function updateGradeChipVisibility() {
+      const editRow = document.getElementById('grade-edit-row');
+      const hasSelected = selectedGrades.size > 0;
+      chipsEl.querySelectorAll('.grade-chip').forEach((chip) => {
+        const grade = chip.dataset.grade;
+        const isSelected = selectedGrades.has(grade);
+        chip.classList.toggle('is-hidden', hasSelected && !gradePickerExpanded && !isSelected);
+      });
+      editRow.style.display = hasSelected && !gradePickerExpanded ? 'flex' : 'none';
+    }
 
     function setGradeChips(grades) {
       // Clear all
@@ -490,7 +849,14 @@
         const chip = chipsEl.querySelector(`[data-grade="${g}"]`);
         if (chip) chip.classList.add('selected');
       });
+      gradePickerExpanded = selectedGrades.size === 0;
+      updateGradeChipVisibility();
     }
+
+    document.getElementById('edit-grades-btn').addEventListener('click', () => {
+      gradePickerExpanded = true;
+      updateGradeChipVisibility();
+    });
 
     // ══════════════════════════════════════════════════════════
     // Standards preview
@@ -640,6 +1006,28 @@
     var selectedVoices = [];          // ordered — first is primary
     var customPassages = {};          // guide_id -> override text (commented out feature)
     var activeTraditionFilter = 'all';
+    const VOICE_PREVIEW_TEXT = "Did Nature, creator of all,\ngive perception and voice to stone?";
+    const narrationVoices = {
+      "en-IE-EmilyNeural": { label: "Emily", meta: "Warm" },
+      "en-US-JennyNeural": { label: "Jenny", meta: "Clear" },
+      "en-GB-RyanNeural": { label: "Ryan", meta: "Measured" },
+    };
+    const reflectionStyles = {
+      practical: {
+        label: 'Practical',
+        copy: 'Instructional guidance and next steps grounded in your classroom context.',
+      },
+      grounded: {
+        label: 'Grounded',
+        copy: 'A wisdom-based reflection shaped by the guiding voices you selected.',
+      },
+      complete: {
+        label: 'Complete',
+        copy: 'A fuller synthesis that brings practical guidance and grounded reflection into conversation.',
+      },
+    };
+    let selectedReflectionStyle = 'complete';
+    let selectedNarrationVoice = "en-IE-EmilyNeural";
     const portraitPresets = {
       sound_waves: {
         kind: 'preset',
@@ -655,6 +1043,11 @@
     let dashboardImageChoice = { kind: 'preset', preset: 'sound_waves' };
     let drivePortraitFiles = [];
     const portraitObjectUrls = new Map();
+    let voicePreviewObjectUrl = null;
+    let googleTasksConnected = false;
+    let availableTaskLists = [];
+    let selectedTaskListId = '';
+    let selectedTaskListName = '';
 
     async function loadSources() {
       try {
@@ -745,6 +1138,144 @@
 
     function getGuideName(gid) {
       return sourcesData?.guides?.[gid]?.label || gid;
+    }
+
+    function buildNarrationVoiceOptions() {
+      const container = document.getElementById('narration-voice-grid');
+      container.innerHTML = '';
+      for (const [voiceId, voice] of Object.entries(narrationVoices)) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'narration-voice-option' + (voiceId === selectedNarrationVoice ? ' selected' : '');
+        card.dataset.voiceId = voiceId;
+        card.innerHTML = `
+          <div class="narration-voice-name">${voice.label}</div>
+          <div class="narration-voice-meta">${voice.meta}</div>
+        `;
+        card.addEventListener('click', () => {
+          selectedNarrationVoice = voiceId;
+          updateNarrationVoiceSelection();
+        });
+        container.appendChild(card);
+      }
+    }
+
+    function buildReflectionStyleOptions() {
+      const container = document.getElementById('reflection-style-grid');
+      container.innerHTML = '';
+      for (const [key, mode] of Object.entries(reflectionStyles)) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'mode-option' + (key === selectedReflectionStyle ? ' selected' : '');
+        card.dataset.mode = key;
+        card.innerHTML = `
+          <div class="mode-option-title">${mode.label}</div>
+          <div class="mode-option-copy">${mode.copy}</div>
+        `;
+        card.addEventListener('click', () => {
+          selectedReflectionStyle = key;
+          updateReflectionStyleSelection();
+        });
+        container.appendChild(card);
+      }
+    }
+
+    function updateReflectionStyleSelection() {
+      document.querySelectorAll('.mode-option').forEach((el) => {
+        el.classList.toggle('selected', el.dataset.mode === selectedReflectionStyle);
+      });
+    }
+
+    function setDrawerOpen(card, open) {
+      if (!card) return;
+      const toggle = card.querySelector('.drawer-toggle');
+      const content = card.querySelector('.drawer-content');
+      card.classList.toggle('is-open', open);
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+      if (!content) return;
+      content.style.maxHeight = open ? `${content.scrollHeight}px` : '0px';
+    }
+
+    function initializeDrawers() {
+      const cards = document.querySelectorAll('.drawer-card');
+      cards.forEach((card) => {
+        const toggle = card.querySelector('.drawer-toggle');
+        if (!toggle || toggle.dataset.bound === 'true') {
+          setDrawerOpen(card, card.classList.contains('is-open'));
+          return;
+        }
+        toggle.dataset.bound = 'true';
+        toggle.addEventListener('click', () => {
+          const nextOpen = !card.classList.contains('is-open');
+          setDrawerOpen(card, nextOpen);
+        });
+        setDrawerOpen(card, card.classList.contains('is-open'));
+      });
+    }
+
+    function updateGoogleTasksUI() {
+      const status = document.getElementById('tasks-connection-status');
+      const button = document.getElementById('connect-tasks-btn');
+      const wrap = document.getElementById('tasks-list-wrap');
+      const select = document.getElementById('google-tasks-list');
+      const singleNote = document.getElementById('single-tasklist-note');
+
+      if (!googleTasksConnected) {
+        status.textContent = 'Google Tasks is not connected yet.';
+        button.textContent = 'Connect Google Tasks';
+        wrap.style.display = 'none';
+        singleNote.style.display = 'none';
+        select.style.display = 'block';
+        return;
+      }
+
+      button.textContent = 'Reconnect Google Tasks';
+      wrap.style.display = 'block';
+      if (!availableTaskLists.length) {
+        status.textContent = 'Google Tasks is connected. Load a task list to continue.';
+      } else {
+        status.textContent = 'Google Tasks is connected in read-only mode.';
+      }
+
+      if (selectedTaskListId) {
+        select.value = selectedTaskListId;
+      }
+
+      if (availableTaskLists.length === 1) {
+        singleNote.textContent = `Using your Google Tasks list: ${selectedTaskListName || availableTaskLists[0].title || 'My Tasks'}`;
+        singleNote.style.display = 'block';
+        select.style.display = 'none';
+      } else {
+        singleNote.style.display = 'none';
+        select.style.display = 'block';
+      }
+    }
+
+    function populateGoogleTaskLists() {
+      const select = document.getElementById('google-tasks-list');
+      select.innerHTML = '<option value="">— Select a task list —</option>';
+      availableTaskLists.forEach((item) => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = item.title || 'Untitled';
+        select.appendChild(option);
+      });
+      if (availableTaskLists.length === 1 && !selectedTaskListId) {
+        selectedTaskListId = availableTaskLists[0].id;
+        selectedTaskListName = availableTaskLists[0].title || 'My Tasks';
+      }
+      if (selectedTaskListId) {
+        select.value = selectedTaskListId;
+      }
+      updateGoogleTasksUI();
+    }
+
+    function updateNarrationVoiceSelection() {
+      document.querySelectorAll('.narration-voice-option').forEach((el) => {
+        el.classList.toggle('selected', el.dataset.voiceId === selectedNarrationVoice);
+      });
     }
 
     function getPresetPreviewSrc(key) {
@@ -945,13 +1476,90 @@
       renderDrivePortraitOptions();
     }
 
+    async function previewNarrationVoice() {
+      if (!currentUser) return;
+      const status = document.getElementById('voice-preview-status');
+      const audio = document.getElementById('voice-preview-audio');
+      status.textContent = 'Generating preview…';
+      try {
+        const token = await currentUser.getIdToken();
+        const res = await fetch(`${API}/voice-preview`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            voice: selectedNarrationVoice,
+            text: VOICE_PREVIEW_TEXT,
+          }),
+        });
+        if (!res.ok) {
+          throw new Error('Could not generate preview');
+        }
+        const blob = await res.blob();
+        if (voicePreviewObjectUrl) {
+          URL.revokeObjectURL(voicePreviewObjectUrl);
+        }
+        voicePreviewObjectUrl = URL.createObjectURL(blob);
+        audio.src = voicePreviewObjectUrl;
+        audio.style.display = 'block';
+        status.textContent = `Previewing ${narrationVoices[selectedNarrationVoice].label}`;
+        await audio.play();
+      } catch (e) {
+        console.error('Voice preview failed:', e);
+        status.textContent = 'Preview unavailable right now.';
+      }
+    }
+
+    async function loadGoogleTaskLists() {
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+      try {
+        const res = await fetch(`${API}/tasklists`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.status === 403) {
+          googleTasksConnected = false;
+          availableTaskLists = [];
+          populateGoogleTaskLists();
+          return;
+        }
+        if (!res.ok) {
+          throw new Error('Could not load task lists');
+        }
+        const data = await res.json();
+        googleTasksConnected = true;
+        availableTaskLists = Array.isArray(data.items) ? data.items : [];
+        populateGoogleTaskLists();
+      } catch (e) {
+        console.error('Could not load Google Tasks lists:', e);
+        document.getElementById('tasks-connection-status').textContent = 'Google Tasks is unavailable right now.';
+      }
+    }
+
     // Load sources on page load
     loadSources();
+    buildReflectionStyleOptions();
     buildPresetPortraitOptions();
+    buildNarrationVoiceOptions();
+    initializeDrawers();
+    window.addEventListener('resize', initializeDrawers);
 
     document.getElementById('upload-portrait-btn').addEventListener('click', () => {
       document.getElementById('portrait-file-input').click();
     });
+    document.getElementById('preview-voice-btn').addEventListener('click', previewNarrationVoice);
+    document.getElementById('connect-tasks-btn').addEventListener('click', () => {
+      const returnTo = `${window.location.origin}${window.location.pathname}`;
+      window.location.href = `${API}/auth/start?include_tasks=1&force_consent=1&return_to=${encodeURIComponent(returnTo)}`;
+    });
+    document.getElementById('google-tasks-list').addEventListener('change', (event) => {
+      selectedTaskListId = event.target.value;
+      const match = availableTaskLists.find((item) => item.id === selectedTaskListId);
+      selectedTaskListName = match?.title || '';
+    });
+    updateGoogleTasksUI();
 
     document.getElementById('portrait-file-input').addEventListener('change', async (event) => {
       const file = event.target.files?.[0];
@@ -1012,12 +1620,24 @@
         dashboardImageChoice = normalizeDashboardImageConfig(data.dashboard_image);
         updatePortraitSelectionUI();
       }
+      if (data.reflection_style && reflectionStyles[data.reflection_style]) {
+        selectedReflectionStyle = data.reflection_style;
+        updateReflectionStyleSelection();
+      }
+      if (data.narration_voice && narrationVoices[data.narration_voice]) {
+        selectedNarrationVoice = data.narration_voice;
+        updateNarrationVoiceSelection();
+      }
+      googleTasksConnected = !!data.google_tasks_connected;
+      selectedTaskListId = data.google_tasks_list_id || '';
+      selectedTaskListName = data.google_tasks_list_name || '';
+      updateGoogleTasksUI();
     }
   </script>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged }
+    import { getAuth, onAuthStateChanged, signInWithCustomToken }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getFirestore, doc, getDoc }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -1031,7 +1651,6 @@
       appId: "1:714155490867:web:f382fddb58a596bede6d46"
     };
 
-    const API = "https://api-4hth6oktaa-uc.a.run.app";
     const params = new URLSearchParams(window.location.search);
     const PREVIEW_MODE =
       params.has("preview") ||
@@ -1041,15 +1660,19 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const isStaticLocalhost =
-      window.location.hostname === "localhost" &&
-      (window.location.port === "8000" || window.location.port === "8080");
-    const routes = {
-      home: isStaticLocalhost ? "/index.html" : "/",
-      dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
-    };
+    const callbackToken = params.get("token");
 
-    let currentUser = null;
+    if (callbackToken) {
+      signInWithCustomToken(auth, callbackToken)
+        .then(() => {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete("token");
+          window.history.replaceState({}, "", cleanUrl.toString());
+        })
+        .catch((e) => {
+          console.error("Custom-token sign-in failed:", e);
+        });
+    }
 
     auth.authStateReady().then(() => {
       if (!auth.currentUser && !PREVIEW_MODE) window.location.href = routes.home;
@@ -1059,6 +1682,8 @@
         btn.textContent = "Preview mode — sign in to save";
       }
     });
+
+    document.getElementById("cancel-link").setAttribute("href", routes.dashboard);
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) return;
@@ -1104,9 +1729,11 @@
       const body = {
         lane: "professional",
         profession: "teacher",
+        reflection_style: selectedReflectionStyle,
         preferred_name: document.getElementById("preferred-name").value.trim(),
         spoken_name: document.getElementById("spoken-name").value.trim(),
         preferred_pronouns: document.getElementById("preferred-pronouns").value.trim(),
+        narration_voice: selectedNarrationVoice,
         tradition: selectedVoices.length > 0
           ? (sourcesData?.guides?.[selectedVoices[0]]?.tradition || "secular")
           : "secular",

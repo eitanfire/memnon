@@ -45,8 +45,8 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
-from audio_generation import synthesize_reflection_mp3
-from lanes import build_prompt
+from audio_generation import synthesize_reflection_bytes, synthesize_reflection_mp3
+from lanes import professional_prompt, reflect_prompt, teaching_practical_prompt
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
 
@@ -77,12 +77,13 @@ CORS(flask_app, origins=[
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-DRIVE_SCOPES = [
+BASE_GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/drive.file",  # access only files created by this app
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "openid",
 ]
+TASKS_READONLY_SCOPE = "https://www.googleapis.com/auth/tasks.readonly"
 API_BASE = "https://api-4hth6oktaa-uc.a.run.app"
 REDIRECT_URI = f"{API_BASE}/auth/callback"
 FRONTEND_URL = "https://memnon.app"
@@ -104,6 +105,14 @@ AUDIO_MIME_TYPES = {
 AUDIO_EXTENSIONS = {".m4a", ".mp3", ".wav", ".aac", ".flac", ".mp4", ".webm", ".ogg"}
 IMAGE_MIME_PREFIX = "image/"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+DEFAULT_NARRATION_VOICE = "en-IE-EmilyNeural"
+VOICE_PREVIEW_TEXT = "Did Nature, creator of all,\ngive perception and voice to stone?"
+NARRATION_VOICES = {
+    "en-IE-EmilyNeural": {"label": "Emily", "descriptor": "warm"},
+    "en-US-JennyNeural": {"label": "Jenny", "descriptor": "clear"},
+    "en-GB-RyanNeural": {"label": "Ryan", "descriptor": "measured"},
+}
+GOOGLE_TASKS_WEB_URL = "https://tasks.google.com/tasks/"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -155,6 +164,48 @@ def _append_query_params(url: str, params: dict[str, str]) -> str:
     return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
+def _requested_google_scopes(include_tasks: bool = False) -> list[str]:
+    scopes = list(BASE_GOOGLE_SCOPES)
+    if include_tasks:
+        scopes.append(TASKS_READONLY_SCOPE)
+    return scopes
+
+
+def _scopes_from_token_data(token_data: dict | None) -> set[str]:
+    if not token_data:
+        return set()
+    raw = token_data.get("scopes")
+    if isinstance(raw, list):
+        return {scope for scope in raw if isinstance(scope, str) and scope}
+    if isinstance(raw, str):
+        return {scope for scope in raw.split() if scope}
+    return set()
+
+
+def _merge_google_token(existing_token: dict | None, new_token: dict) -> dict:
+    """Preserve broader existing grants when a narrower re-auth returns later."""
+    if not existing_token:
+        return new_token
+
+    existing_scopes = _scopes_from_token_data(existing_token)
+    new_scopes = _scopes_from_token_data(new_token)
+
+    if existing_token.get("refresh_token") and not new_token.get("refresh_token"):
+        new_token["refresh_token"] = existing_token["refresh_token"]
+
+    if TASKS_READONLY_SCOPE in existing_scopes and TASKS_READONLY_SCOPE not in new_scopes:
+        merged = dict(existing_token)
+        merged["scopes"] = sorted(existing_scopes | new_scopes)
+        for key in ("client_id", "client_secret", "token_uri", "refresh_token"):
+            if new_token.get(key):
+                merged[key] = new_token[key]
+        return merged
+
+    if existing_scopes or new_scopes:
+        new_token["scopes"] = sorted(existing_scopes | new_scopes)
+    return new_token
+
+
 def _drive_creds(uid: str) -> Credentials | None:
     doc = _get_db().collection("users").document(uid).get()
     if not doc.exists:
@@ -168,7 +219,7 @@ def _drive_creds(uid: str) -> Credentials | None:
         token_uri=token_data.get("token_uri", "https://oauth2.googleapis.com/token"),
         client_id=token_data.get("client_id"),
         client_secret=token_data.get("client_secret"),
-        scopes=token_data.get("scopes", DRIVE_SCOPES),
+        scopes=token_data.get("scopes", BASE_GOOGLE_SCOPES),
     )
     if creds.expired and creds.refresh_token:
         try:
@@ -204,6 +255,123 @@ def _drive_service_for_user(uid: str):
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 
+def _tasks_service_for_user(uid: str):
+    creds = _drive_creds(uid)
+    if not creds:
+        return None
+    return build("tasks", "v1", credentials=creds, cache_discovery=False)
+
+
+def _user_tasks_connected(user_data: dict | None) -> bool:
+    token_scopes = _scopes_from_token_data((user_data or {}).get("google_drive_token"))
+    if TASKS_READONLY_SCOPE in token_scopes:
+        return True
+    return bool((user_data or {}).get("google_tasks_connected"))
+
+
+def _normalize_task_item(item: dict) -> dict:
+    return {
+        "id": item.get("id", ""),
+        "title": (item.get("title") or "").strip(),
+        "due": item.get("due"),
+        "notes": (item.get("notes") or "").strip(),
+        "status": item.get("status", ""),
+        "updated": item.get("updated"),
+    }
+
+
+def _fetch_open_tasks_for_user(uid: str, user_data: dict, limit: int = 12) -> list[dict]:
+    if not _user_tasks_connected(user_data):
+        return []
+    tasklist_id = (user_data.get("google_tasks_list_id") or "").strip()
+    if not tasklist_id:
+        return []
+    service = _tasks_service_for_user(uid)
+    if not service:
+        return []
+    try:
+        result = service.tasks().list(
+            tasklist=tasklist_id,
+            maxResults=max(1, min(limit, 20)),
+            showCompleted=False,
+            showHidden=False,
+        ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Could not fetch tasks for reflection context: {exc}")
+        return []
+    items = []
+    for item in result.get("items", []):
+        if item.get("status") == "completed":
+            continue
+        normalized = _normalize_task_item(item)
+        if normalized["title"]:
+            items.append(normalized)
+    return items
+
+
+def _derive_task_context(transcript: str, tasks: list[dict]) -> list[str]:
+    if not tasks:
+        return []
+
+    transcript_lower = transcript.lower()
+    transcript_tokens = set(re.findall(r"\b[a-z]{4,}\b", transcript_lower))
+    stopwords = {
+        "about", "after", "again", "because", "being", "could", "every", "first",
+        "from", "have", "into", "just", "like", "many", "more", "most", "need",
+        "really", "some", "than", "that", "their", "there", "these", "they",
+        "this", "today", "very", "what", "when", "where", "which", "with", "would",
+    }
+    transcript_tokens = {token for token in transcript_tokens if token not in stopwords}
+
+    def display_task(task: dict) -> str:
+        return f'{task["title"]}' + (f' (due {task["due"][:10]})' if task.get("due") else "")
+
+    top_tasks = tasks[:3]
+    chosen_by_id = {task["id"]: task for task in top_tasks if task.get("id")}
+
+    scored: list[tuple[int, dict]] = []
+    for task in tasks:
+        title = task.get("title", "")
+        notes = task.get("notes", "")
+        haystack = f"{title} {notes}".strip().lower()
+        if not haystack:
+            continue
+        task_tokens = {token for token in re.findall(r"\b[a-z]{4,}\b", haystack) if token not in stopwords}
+        overlap = len(task_tokens & transcript_tokens)
+        title_phrase_match = title.lower() in transcript_lower if len(title) >= 8 else False
+        score = overlap + (2 if title_phrase_match else 0)
+        if score > 0:
+            scored.append((score, task))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    for _, task in scored:
+        if len(chosen_by_id) >= 6:
+            break
+        task_id = task.get("id")
+        if task_id and task_id not in chosen_by_id:
+            chosen_by_id[task_id] = task
+
+    ordered = []
+    seen = set()
+    for task in top_tasks:
+        task_id = task.get("id") or task.get("title")
+        if task_id in seen:
+            continue
+        ordered.append(task)
+        seen.add(task_id)
+    for _, task in scored:
+        task_id = task.get("id") or task.get("title")
+        if task_id in seen:
+            continue
+        if task_id in chosen_by_id:
+            ordered.append(task)
+            seen.add(task_id)
+        if len(ordered) >= len(chosen_by_id):
+            break
+
+    return [display_task(task) for task in ordered]
+
+
 def _find_or_create_media_folder(service) -> str:
     return _find_or_create_folder(service, "memnon-media")
 
@@ -219,6 +387,96 @@ def _find_or_create_reflections_folder(service) -> str:
 def _is_audio(f: dict) -> bool:
     return (f.get("mimeType") in AUDIO_MIME_TYPES or
             any(f.get("name", "").lower().endswith(ext) for ext in AUDIO_EXTENSIONS))
+
+
+def _normalize_narration_voice(raw: str | None) -> str:
+    if raw in NARRATION_VOICES:
+        return raw  # type: ignore[return-value]
+    return DEFAULT_NARRATION_VOICE
+
+
+def _normalize_reflection_style(raw: str | None) -> str:
+    if raw in {"practical", "grounded", "complete"}:
+        return raw  # type: ignore[return-value]
+    return "complete"
+
+
+def _is_teacher_profession(user_data: dict) -> bool:
+    profession = (user_data.get("profession") or "").lower().strip()
+    return (
+        not profession
+        or "teach" in profession
+        or "educat" in profession
+        or "instructor" in profession
+        or "professor" in profession
+    )
+
+
+def _build_complete_reflection_prompt(
+    transcript: str,
+    user_data: dict,
+    practical_result: dict,
+    grounded_result: dict,
+    sources_used: list[dict],
+) -> str:
+    preferred_name = (user_data.get("preferred_name") or user_data.get("name") or "the teacher").strip()
+    tasks_context_summary = (user_data.get("tasks_context_summary") or "").strip()
+    tasks_block = (
+        f"\nRelevant current obligations:\n{tasks_context_summary}\n"
+        if tasks_context_summary else ""
+    )
+    sources_block = "\n\n".join(
+        f'{source.get("author", "")} ({source.get("ref", "")}): "{source.get("excerpt", "")}"'
+        for source in sources_used
+    ) if sources_used else "(no guiding voices selected)"
+
+    payload = json.dumps({
+        "practical": practical_result,
+        "grounded": grounded_result,
+    }, ensure_ascii=False)
+
+    return f"""You are integrating multiple perspectives into one grounded reflection for {preferred_name}.
+
+The goal is not to flatten the perspectives. Hold them in conversation and produce one coherent return that helps {preferred_name} feel both supported and grounded.
+
+Original transcript:
+---
+{transcript}
+---
+{tasks_block}
+Perspective outputs:
+{payload}
+
+Guiding voice sources referenced in the grounded perspective:
+{sources_block}
+
+Respond with strict JSON only:
+{{
+  "title": "short specific title (5–8 words)",
+  "summary": "3–5 sentences. Integrate the practical and grounded perspectives into one coherent reflection.",
+  "insight": "One concise line naming the deepest tension, reframe, or pattern worth carrying forward.",
+  "action_items": [
+    "One practical next step",
+    "Optional second step if it clearly matters"
+  ],
+  "suggested_tags": ["up to 5 lowercase tags"],
+  "influenced_by": [
+    {{
+      "source_id": "exact source_id from the grounded perspective sources above",
+      "because": "one sentence explaining why this source still matters in the integrated reflection"
+    }}
+  ]
+}}
+
+Rules:
+- Return JSON only
+- Preserve productive tension between perspectives when it matters
+- Do not introduce new facts
+- The practical perspective should remain concrete
+- The grounded perspective should deepen, not overwrite, the practical one
+- If current obligations are included, use them lightly
+- If no guiding voice truly matters, return an empty influenced_by array
+"""
 
 
 # ── pipeline ──────────────────────────────────────────────────────────────────
@@ -400,6 +658,11 @@ def _build_grounded_reflection_script(
     if preferred_pronouns:
         context_bits.append(f"pronouns: {preferred_pronouns}")
     context_line = "; ".join(context_bits) if context_bits else "teaching context not specified"
+    tasks_context_summary = (user_data.get("tasks_context_summary") or "").strip()
+    tasks_context_block = (
+        f"\nRelevant current obligations:\n{tasks_context_summary}\n"
+        if tasks_context_summary else ""
+    )
 
     source_lines = []
     for source in sources_used[:3]:
@@ -439,6 +702,7 @@ Original transcript:
 
 Structured reflection:
 {payload}
+{tasks_context_block}
 
 Guiding voices actually selected for this reflection:
 {sources_block}
@@ -452,6 +716,7 @@ Rules:
 - Sound natural when read aloud
 - Begin with the lived classroom moment, then deepen it
 - Use the guiding voices as grounding, not decoration
+- If current obligations are included, use them only when they genuinely clarify what is weighing on {preferred_name}
 - End with one clear line they can carry into tomorrow
 - Refer to {preferred_name} by name where natural
 - Respect these pronouns when needed: {preferred_pronouns or "use neutral phrasing if possible"}
@@ -463,15 +728,62 @@ Rules:
     return (result.get("reflection_script") or "").strip()
 
 
-def _generate_grounded_reflection_audio(script_text: str, stem: str) -> bytes:
+def _generate_grounded_reflection_audio(script_text: str, stem: str, voice: str) -> bytes:
     """Synthesize the spoken reflection as MP3 bytes."""
     if not script_text.strip():
         raise ValueError("grounded reflection script is empty")
     safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", stem).strip("-") or "grounded-reflection"
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / f"{safe_stem}.mp3"
-        synthesize_reflection_mp3(script_text, output_path)
+        synthesize_reflection_mp3(script_text, output_path, voice=voice)
         return output_path.read_bytes()
+
+
+def _generate_reflection_result(
+    transcript: str,
+    user_data: dict,
+    api_key: str,
+) -> tuple[str, dict, list[dict]]:
+    style = _normalize_reflection_style(user_data.get("reflection_style"))
+    lane = user_data.get("lane", "professional")
+
+    if style == "grounded":
+        prompt, sources_used = reflect_prompt(transcript, user_data)
+        return style, _summarize(prompt, api_key), sources_used
+
+    if style == "practical":
+        if lane == "professional" and _is_teacher_profession(user_data):
+            prompt = teaching_practical_prompt(transcript, user_data)
+            return style, _summarize(prompt, api_key), []
+        profession = (user_data.get("profession") or "professional").lower().strip() or "professional"
+        prompt = professional_prompt(
+            transcript,
+            profession,
+            (user_data.get("tasks_context_summary") or "").strip(),
+        )
+        return style, _summarize(prompt, api_key), []
+
+    practical_prompt = (
+        teaching_practical_prompt(transcript, user_data)
+        if lane == "professional" and _is_teacher_profession(user_data)
+        else professional_prompt(
+            transcript,
+            ((user_data.get("profession") or "professional").lower().strip() or "professional"),
+            (user_data.get("tasks_context_summary") or "").strip(),
+        )
+    )
+    practical_result = _summarize(practical_prompt, api_key)
+    grounded_prompt, sources_used = reflect_prompt(transcript, user_data)
+    grounded_result = _summarize(grounded_prompt, api_key)
+    integration_prompt = _build_complete_reflection_prompt(
+        transcript,
+        user_data,
+        practical_result,
+        grounded_result,
+        sources_used,
+    )
+    integrated_result = _summarize(integration_prompt, api_key)
+    return style, integrated_result, sources_used
 
 
 def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, notes_id: str):
@@ -500,14 +812,22 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
         print(f"[{uid}] Transcript too short, skipping")
         return
 
+    user_data = dict(user_data)
+    task_context_items = _derive_task_context(
+        transcript,
+        _fetch_open_tasks_for_user(uid, user_data),
+    )
+    user_data["tasks_context_items"] = task_context_items
+    user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
+
     lane = user_data.get("lane", "professional")
-    prompt, sources_used = build_prompt(lane, transcript, user_data)
     try:
-        ai_result = _summarize(prompt, api_key)
+        _, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
     except Exception as exc:
         print(f"[{uid}] AI error: {exc} — using fallback")
         ai_result = {"title": Path(filename).stem, "summary": transcript[:300],
                      "action_items": [], "suggested_tags": [], "influenced_by": []}
+        sources_used = []
 
     note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
     note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
@@ -593,11 +913,12 @@ def auth_start():
     session["oauth_state"]    = state
     session["code_verifier"]  = code_verifier
 
+    include_tasks = request.args.get("include_tasks") == "1"
     params = {
         "client_id":              cfg["client_id"],
         "redirect_uri":           REDIRECT_URI,
         "response_type":          "code",
-        "scope":                  " ".join(DRIVE_SCOPES),
+        "scope":                  " ".join(_requested_google_scopes(include_tasks)),
         "access_type":            "offline",
         "state":                  state,
         "code_challenge":         code_challenge,
@@ -681,12 +1002,21 @@ def auth_callback():
 
         uid = fb_user.uid
 
+        existing_doc = _get_db().collection("users").document(uid).get()
+        existing_user = existing_doc.to_dict() if existing_doc.exists else {}
+        merged_token = _merge_google_token(
+            existing_user.get("google_drive_token"),
+            json.loads(creds.to_json()),
+        )
+        tasks_connected = TASKS_READONLY_SCOPE in _scopes_from_token_data(merged_token)
+
         # Persist Drive tokens + user info
         _get_db().collection("users").document(uid).set({
             "email": email,
             "name": name,
-            "google_drive_token": json.loads(creds.to_json()),
+            "google_drive_token": merged_token,
             "drive_connected": True,
+            "google_tasks_connected": tasks_connected,
             "active": True,
         }, merge=True)
 
@@ -710,9 +1040,11 @@ def save_setup():
     _get_db().collection("users").document(uid).set({
         "lane":           data.get("lane", "professional"),
         "profession":     data.get("profession", "teacher"),
+        "reflection_style": _normalize_reflection_style(data.get("reflection_style")),
         "preferred_name": data.get("preferred_name", ""),
         "spoken_name": data.get("spoken_name", ""),
         "preferred_pronouns": data.get("preferred_pronouns", ""),
+        "narration_voice": _normalize_narration_voice(data.get("narration_voice")),
         "tradition":      data.get("tradition", "secular"),
         # Teaching-specific fields
         "grade_levels":    data.get("grade_levels", []),
@@ -725,9 +1057,131 @@ def save_setup():
         # Reflect lane voices config
         "reflect_config":  data.get("reflect_config", {}),
         "dashboard_image": data.get("dashboard_image", {"kind": "preset", "preset": "sound_waves"}),
+        "google_tasks_list_id": (data.get("google_tasks_list_id") or "").strip(),
+        "google_tasks_list_name": (data.get("google_tasks_list_name") or "").strip(),
         "active": True,
     }, merge=True)
     return jsonify({"ok": True})
+
+
+@flask_app.route("/voice-preview", methods=["POST"])
+def voice_preview():
+    """Generate a short preview clip for a selected narration voice."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    voice = _normalize_narration_voice(data.get("voice"))
+    text = (data.get("text") or VOICE_PREVIEW_TEXT).strip()
+    if not text:
+        text = VOICE_PREVIEW_TEXT
+
+    try:
+        audio_bytes = synthesize_reflection_bytes(text, voice=voice)
+    except Exception as exc:
+        print(f"[{uid}] Voice preview failed: {exc}")
+        return jsonify({"error": "preview unavailable"}), 502
+
+    return (
+        audio_bytes,
+        200,
+        {
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "private, max-age=60",
+        },
+    )
+
+
+@flask_app.route("/tasklists")
+def list_tasklists():
+    """Return available Google Tasks lists for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    doc = _get_db().collection("users").document(uid).get()
+    if not doc.exists:
+        return jsonify({"error": "user not found"}), 404
+    user_data = doc.to_dict()
+    if not _user_tasks_connected(user_data):
+        return jsonify({"error": "Tasks not connected", "needs_consent": True}), 403
+
+    service = _tasks_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Google account not connected"}), 403
+
+    try:
+        result = service.tasklists().list(maxResults=100).execute()
+    except Exception as exc:
+        print(f"[{uid}] Could not list task lists: {exc}")
+        return jsonify({"error": "Could not load task lists"}), 502
+
+    items = [
+        {"id": item.get("id", ""), "title": item.get("title", "Untitled")}
+        for item in result.get("items", []) if item.get("id")
+    ]
+    return jsonify({"items": items})
+
+
+@flask_app.route("/tasks")
+def list_tasks():
+    """Return open tasks from the user's selected Google Tasks list."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    doc = _get_db().collection("users").document(uid).get()
+    if not doc.exists:
+        return jsonify({"error": "user not found"}), 404
+    user_data = doc.to_dict()
+    if not _user_tasks_connected(user_data):
+        return jsonify({"error": "Tasks not connected", "needs_consent": True}), 403
+
+    tasklist_id = (user_data.get("google_tasks_list_id") or "").strip()
+    if not tasklist_id:
+        return jsonify({"items": [], "tasklist_configured": False, "tasks_web_url": GOOGLE_TASKS_WEB_URL})
+
+    service = _tasks_service_for_user(uid)
+    if not service:
+        return jsonify({"error": "Google account not connected"}), 403
+
+    max_results = request.args.get("limit", "5")
+    try:
+        limit_value = max(1, min(int(max_results), 20))
+    except ValueError:
+        limit_value = 5
+
+    try:
+        result = service.tasks().list(
+            tasklist=tasklist_id,
+            maxResults=limit_value,
+            showCompleted=False,
+            showHidden=False,
+        ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Could not list tasks: {exc}")
+        return jsonify({"error": "Could not load tasks"}), 502
+
+    items = []
+    for item in result.get("items", []):
+        if item.get("status") == "completed":
+            continue
+        items.append({
+            "id": item.get("id", ""),
+            "title": item.get("title", "").strip(),
+            "due": item.get("due"),
+            "notes": item.get("notes", "").strip(),
+            "status": item.get("status", ""),
+            "updated": item.get("updated"),
+        })
+
+    return jsonify({
+        "items": items,
+        "tasklist_configured": True,
+        "tasklist_name": user_data.get("google_tasks_list_name", ""),
+        "tasks_web_url": GOOGLE_TASKS_WEB_URL,
+    })
 
 
 @flask_app.route("/profile-images")
@@ -1023,6 +1477,7 @@ def upload_audio():
     if not doc.exists:
         return jsonify({"error": "user not found"}), 404
     user_data = doc.to_dict()
+    user_data = dict(user_data)
 
     creds = _drive_creds(uid)
     if not creds:
@@ -1059,14 +1514,21 @@ def upload_audio():
     if len(transcript.split()) < 3:
         return jsonify({"error": "transcript too short"}), 400
 
+    task_context_items = _derive_task_context(
+        transcript,
+        _fetch_open_tasks_for_user(uid, user_data),
+    )
+    user_data["tasks_context_items"] = task_context_items
+    user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
+
     lane = user_data.get("lane", "professional")
-    prompt, sources_used = build_prompt(lane, transcript, user_data)
     try:
-        ai_result = _summarize(prompt, api_key)
+        _, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
     except Exception as exc:
         print(f"[{uid}] AI error on upload: {exc}")
         ai_result = {"title": Path(filename).stem, "summary": transcript[:300],
                      "action_items": [], "suggested_tags": [], "influenced_by": []}
+        sources_used = []
 
     note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
                  ai_result.get("title", Path(filename).stem)[:60] + ".md")
@@ -1092,6 +1554,7 @@ def upload_audio():
 
     reflection_name = None
     try:
+        narration_voice = _normalize_narration_voice(user_data.get("narration_voice"))
         reflection_script = _build_grounded_reflection_script(
             transcript,
             ai_result,
@@ -1103,6 +1566,7 @@ def upload_audio():
             reflection_bytes = _generate_grounded_reflection_audio(
                 reflection_script,
                 ai_result.get("title", Path(filename).stem),
+                narration_voice,
             )
             reflection_title = ai_result.get("title", Path(filename).stem)[:60].strip() or "Grounded Reflection"
             reflection_name = f"{datetime.now().strftime('%Y-%m-%d')} — {reflection_title}.mp3"
