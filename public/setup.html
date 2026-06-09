@@ -357,14 +357,7 @@
     }
     .portrait-option-title {
       font-weight: 600;
-      margin-bottom: 4px;
       min-height: 1.4em;
-    }
-    .portrait-option-meta {
-      font-size: 0.78rem;
-      color: #777;
-      line-height: 1.45;
-      min-height: 2.4em;
     }
     .portrait-toolbar {
       display: flex;
@@ -384,6 +377,7 @@
       margin: 0 auto;
       padding: 10px;
       border-radius: 24px;
+      overflow: hidden;
       background: linear-gradient(180deg, #f1dfb7 0%, #e4c992 34%, #cfac73 68%, #a88660 100%);
       border: 1px solid rgba(184, 147, 101, 0.58);
       box-shadow:
@@ -399,6 +393,22 @@
       transform: scale(1);
       transform-origin: center center;
       filter: drop-shadow(0 8px 16px rgba(94, 41, 20, 0.16));
+    }
+    .portrait-bg-sound-waves {
+      background: linear-gradient(180deg, #f4ead7, #deccb0);
+      border-color: #ebe0cf;
+    }
+    .portrait-bg-king-memnon {
+      background:
+        linear-gradient(rgba(255, 250, 239, 0.22), rgba(255, 245, 229, 0.22)),
+        center center / cover no-repeat url("/sunrise.png");
+      border-color: rgba(191, 144, 86, 0.48);
+    }
+    .portrait-bg-trebulla {
+      background:
+        linear-gradient(rgba(250, 244, 235, 0.16), rgba(241, 234, 225, 0.16)),
+        center center / cover no-repeat url("/starry_night.png");
+      border-color: rgba(80, 101, 153, 0.42);
     }
     .drive-images-empty {
       font-size: 0.82rem;
@@ -667,15 +677,15 @@
         <h2 style="margin:0;">Narration Voice</h2>
       </div>
       <p class="muted" style="margin-bottom:18px;">
-        Choose the voice Memnon uses when reading reflections aloud.
+        Choose the voice Memnon uses when reading reflections aloud. Selecting a voice will play a short sample.
       </p>
       <div class="narration-voice-grid" id="narration-voice-grid"></div>
       <div class="voice-preview-row">
         <button type="button" id="preview-voice-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
-          Preview voice
+          Play sample again
         </button>
         <span id="voice-preview-status" class="voice-preview-status">
-          Preview line: “Did Nature, creator of all, give perception and voice to stone?”
+          Select a voice to hear: “Did Nature, creator of all, give perception and voice to stone?”
         </span>
       </div>
       <audio id="voice-preview-audio" preload="none" style="display:none; width:100%; margin-top:12px;" controls></audio>
@@ -1029,18 +1039,61 @@
     let selectedReflectionStyle = 'complete';
     let selectedNarrationVoice = "en-IE-EmilyNeural";
     const portraitPresets = {
-      sound_waves: {
+      greek_philosopher: {
         kind: 'preset',
-        preset: 'sound_waves',
-        label: 'Sound Waves',
-        meta: 'Default dashboard portrait',
-        preview: '/sound_waves.png',
+        preset: 'greek_philosopher',
+        label: 'Philosopher',
+        preview: '/greek_philosopher.jpeg',
+        fit: 'cover',
+        position: 'center 14%',
+        scale: '1',
+        origin: 'center center',
+        offsetY: '0%',
+        framePadding: '0px',
+        frameClass: 'portrait-bg-sound-waves',
+      },
+      king_memnon: {
+        kind: 'preset',
+        preset: 'king_memnon',
+        label: 'King Memnon',
+        meta: 'Sunrise framing',
+        preview: '/corporate_memphis_king_memnon_looking_down.png',
+        fit: 'contain',
+        position: 'center bottom',
+        scale: '1.18',
+        origin: 'center bottom',
+        offsetY: '4%',
+        frameClass: 'portrait-bg-king-memnon',
+      },
+      trebulla: {
+        kind: 'preset',
+        preset: 'trebulla',
+        label: 'Trebulla',
+        meta: 'Starry night framing',
+        preview: '/corporate_memphis_ version_of_trebulla_no_bg.png',
+        fit: 'contain',
+        position: 'center bottom',
+        scale: '1.42',
+        origin: 'center bottom',
+        offsetY: '9%',
+        frameClass: 'portrait-bg-trebulla',
+      },
+      lattice: {
+        kind: 'preset',
+        preset: 'lattice',
+        label: 'Lattice',
+        meta: 'Pattern portrait',
+        preview: '/lattice.png',
         fit: 'cover',
         position: 'center center',
         scale: '1',
+        origin: 'center center',
+        offsetY: '0%',
+        framePadding: '0px',
+        frameClass: 'portrait-bg-sound-waves',
       },
     };
-    let dashboardImageChoice = { kind: 'preset', preset: 'sound_waves' };
+    let dashboardImageChoice = { kind: 'preset', preset: 'greek_philosopher' };
     let drivePortraitFiles = [];
     const portraitObjectUrls = new Map();
     let voicePreviewObjectUrl = null;
@@ -1155,6 +1208,7 @@
         card.addEventListener('click', () => {
           selectedNarrationVoice = voiceId;
           updateNarrationVoiceSelection();
+          previewNarrationVoice({ autoTriggered: true });
         });
         container.appendChild(card);
       }
@@ -1279,7 +1333,17 @@
     }
 
     function getPresetPreviewSrc(key) {
-      return portraitPresets[key]?.preview || portraitPresets.sound_waves.preview;
+      return portraitPresets[key]?.preview || portraitPresets.greek_philosopher.preview;
+    }
+
+    function applyPortraitFrameStyle(el, choice) {
+      if (!el) return;
+      el.classList.remove('portrait-bg-sound-waves', 'portrait-bg-king-memnon', 'portrait-bg-trebulla');
+      if (choice?.kind === 'preset' && portraitPresets[choice.preset]?.frameClass) {
+        el.classList.add(portraitPresets[choice.preset].frameClass);
+      } else {
+        el.classList.add('portrait-bg-sound-waves');
+      }
     }
 
     function applyPortraitImageStyle(img, choice) {
@@ -1287,27 +1351,32 @@
       let fit = 'contain';
       let position = 'center center';
       let scale = '1';
+      let origin = 'center center';
+      let offsetY = '0%';
       if (choice?.kind === 'preset' && portraitPresets[choice.preset]) {
         fit = portraitPresets[choice.preset].fit || fit;
         position = portraitPresets[choice.preset].position || position;
         scale = portraitPresets[choice.preset].scale || scale;
+        origin = portraitPresets[choice.preset].origin || origin;
+        offsetY = portraitPresets[choice.preset].offsetY || offsetY;
       } else if (choice?.kind === 'drive') {
         fit = 'cover';
       }
       img.style.objectFit = fit;
       img.style.objectPosition = position;
-      img.style.transform = `scale(${scale})`;
+      img.style.transform = `translateY(${offsetY}) scale(${scale})`;
+      img.style.transformOrigin = origin;
     }
 
     function getDashboardImageKey(choice) {
-      if (!choice) return 'preset:sound_waves';
-      if (choice.kind === 'preset') return `preset:${choice.preset || 'sound_waves'}`;
+      if (!choice) return 'preset:greek_philosopher';
+      if (choice.kind === 'preset') return `preset:${choice.preset || 'greek_philosopher'}`;
       return `drive:${choice.file_id || ''}`;
     }
 
     function normalizeDashboardImageConfig(raw) {
       if (!raw || typeof raw !== 'object') {
-        return { kind: 'preset', preset: 'sound_waves' };
+        return { kind: 'preset', preset: 'greek_philosopher' };
       }
       if (raw.kind === 'preset' && raw.preset && portraitPresets[raw.preset]) {
         return { kind: 'preset', preset: raw.preset };
@@ -1320,7 +1389,7 @@
           mimeType: raw.mimeType || 'image/png',
         };
       }
-      return { kind: 'preset', preset: 'sound_waves' };
+      return { kind: 'preset', preset: 'greek_philosopher' };
     }
 
     /* Customize passages feature commented out
@@ -1346,6 +1415,14 @@
 
     async function updatePortraitPreview() {
       const img = document.getElementById('portrait-preview-image');
+      const shell = img?.closest('.portrait-preview-shell');
+      applyPortraitFrameStyle(shell, dashboardImageChoice);
+      if (shell) {
+        shell.style.padding =
+          dashboardImageChoice?.kind === 'preset'
+            ? (portraitPresets[dashboardImageChoice.preset]?.framePadding || '')
+            : '0px';
+      }
       applyPortraitImageStyle(img, dashboardImageChoice);
       if (dashboardImageChoice.kind === 'preset') {
         img.src = getPresetPreviewSrc(dashboardImageChoice.preset);
@@ -1381,8 +1458,8 @@
         card.innerHTML = `
           <div class="portrait-option-image"><img src="${preset.preview}" alt="${preset.label}" /></div>
           <div class="portrait-option-title">${preset.label}</div>
-          <div class="portrait-option-meta">${preset.meta}</div>
         `;
+        applyPortraitFrameStyle(card.querySelector('.portrait-option-image'), { kind: 'preset', preset: key });
         applyPortraitImageStyle(card.querySelector('img'), { kind: 'preset', preset: key });
         card.addEventListener('click', () => {
           dashboardImageChoice = { kind: 'preset', preset: key };
@@ -1476,10 +1553,19 @@
       renderDrivePortraitOptions();
     }
 
-    async function previewNarrationVoice() {
-      if (!currentUser) return;
+    async function previewNarrationVoice({ autoTriggered = false } = {}) {
       const status = document.getElementById('voice-preview-status');
+      const button = document.getElementById('preview-voice-btn');
       const audio = document.getElementById('voice-preview-audio');
+      if (!currentUser) {
+        status.textContent = autoTriggered
+          ? `Selected ${narrationVoices[selectedNarrationVoice].label}. Sign in to hear the sample.`
+          : 'Sign in to preview this voice.';
+        return;
+      }
+      if (button) {
+        button.disabled = true;
+      }
       status.textContent = 'Generating preview…';
       try {
         const token = await currentUser.getIdToken();
@@ -1509,6 +1595,10 @@
       } catch (e) {
         console.error('Voice preview failed:', e);
         status.textContent = 'Preview unavailable right now.';
+      } finally {
+        if (button) {
+          button.disabled = false;
+        }
       }
     }
 

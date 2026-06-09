@@ -158,6 +158,7 @@
       height: 124px;
       padding: 10px;
       border-radius: 28px;
+      overflow: hidden;
       background:
         radial-gradient(circle at 50% 28%, rgba(250, 233, 183, 0.96) 0 15%, rgba(250, 233, 183, 0.34) 16%, rgba(250, 233, 183, 0) 34%),
         linear-gradient(180deg, #f1dfb7 0%, #e4c992 34%, #cfac73 68%, #a88660 100%);
@@ -165,6 +166,24 @@
       box-shadow:
         inset 0 1px 0 rgba(255, 249, 230, 0.78),
         0 14px 28px rgba(93, 71, 42, 0.16);
+    }
+    .welcome-mark-frame.portrait-bg-sound-waves {
+      background:
+        radial-gradient(circle at 50% 28%, rgba(250, 233, 183, 0.96) 0 15%, rgba(250, 233, 183, 0.34) 16%, rgba(250, 233, 183, 0) 34%),
+        linear-gradient(180deg, #f1dfb7 0%, #e4c992 34%, #cfac73 68%, #a88660 100%);
+      border-color: rgba(184, 147, 101, 0.58);
+    }
+    .welcome-mark-frame.portrait-bg-king-memnon {
+      background:
+        linear-gradient(rgba(255, 250, 239, 0.22), rgba(255, 245, 229, 0.22)),
+        center center / cover no-repeat url("/sunrise.png");
+      border-color: rgba(191, 144, 86, 0.58);
+    }
+    .welcome-mark-frame.portrait-bg-trebulla {
+      background:
+        linear-gradient(rgba(250, 244, 235, 0.16), rgba(241, 234, 225, 0.16)),
+        center center / cover no-repeat url("/starry_night.png");
+      border-color: rgba(80, 101, 153, 0.55);
     }
     .welcome-mark-link {
       display: block;
@@ -264,6 +283,13 @@
       color: #7d7467;
       line-height: 1.55;
     }
+    .btn.is-disabled,
+    .btn[aria-disabled="true"] {
+      opacity: 0.58;
+      cursor: default;
+      pointer-events: none;
+      box-shadow: none;
+    }
   </style>
 </head>
 <body class="dashboard-page">
@@ -289,7 +315,7 @@
       </div>
       <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Edit dashboard portrait">
         <div class="welcome-mark-frame">
-          <img id="welcome-mark-image" src="/sound_waves.png" alt="Dashboard portrait" />
+          <img id="welcome-mark-image" src="/greek_philosopher.jpeg" alt="Dashboard portrait" />
         </div>
         <div class="welcome-mark-label">Edit portrait</div>
       </a>
@@ -366,7 +392,7 @@
       </p>
       </div>
       <div class="editorial-media" aria-hidden="true">
-        <img src="/sun_and_waves.png" alt="" />
+        <img src="/sun_and_sound.png" alt="" />
       </div>
     </div>
 
@@ -484,12 +510,24 @@
       document.getElementById("lane-detail").textContent = "Complete reflection · Preview mode";
       document.getElementById("lane-detail").style.display = "inline-flex";
       document.getElementById("lane-copy").textContent = "This mode combines practical classroom guidance with grounded reflection, using the teaching context you set up.";
+      applyDashboardPortraitStyle(
+        document.getElementById("welcome-mark-image"),
+        { kind: "preset", preset: "greek_philosopher" }
+      );
       updateReflectionArchiveLabels("complete");
 
       const recordBtn = document.getElementById("record-btn");
       if (recordBtn) {
         recordBtn.disabled = true;
         recordBtn.textContent = "Preview mode — sign in to record";
+      }
+
+      const notesLink = document.getElementById("notes-link");
+      if (notesLink) {
+        notesLink.removeAttribute("href");
+        notesLink.setAttribute("aria-disabled", "true");
+        notesLink.classList.add("is-disabled");
+        notesLink.textContent = "Archive available after sign-in";
       }
 
       const player = document.getElementById("reflection-player-container");
@@ -531,16 +569,48 @@
     document.getElementById("welcome-mark-link").setAttribute("href", `${routes.setup}#dashboard-portrait`);
 
     const dashboardPortraitPresets = {
-      sound_waves: {
-        src: "/sound_waves.png",
+      greek_philosopher: {
+        src: "/greek_philosopher.jpeg",
+        fit: "cover",
+        position: "center 22%",
+        scale: "1.08",
+        origin: "center center",
+        offsetY: "0%",
+        framePadding: "0px",
+        frameClass: "portrait-bg-sound-waves",
+      },
+      king_memnon: {
+        src: "/corporate_memphis_king_memnon_looking_down.png",
+        fit: "contain",
+        position: "center bottom",
+        scale: "1.18",
+        origin: "center bottom",
+        offsetY: "10%",
+        frameClass: "portrait-bg-king-memnon",
+      },
+      trebulla: {
+        src: "/corporate_memphis_ version_of_trebulla_no_bg.png",
+        fit: "contain",
+        position: "center bottom",
+        scale: "1.42",
+        origin: "center bottom",
+        offsetY: "16%",
+        frameClass: "portrait-bg-trebulla",
+      },
+      lattice: {
+        src: "/lattice.png",
         fit: "cover",
         position: "center center",
         scale: "1",
+        origin: "center center",
+        offsetY: "0%",
+        framePadding: "0px",
+        frameClass: "portrait-bg-sound-waves",
       },
     };
 
     function getDashboardPortraitPreset(key) {
-      return dashboardPortraitPresets[key] || dashboardPortraitPresets.sound_waves;
+      return dashboardPortraitPresets[key] || dashboardPortraitPresets.greek_philosopher;
     }
 
     function isDashboardPortraitPreset(key) {
@@ -549,20 +619,40 @@
 
     function applyDashboardPortraitStyle(img, choice) {
       if (!img) return;
+      const frame = img.closest(".welcome-mark-frame");
+      if (frame) {
+        frame.classList.remove("portrait-bg-sound-waves", "portrait-bg-king-memnon", "portrait-bg-trebulla");
+      }
       let fit = "contain";
       let position = "center center";
       let scale = "1";
+      let origin = "center center";
+      let offsetY = "0%";
       if (choice?.kind === "preset") {
         const preset = getDashboardPortraitPreset(choice.preset);
+        if (frame && preset.frameClass) {
+          frame.classList.add(preset.frameClass);
+          frame.style.padding = preset.framePadding || "";
+        }
         fit = preset.fit || fit;
         position = preset.position || position;
         scale = preset.scale || scale;
+        origin = preset.origin || origin;
+        offsetY = preset.offsetY || offsetY;
       } else if (choice?.kind === "drive") {
+        if (frame) {
+          frame.classList.add("portrait-bg-sound-waves");
+          frame.style.padding = "0px";
+        }
         fit = "cover";
+      } else if (frame) {
+        frame.classList.add("portrait-bg-sound-waves");
+        frame.style.padding = "";
       }
       img.style.objectFit = fit;
       img.style.objectPosition = position;
-      img.style.transform = `scale(${scale})`;
+      img.style.transform = `translateY(${offsetY}) scale(${scale})`;
+      img.style.transformOrigin = origin;
     }
     const portraitObjectUrls = new Map();
     const reflectionObjectUrls = new Map();
@@ -660,12 +750,12 @@
 
     function normalizeDashboardImageConfig(raw) {
       if (!raw || typeof raw !== "object") {
-        return { kind: "preset", preset: "sound_waves" };
+        return { kind: "preset", preset: "greek_philosopher" };
       }
       if (raw.kind === "preset") {
         return {
           kind: "preset",
-          preset: isDashboardPortraitPreset(raw.preset) ? raw.preset : "sound_waves",
+          preset: isDashboardPortraitPreset(raw.preset) ? raw.preset : "greek_philosopher",
         };
       }
       if (raw.kind === "drive" && raw.file_id) {
@@ -676,7 +766,7 @@
           mimeType: raw.mimeType || "image/png",
         };
       }
-      return { kind: "preset", preset: "sound_waves" };
+      return { kind: "preset", preset: "greek_philosopher" };
     }
 
     async function resolveDashboardPortraitSrc(choice, token) {
@@ -708,7 +798,7 @@
         img.src = await resolveDashboardPortraitSrc(normalized, token);
       } catch (e) {
         console.error("Could not apply dashboard portrait:", e);
-        img.src = dashboardPortraitPresets.sound_waves.src;
+        img.src = dashboardPortraitPresets.greek_philosopher.src;
       }
     }
 

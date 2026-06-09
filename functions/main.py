@@ -1056,7 +1056,7 @@ def save_setup():
         "school_city":     data.get("school_city", ""),
         # Reflect lane voices config
         "reflect_config":  data.get("reflect_config", {}),
-        "dashboard_image": data.get("dashboard_image", {"kind": "preset", "preset": "sound_waves"}),
+        "dashboard_image": data.get("dashboard_image", {"kind": "preset", "preset": "greek_philosopher"}),
         "google_tasks_list_id": (data.get("google_tasks_list_id") or "").strip(),
         "google_tasks_list_name": (data.get("google_tasks_list_name") or "").strip(),
         "active": True,

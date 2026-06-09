@@ -8,7 +8,8 @@ body {
 }
 
 body.setup-page,
-body.dashboard-page {
+body.dashboard-page,
+body.landing-page {
   background:
     radial-gradient(circle at top left, rgba(245, 224, 187, 0.55), rgba(245, 224, 187, 0) 34%),
     radial-gradient(circle at top right, rgba(225, 209, 180, 0.36), rgba(225, 209, 180, 0) 28%),
@@ -125,7 +126,8 @@ input[type="text"]:focus, select:focus { outline: none; border-color: #2563eb; }
 .status-dot.green { background: #22c55e; }
 
 body.setup-page nav,
-body.dashboard-page nav {
+body.dashboard-page nav,
+body.landing-page nav {
   background: rgba(255, 252, 247, 0.88);
   backdrop-filter: blur(14px);
   border-bottom-color: rgba(210, 196, 173, 0.55);
@@ -133,13 +135,15 @@ body.dashboard-page nav {
 }
 
 body.setup-page .container,
-body.dashboard-page .container {
+body.dashboard-page .container,
+body.landing-page .container {
   max-width: 980px;
   padding: 24px 18px 64px;
 }
 
 body.setup-page .card,
-body.dashboard-page .card {
+body.dashboard-page .card,
+body.landing-page .card {
   border-radius: 24px;
   border: 1px solid rgba(210, 196, 173, 0.76);
   background:
@@ -209,19 +213,22 @@ body.dashboard-page .card {
 }
 
 body.setup-page .btn,
-body.dashboard-page .btn {
+body.dashboard-page .btn,
+body.landing-page .btn {
   border-radius: 12px;
 }
 
 body.setup-page .btn-outline,
-body.dashboard-page .btn-outline {
+body.dashboard-page .btn-outline,
+body.landing-page .btn-outline {
   border-color: rgba(204, 188, 163, 0.9);
   color: #5d5448;
   background: rgba(255, 252, 248, 0.9);
 }
 
 body.setup-page .btn-outline:hover,
-body.dashboard-page .btn-outline:hover {
+body.dashboard-page .btn-outline:hover,
+body.landing-page .btn-outline:hover {
   background: #f7f1e6;
 }
 
