@@ -315,7 +315,7 @@
       </div>
       <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Edit dashboard portrait">
         <div class="welcome-mark-frame">
-          <img id="welcome-mark-image" src="/greek_philosopher.jpeg" alt="Dashboard portrait" />
+          <img id="welcome-mark-image" src="/lattice.png" alt="Dashboard portrait" />
         </div>
         <div class="welcome-mark-label">Edit portrait</div>
       </a>
@@ -512,7 +512,7 @@
       document.getElementById("lane-copy").textContent = "This mode combines practical classroom guidance with grounded reflection, using the teaching context you set up.";
       applyDashboardPortraitStyle(
         document.getElementById("welcome-mark-image"),
-        { kind: "preset", preset: "greek_philosopher" }
+        { kind: "preset", preset: "lattice" }
       );
       updateReflectionArchiveLabels("complete");
 
@@ -610,7 +610,7 @@
     };
 
     function getDashboardPortraitPreset(key) {
-      return dashboardPortraitPresets[key] || dashboardPortraitPresets.greek_philosopher;
+      return dashboardPortraitPresets[key] || dashboardPortraitPresets.lattice;
     }
 
     function isDashboardPortraitPreset(key) {
@@ -750,12 +750,12 @@
 
     function normalizeDashboardImageConfig(raw) {
       if (!raw || typeof raw !== "object") {
-        return { kind: "preset", preset: "greek_philosopher" };
+        return { kind: "preset", preset: "lattice" };
       }
       if (raw.kind === "preset") {
         return {
           kind: "preset",
-          preset: isDashboardPortraitPreset(raw.preset) ? raw.preset : "greek_philosopher",
+          preset: isDashboardPortraitPreset(raw.preset) ? raw.preset : "lattice",
         };
       }
       if (raw.kind === "drive" && raw.file_id) {
@@ -766,7 +766,7 @@
           mimeType: raw.mimeType || "image/png",
         };
       }
-      return { kind: "preset", preset: "greek_philosopher" };
+      return { kind: "preset", preset: "lattice" };
     }
 
     async function resolveDashboardPortraitSrc(choice, token) {
@@ -798,7 +798,7 @@
         img.src = await resolveDashboardPortraitSrc(normalized, token);
       } catch (e) {
         console.error("Could not apply dashboard portrait:", e);
-        img.src = dashboardPortraitPresets.greek_philosopher.src;
+        img.src = dashboardPortraitPresets.lattice.src;
       }
     }
 

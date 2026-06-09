@@ -1093,7 +1093,7 @@
         frameClass: 'portrait-bg-sound-waves',
       },
     };
-    let dashboardImageChoice = { kind: 'preset', preset: 'greek_philosopher' };
+    let dashboardImageChoice = { kind: 'preset', preset: 'lattice' };
     let drivePortraitFiles = [];
     const portraitObjectUrls = new Map();
     let voicePreviewObjectUrl = null;
@@ -1333,7 +1333,7 @@
     }
 
     function getPresetPreviewSrc(key) {
-      return portraitPresets[key]?.preview || portraitPresets.greek_philosopher.preview;
+      return portraitPresets[key]?.preview || portraitPresets.lattice.preview;
     }
 
     function applyPortraitFrameStyle(el, choice) {
@@ -1369,14 +1369,14 @@
     }
 
     function getDashboardImageKey(choice) {
-      if (!choice) return 'preset:greek_philosopher';
-      if (choice.kind === 'preset') return `preset:${choice.preset || 'greek_philosopher'}`;
+      if (!choice) return 'preset:lattice';
+      if (choice.kind === 'preset') return `preset:${choice.preset || 'lattice'}`;
       return `drive:${choice.file_id || ''}`;
     }
 
     function normalizeDashboardImageConfig(raw) {
       if (!raw || typeof raw !== 'object') {
-        return { kind: 'preset', preset: 'greek_philosopher' };
+        return { kind: 'preset', preset: 'lattice' };
       }
       if (raw.kind === 'preset' && raw.preset && portraitPresets[raw.preset]) {
         return { kind: 'preset', preset: raw.preset };
@@ -1389,7 +1389,7 @@
           mimeType: raw.mimeType || 'image/png',
         };
       }
-      return { kind: 'preset', preset: 'greek_philosopher' };
+      return { kind: 'preset', preset: 'lattice' };
     }
 
     /* Customize passages feature commented out
