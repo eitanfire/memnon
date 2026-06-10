@@ -602,38 +602,48 @@
       </div>
     </div>
 
-    <div class="card setup-secondary-card">
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-        <span style="font-size:1.4rem;">🖼️</span>
-        <h2 style="margin:0;">Dashboard Portrait</h2>
-      </div>
-      <p class="muted" style="margin-bottom:18px;">
-        Use Sound Waves, or upload one of your own.
-      </p>
-
-      <div style="margin-bottom:18px;">
-        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Default</div>
-        <div class="portrait-grid" id="preset-portrait-grid"></div>
-      </div>
-
-      <div style="margin-bottom:10px;">
-        <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Upload your own</div>
-        <div class="portrait-toolbar">
-          <button type="button" id="upload-portrait-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
-            Upload from computer
-          </button>
+    <div class="card drawer-card" id="dashboard-portrait" data-drawer="dashboard-portrait">
+      <button type="button" class="drawer-toggle" aria-expanded="false" aria-controls="dashboard-portrait-content">
+        <div style="min-width:0;">
+          <div class="drawer-toggle-main">
+            <span style="font-size:1.4rem;">🖼️</span>
+            <h2 style="margin:0;">Dashboard Portrait</h2>
+          </div>
+          <div class="drawer-toggle-copy">
+            Choose the image that appears on your dashboard.
+          </div>
         </div>
-        <input type="file" id="portrait-file-input" accept="image/*" style="display:none;" />
-        <div class="portrait-grid" id="drive-portrait-grid"></div>
-        <div class="drive-images-empty" id="drive-images-empty">
-          No custom image uploaded yet.
-        </div>
-      </div>
+        <span class="drawer-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="drawer-content" id="dashboard-portrait-content">
+        <p class="muted" style="margin-bottom:18px;">
+          Use a built-in portrait or upload one of your own.
+        </p>
 
-      <div class="portrait-preview">
-        <div class="muted" style="font-size:0.75rem; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.08em; text-align:center;">Current dashboard portrait</div>
-        <div class="portrait-preview-shell">
-          <img id="portrait-preview-image" src="/sound_waves.png" alt="Selected dashboard portrait preview" />
+        <div style="margin-bottom:18px;">
+          <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Default</div>
+          <div class="portrait-grid" id="preset-portrait-grid"></div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <div class="muted" style="font-size:0.75rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Upload your own</div>
+          <div class="portrait-toolbar">
+            <button type="button" id="upload-portrait-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
+              Upload from computer
+            </button>
+          </div>
+          <input type="file" id="portrait-file-input" accept="image/*" style="display:none;" />
+          <div class="portrait-grid" id="drive-portrait-grid"></div>
+          <div class="drive-images-empty" id="drive-images-empty">
+            No custom image uploaded yet.
+          </div>
+        </div>
+
+        <div class="portrait-preview">
+          <div class="muted" style="font-size:0.75rem; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.08em; text-align:center;">Current dashboard portrait</div>
+          <div class="portrait-preview-shell">
+            <img id="portrait-preview-image" src="/sound_waves.png" alt="Selected dashboard portrait preview" />
+          </div>
         </div>
       </div>
     </div>

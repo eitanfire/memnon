@@ -193,12 +193,15 @@
     .welcome-mark-frame img {
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      object-fit: cover;
       object-position: center center;
       transform: scale(1);
       transform-origin: center center;
       display: block;
       filter: drop-shadow(0 8px 16px rgba(94, 41, 20, 0.16));
+    }
+    .welcome-mark-frame img.is-bust-portrait {
+      object-fit: contain;
     }
     .welcome-mark-link:hover .welcome-mark-frame,
     .welcome-mark-link:focus-visible .welcome-mark-frame {
@@ -238,22 +241,95 @@
     }
 
     .note-item {
-      border: 1px solid #e8e6e0; border-radius: 8px; padding: 14px 16px;
-      margin-bottom: 12px; background: #fff;
+      border: 1px solid #e8e6e0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      background: linear-gradient(180deg, #fffdfa 0%, #fff 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
     }
     .note-item:last-child { margin-bottom: 0; }
-    .note-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
-    .note-date  { font-size: 0.75rem; color: #888; margin-bottom: 8px; }
-    .note-summary { font-size: 0.82rem; color: #555; line-height: 1.6; margin-bottom: 10px; }
-    .influenced-by { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0eeec; }
-    .influenced-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em;
-                        text-transform: uppercase; color: #888; margin-bottom: 8px; }
+    .note-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .note-title {
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #2f271d;
+      line-height: 1.35;
+      margin: 0;
+    }
+    .note-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .note-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1;
+      background: #f5efe3;
+      color: #7b6546;
+      border: 1px solid rgba(206, 188, 161, 0.66);
+    }
+    .note-summary {
+      font-size: 0.82rem;
+      color: #555;
+      line-height: 1.58;
+      margin-bottom: 8px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .influenced-line {
+      font-size: 0.79rem;
+      color: #6d6459;
+      line-height: 1.45;
+    }
+    .influenced-line strong {
+      color: #51402f;
+      font-weight: 600;
+    }
+    .influenced-by {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #f0eeec;
+    }
+    .influenced-toggle {
+      cursor: pointer;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #7b6546;
+      list-style: none;
+      user-select: none;
+    }
+    .influenced-toggle::-webkit-details-marker {
+      display: none;
+    }
+    .influenced-toggle::before {
+      content: "▸";
+      display: inline-block;
+      margin-right: 6px;
+      transition: transform 0.18s ease;
+    }
+    .influenced-by[open] .influenced-toggle::before {
+      transform: rotate(90deg);
+    }
     .influenced-item {
       display: flex; flex-direction: column; gap: 2px;
       background: #fafafa; border: 1px solid #ebebeb; border-radius: 6px;
-      padding: 8px 12px; margin-bottom: 6px; font-size: 0.8rem;
+      padding: 8px 12px; margin-top: 8px; font-size: 0.8rem;
     }
-    .influenced-item:last-child { margin-bottom: 0; }
     .influenced-source { font-weight: 600; color: #333; }
     .influenced-excerpt { font-style: italic; color: #666; font-size: 0.77rem; margin-top: 2px; }
     .influenced-because { color: #2563eb; font-size: 0.77rem; margin-top: 2px; }
@@ -707,6 +783,7 @@
       if (frame) {
         frame.classList.remove("portrait-bg-sound-waves", "portrait-bg-king-memnon", "portrait-bg-trebulla");
       }
+      img.classList.remove("is-bust-portrait");
       let fit = "contain";
       let position = "center center";
       let scale = "1";
@@ -723,6 +800,9 @@
         scale = preset.scale || scale;
         origin = preset.origin || origin;
         offsetY = preset.offsetY || offsetY;
+        if (preset.fit === "contain") {
+          img.classList.add("is-bust-portrait");
+        }
       } else if (choice?.kind === "drive") {
         if (frame) {
           frame.classList.add("portrait-bg-sound-waves");
@@ -960,6 +1040,15 @@
           const n = doc.data();
           const div = document.createElement("div");
           div.className = "note-item";
+          const styleKey = n.reflection_style in REFLECTION_STYLE_LABELS ? n.reflection_style : null;
+          const styleLabel = styleKey ? REFLECTION_STYLE_LABELS[styleKey] : "";
+          const voices = (n.influenced_by || [])
+            .map((s) => s.author)
+            .filter(Boolean);
+          const uniqueVoices = [...new Set(voices)];
+          const voiceLine = uniqueVoices.length
+            ? `In conversation with ${uniqueVoices.slice(0, 3).join(", ")}`
+            : "";
 
           const influenced = (n.influenced_by || []).map(s => `
             <div class="influenced-item">
@@ -970,14 +1059,20 @@
           `).join("");
 
           div.innerHTML = `
-            <div class="note-title">${n.title || "Untitled"}</div>
-            <div class="note-date">${n.date || ""}</div>
+            <div class="note-header">
+              <div class="note-title">${n.title || "Untitled"}</div>
+            </div>
+            <div class="note-meta">
+              ${n.date ? `<span class="note-pill">${formatNoteDate(n.date)}</span>` : ""}
+              ${styleLabel ? `<span class="note-pill">${styleLabel}</span>` : ""}
+            </div>
             <div class="note-summary">${n.summary || ""}</div>
+            ${voiceLine ? `<div class="influenced-line"><strong>In conversation with</strong> ${uniqueVoices.slice(0, 3).join(", ")}</div>` : ""}
             ${influenced ? `
-              <div class="influenced-by">
-                <div class="influenced-label">Influenced by</div>
+              <details class="influenced-by">
+                <summary class="influenced-toggle">Show source detail</summary>
                 ${influenced}
-              </div>` : ""}
+              </details>` : ""}
           `;
           list.appendChild(div);
         });
@@ -992,6 +1087,27 @@
       if (Number.isNaN(date.getTime())) return "";
       return date.toLocaleDateString(undefined, {
         month: "short",
+        day: "numeric",
+      });
+    }
+
+    function formatNoteDate(raw) {
+      if (!raw) return "";
+      const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+      if (isoMatch) {
+        const [, year, month, day] = isoMatch;
+        const date = new Date(Number(year), Number(month) - 1, Number(day));
+        if (!Number.isNaN(date.getTime())) {
+          return date.toLocaleDateString(undefined, {
+            month: "long",
+            day: "numeric",
+          });
+        }
+      }
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return raw;
+      return date.toLocaleDateString(undefined, {
+        month: "long",
         day: "numeric",
       });
     }

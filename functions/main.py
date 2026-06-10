@@ -1047,39 +1047,42 @@ def _client_config() -> dict:
 @flask_app.route("/auth/start")
 def auth_start():
     """Redirect user to Google — requests profile + Drive in one consent screen."""
-    cfg = _client_config()["web"]
-    # Generate PKCE code verifier + challenge
-    code_verifier  = secrets.token_urlsafe(64)
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b"=").decode()
+    frontend_return_to = _safe_frontend_return_url(request.args.get("return_to"))
+    try:
+        cfg = _client_config()["web"]
+        # Generate PKCE code verifier + challenge
+        code_verifier  = secrets.token_urlsafe(64)
+        code_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).rstrip(b"=").decode()
 
-    # Generate state token for CSRF protection
-    state = secrets.token_urlsafe(32)
+        # Generate state token for CSRF protection
+        state = secrets.token_urlsafe(32)
 
-    # Store both in Flask session for callback verification
-    from flask import session
-    session["frontend_return_to"] = _safe_frontend_return_url(
-        request.args.get("return_to")
-    )
-    session["oauth_state"]    = state
-    session["code_verifier"]  = code_verifier
+        # Store both in Flask session for callback verification
+        from flask import session
+        session["frontend_return_to"] = frontend_return_to
+        session["oauth_state"] = state
+        session["code_verifier"] = code_verifier
 
-    include_tasks = request.args.get("include_tasks") == "1"
-    params = {
-        "client_id":              cfg["client_id"],
-        "redirect_uri":           REDIRECT_URI,
-        "response_type":          "code",
-        "scope":                  " ".join(_requested_google_scopes(include_tasks)),
-        "access_type":            "offline",
-        "state":                  state,
-        "code_challenge":         code_challenge,
-        "code_challenge_method":  "S256",
-    }
-    if request.args.get("force_consent") == "1":
-        params["prompt"] = "consent"
-    params = urllib.parse.urlencode(params)
-    return redirect(f"https://accounts.google.com/o/oauth2/auth?{params}")
+        include_tasks = request.args.get("include_tasks") == "1"
+        params = {
+            "client_id":              cfg["client_id"],
+            "redirect_uri":           REDIRECT_URI,
+            "response_type":          "code",
+            "scope":                  " ".join(_requested_google_scopes(include_tasks)),
+            "access_type":            "offline",
+            "state":                  state,
+            "code_challenge":         code_challenge,
+            "code_challenge_method":  "S256",
+        }
+        if request.args.get("force_consent") == "1":
+            params["prompt"] = "consent"
+        params = urllib.parse.urlencode(params)
+        return redirect(f"https://accounts.google.com/o/oauth2/auth?{params}")
+    except Exception as exc:
+        print(f"OAuth start error: {exc}")
+        return redirect(_append_query_params(frontend_return_to, {"error": "oauth_start_failed"}))
 
 
 @flask_app.route("/auth/callback")
@@ -1121,7 +1124,7 @@ def auth_callback():
         ).json()
 
         if "error" in token_resp:
-            raise RuntimeError(token_resp["error_description"])
+            raise RuntimeError(token_resp.get("error_description") or token_resp["error"])
 
         creds = Credentials(
             token=token_resp.get("access_token"),

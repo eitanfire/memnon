@@ -1877,12 +1877,38 @@
         signinBtn.href = `https://api-4hth6oktaa-uc.a.run.app/auth/start?return_to=${encodeURIComponent(returnTo)}`;
       }
 
-      const token = new URLSearchParams(window.location.search).get("token");
+      const authParams = new URLSearchParams(window.location.search);
+      const token = authParams.get("token");
+      const authError = authParams.get("error");
+      const AUTH_ERROR_COPY = {
+        missing_code: "Google sign-in did not complete. Please try again.",
+        invalid_state: "Your sign-in session expired or was interrupted. Please try again.",
+        oauth_start_failed: "Memnon could not start Google sign-in. Please try again in a moment.",
+        oauth_failed: "Memnon could not complete Google sign-in. Please try again.",
+      };
 
-      if (token) {
+      function showAuthMessage(message) {
+        const existing = document.getElementById("auth-error-banner");
+        if (existing) existing.remove();
+        const banner = document.createElement("div");
+        banner.id = "auth-error-banner";
+        banner.style.cssText = "max-width:720px;margin:18px auto 0;padding:12px 16px;border-radius:14px;background:#fff3f0;border:1px solid #efc0b5;color:#8b3c2d;box-shadow:0 10px 20px rgba(120,60,40,.08);font-size:.92rem;";
+        banner.textContent = message;
+        const nav = document.querySelector("nav");
+        if (nav && nav.parentNode) {
+          nav.parentNode.insertBefore(banner, nav.nextSibling);
+        } else {
+          document.body.prepend(banner);
+        }
+      }
+
+      if (authError) {
+        history.replaceState({}, "", routes.home);
+        showAuthMessage(AUTH_ERROR_COPY[authError] || "Sign-in could not be completed. Please try again.");
+      } else if (token) {
         history.replaceState({}, "", routes.home);
         signInWithCustomToken(auth, token).catch((e) => {
-          document.body.innerHTML += `<p style="color:red;text-align:center;padding:20px">Sign-in error: ${e.message}</p>`;
+          showAuthMessage(`Sign-in error: ${e.message}`);
         });
       }
 
