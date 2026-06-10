@@ -311,9 +311,14 @@ def reflect_prompt(transcript: str, user: dict, max_tags: int = 5) -> tuple[str,
             doc_sections.append("\n".join(lines))
     docs_block = "\n\n".join(doc_sections) if doc_sections else ""
     tasks_context_summary = (user.get("tasks_context_summary") or "").strip()
+    history_context_summary = (user.get("history_context_summary") or "").strip()
     tasks_block = (
         f"\nRelevant current obligations:\n{tasks_context_summary}\n"
         if tasks_context_summary else ""
+    )
+    history_block = (
+        f"\nRelevant prior reflection context:\n{history_context_summary}\n"
+        if history_context_summary else ""
     )
 
     prompted_by = f"Voices the user has chosen: {voices_context}"
@@ -333,6 +338,7 @@ The following documents are part of the user's personal context:
 {docs_block}
 ''' if docs_block else ''}
 {tasks_block}
+{history_block}
 The user recorded this reflection:
 
 ---
@@ -347,6 +353,8 @@ Your task:
 5. For each passage you drew on, write one sentence explaining the specific connection \
    to what the user said. Be honest — if a passage didn't apply, omit it from influenced_by.
 6. If current obligations are included, use them only when they genuinely clarify what is weighing on the user.
+7. If the user is revising, resisting, or deepening an earlier framing or voice, name that clearly.
+8. If voices or perspectives come into meaningful agreement or conflict, note it when doing so helps the user.
 
 Respond with strict JSON only — no markdown, no extra keys.
 
@@ -370,6 +378,7 @@ Rules:
 - influenced_by entries must correspond to source_ids from the passages above
 - Max {max_tags} tags
 - Tone: warm, thoughtful, like a trusted colleague who also reads deeply
+- Treat prior reflections as context, not authority
 """
     return prompt, sources_used
 
@@ -380,11 +389,16 @@ def professional_prompt(
     transcript: str,
     profession: str,
     tasks_context_summary: str = "",
+    history_context_summary: str = "",
     max_tags: int = 5,
 ) -> str:
     tasks_block = (
         f"\nRelevant current obligations:\n{tasks_context_summary}\n"
         if tasks_context_summary else ""
+    )
+    history_block = (
+        f"\nRelevant prior reflection context:\n{history_context_summary}\n"
+        if history_context_summary else ""
     )
     return f"""You are a professional development assistant for a {profession}.
 
@@ -394,6 +408,7 @@ They recorded the following work note:
 {transcript}
 ---
 {tasks_block}
+{history_block}
 
 Respond with strict JSON only — no markdown wrapper, no extra keys.
 
@@ -409,6 +424,7 @@ Rules:
 - Return only the JSON object
 - No invented facts
 - If current obligations are included, use them only when they clearly help interpret the note
+- If prior reflection context is included, use it to notice changed judgment, follow-through, or productive disagreement
 - Max {max_tags} tags
 """
 
@@ -450,6 +466,7 @@ def teaching_practical_prompt(transcript: str, user: dict, max_tags: int = 5) ->
     formative    = user.get("formative_docs") or []
     prof_docs    = user.get("professional_docs") or []
     tasks_context_summary = (user.get("tasks_context_summary") or "").strip()
+    history_context_summary = (user.get("history_context_summary") or "").strip()
 
     grade_str    = ", ".join(grades) if grades else "unspecified grades"
     subject_str  = subjects if subjects else "unspecified subjects"
@@ -475,6 +492,10 @@ def teaching_practical_prompt(transcript: str, user: dict, max_tags: int = 5) ->
         f"\nRelevant current obligations:\n{tasks_context_summary}\n"
         if tasks_context_summary else ""
     )
+    history_block = (
+        f"\nRelevant prior reflection context:\n{history_context_summary}\n"
+        if history_context_summary else ""
+    )
     identity_bits = []
     if preferred_pronouns:
         identity_bits.append(f"pronouns: {preferred_pronouns}")
@@ -495,6 +516,7 @@ teaching {subject_str} at the {grade_str} level.
 ---
 {docs_block}
 {tasks_block}
+{history_block}
 {TEACHING_FRAMEWORKS}
 {TEACHING_CONCERNS}
 {stds_str}
@@ -521,6 +543,7 @@ Rules:
 - Max {max_tags} tags
 - Honor their lived experience first, then add pedagogy
 - If current obligations are included, use them only when they genuinely illuminate the teaching context
+- If prior reflection context is included, use it to notice repeated patterns, changed judgment, follow-through, or a clear disagreement with an earlier framing
 - Refer to {preferred_name} by name where natural
 - Respect these pronouns when needed: {preferred_pronouns or "use neutral phrasing if possible"}
 - Tone: warm, collegial, specific — trusted coach who knows their context
@@ -572,6 +595,7 @@ def build_prompt(lane: str, transcript: str, user: dict, max_tags: int = 5) -> t
             transcript,
             profession,
             (user.get("tasks_context_summary") or "").strip(),
+            (user.get("history_context_summary") or "").strip(),
             max_tags,
         ), []
 

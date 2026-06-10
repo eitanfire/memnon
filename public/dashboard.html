@@ -313,7 +313,7 @@
         <h1>Welcome back, <span id="first-name"></span> 👋</h1>
         <p>Record, receive, and revisit reflections shaped by your teaching context and guiding voices.</p>
       </div>
-      <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Edit dashboard portrait">
+      <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Tune reflection portrait">
         <div class="welcome-mark-frame">
           <img id="welcome-mark-image" src="/lattice.png" alt="Dashboard portrait" />
         </div>
@@ -333,7 +333,7 @@
           </p>
         </div>
         <a href="/setup" class="btn btn-outline" style="padding:7px 14px; font-size:0.8rem; white-space:nowrap;">
-          Edit setup
+          Tune Reflection
         </a>
         </div>
         <p class="editorial-copy" id="lane-copy">
@@ -489,6 +489,8 @@
       params.has("preview") ||
       window.location.port === "8000" ||
       window.location.port === "8080";
+    const MOCK_DASHBOARD_KEY = params.get("mock");
+    const MOCK_REFLECTION_STATE = params.get("reflection") || "ready";
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db  = getFirestore(app);
@@ -502,19 +504,81 @@
       setup: isStaticLocalhost ? "/setup.html" : "/setup",
     };
 
-    function applyDashboardPreviewState() {
-      document.getElementById("first-name").textContent = "there";
+    const MOCK_DASHBOARD_STATES = {
+      practical: {
+        lane: "professional",
+        reflection_style: "practical",
+        preferred_name: "Jordan",
+        subjects: "High School Technology",
+        grade_levels: ["9", "10", "11", "12"],
+        school_name: "Jefferson Academy",
+        school_state: "CO",
+        state_standards: ["Common Core State Standards (CCSS)", "ISTE Standards"],
+        dashboard_image: { kind: "preset", preset: "lattice" },
+        reflect_config: {
+          selected_guides: ["Parker Palmer", "bell hooks"],
+        },
+      },
+      grounded: {
+        lane: "reflect",
+        reflection_style: "grounded",
+        preferred_name: "Marisol",
+        tradition: "Contemplative",
+        subjects: "Middle School Humanities",
+        grade_levels: ["6", "7", "8"],
+        school_name: "Arapahoe Ridge",
+        school_state: "CO",
+        state_standards: ["Common Core State Standards (CCSS)"],
+        dashboard_image: { kind: "preset", preset: "trebulla" },
+        reflect_config: {
+          selected_guides: ["Marcus Aurelius", "Howard Thurman", "Thich Nhat Hanh"],
+        },
+      },
+      complete: {
+        lane: "professional",
+        reflection_style: "complete",
+        preferred_name: "Eitan",
+        subjects: "High School Technology",
+        grade_levels: ["8", "9", "10", "11", "12"],
+        school_name: "Jefferson Academy",
+        school_state: "CO",
+        state_standards: [
+          "Common Core State Standards (CCSS)",
+          "Next Generation Science Standards (NGSS)",
+        ],
+        dashboard_image: { kind: "preset", preset: "king_memnon" },
+        reflect_config: {
+          selected_guides: ["Marcus Aurelius", "Parker Palmer", "Howard Thurman"],
+        },
+      },
+    };
+
+    function getMockDashboardData() {
+      return MOCK_DASHBOARD_STATES[MOCK_DASHBOARD_KEY] || MOCK_DASHBOARD_STATES.complete;
+    }
+
+    function applyDashboardPreviewState(mockData = null) {
+      const data = mockData || getMockDashboardData();
+      const firstName = data.preferred_name || "there";
+      document.getElementById("first-name").textContent = firstName;
       document.getElementById("nav-name").textContent = "Preview mode";
-      document.getElementById("lane-title").textContent = "🏫 Teaching Context";
-      document.getElementById("lane-desc").textContent = "Memnon reads your notes through your teaching context and the standards frameworks you selected.";
-      document.getElementById("lane-detail").textContent = "Complete reflection · Preview mode";
+      const lane = data.lane || "professional";
+      const info = LANE_LABELS[lane] || LANE_LABELS.professional;
+      const summary = lane === "reflect"
+        ? summarizeGuidingVoices(data)
+        : summarizeTeachingContext(data);
+
+      document.getElementById("lane-title").textContent = `${info.icon} ${info.label}`;
+      document.getElementById("lane-desc").textContent = summary.description;
+      document.getElementById("lane-detail").textContent = `${summary.detail || "Preview mode"} · Preview mode`;
       document.getElementById("lane-detail").style.display = "inline-flex";
-      document.getElementById("lane-copy").textContent = "This mode combines practical classroom guidance with grounded reflection, using the teaching context you set up.";
+      document.getElementById("lane-copy").textContent = summary.copy;
       applyDashboardPortraitStyle(
         document.getElementById("welcome-mark-image"),
-        { kind: "preset", preset: "lattice" }
+        normalizeDashboardImageConfig(data.dashboard_image)
       );
-      updateReflectionArchiveLabels("complete");
+      document.getElementById("welcome-mark-image").src = resolveMockDashboardPortraitSrc(data.dashboard_image);
+      updateReflectionArchiveLabels(data.reflection_style || "complete");
 
       const recordBtn = document.getElementById("record-btn");
       if (recordBtn) {
@@ -532,7 +596,20 @@
 
       const player = document.getElementById("reflection-player-container");
       if (player) {
-        player.innerHTML = `<div class="recording-player-empty">Preview mode only. Sign in to generate and play reflections.</div>`;
+        if (MOCK_REFLECTION_STATE === "empty") {
+          player.innerHTML = `<div class="recording-player-empty">No ${REFLECTION_STYLE_LABELS[data.reflection_style || "complete"].toLowerCase()} yet. Record a memo to generate one.</div>`;
+        } else {
+          const titles = {
+            practical: "June 9, 2026 — Resetting discussion routines",
+            grounded: "June 9, 2026 — Returning to steadiness with students",
+            complete: "June 9, 2026 — Holding structure and presence together",
+          };
+          const styleKey = data.reflection_style || "complete";
+          player.innerHTML = `
+            <div class="recording-player-name">${titles[styleKey] || titles.complete}</div>
+            <div class="recording-player-empty">Mock preview. Sign in to generate and play the real audio reflection.</div>
+          `;
+        }
       }
     }
 
@@ -592,9 +669,9 @@
         src: "/corporate_memphis_ version_of_trebulla_no_bg.png",
         fit: "contain",
         position: "center bottom",
-        scale: "1.42",
+        scale: "2.42",
         origin: "center bottom",
-        offsetY: "16%",
+        offsetY: "31%",
         frameClass: "portrait-bg-trebulla",
       },
       lattice: {
@@ -611,6 +688,13 @@
 
     function getDashboardPortraitPreset(key) {
       return dashboardPortraitPresets[key] || dashboardPortraitPresets.lattice;
+    }
+
+    function resolveMockDashboardPortraitSrc(choice) {
+      const normalized = normalizeDashboardImageConfig(choice);
+      return normalized.kind === "preset"
+        ? getDashboardPortraitPreset(normalized.preset).src
+        : dashboardPortraitPresets.lattice.src;
     }
 
     function isDashboardPortraitPreset(key) {

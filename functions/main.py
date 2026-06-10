@@ -46,7 +46,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from audio_generation import synthesize_reflection_bytes, synthesize_reflection_mp3
-from lanes import professional_prompt, reflect_prompt, teaching_practical_prompt
+from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
 
@@ -421,9 +421,14 @@ def _build_complete_reflection_prompt(
 ) -> str:
     preferred_name = (user_data.get("preferred_name") or user_data.get("name") or "the teacher").strip()
     tasks_context_summary = (user_data.get("tasks_context_summary") or "").strip()
+    history_context_summary = (user_data.get("history_context_summary") or "").strip()
     tasks_block = (
         f"\nRelevant current obligations:\n{tasks_context_summary}\n"
         if tasks_context_summary else ""
+    )
+    history_block = (
+        f"\nRelevant prior reflection context:\n{history_context_summary}\n"
+        if history_context_summary else ""
     )
     sources_block = "\n\n".join(
         f'{source.get("author", "")} ({source.get("ref", "")}): "{source.get("excerpt", "")}"'
@@ -444,6 +449,7 @@ Original transcript:
 {transcript}
 ---
 {tasks_block}
+{history_block}
 Perspective outputs:
 {payload}
 
@@ -471,6 +477,8 @@ Respond with strict JSON only:
 Rules:
 - Return JSON only
 - Preserve productive tension between perspectives when it matters
+- If the current reflection revises, resists, or deepens an earlier framing, name that clearly
+- If prior and current perspectives come into meaningful agreement, note that without flattening difference
 - Do not introduce new facts
 - The practical perspective should remain concrete
 - The grounded perspective should deepen, not overwrite, the practical one
@@ -597,22 +605,160 @@ def _render_note(lane: str, ai: dict, transcript: str, filename: str,
     )
 
 
-def _store_note_metadata(uid: str, ai: dict, sources_used: list, note_name: str) -> None:
+def _store_note_metadata(
+    uid: str,
+    ai: dict,
+    sources_used: list,
+    note_name: str,
+    transcript: str,
+    reflection_style: str,
+) -> None:
     """Store recent note metadata in Firestore for dashboard display (keep last 10)."""
     try:
-        from google.cloud.firestore_v1 import ArrayUnion
         note_meta = {
             "title":        ai.get("title", note_name),
             "summary":      ai.get("summary", "")[:300],
             "date":         datetime.now().strftime("%Y-%m-%d"),
+            "created_at":   firestore.SERVER_TIMESTAMP,
             "note_name":    note_name,
             "influenced_by": sources_used or [],
+            "reflection_style": reflection_style,
+            "insight": ai.get("insight", "")[:240],
+            "action_items": (ai.get("action_items") or [])[:3],
+            "suggested_tags": (ai.get("suggested_tags") or [])[:8],
+            "themes": sorted(list(extract_themes(transcript)))[:8],
+            "voice_labels": [item.get("author", "") for item in (sources_used or []) if item.get("author")][:5],
+            "transcript_excerpt": transcript[:240],
         }
         # Use a subcollection for notes — one doc per note
         _get_db().collection("users").document(uid)\
                  .collection("notes").add(note_meta)
     except Exception as exc:
         print(f"[{uid}] Warning: could not store note metadata: {exc}")
+
+
+CALLBACK_CUE_PHRASES = (
+    "last time",
+    "previously",
+    "before",
+    "earlier",
+    "you said",
+    "you mentioned",
+    "i don't agree",
+    "i disagree",
+    "i still think",
+    "you framed it as",
+    "that perspective",
+    "that voice",
+)
+
+
+def _tokenize_history_text(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z]{3,}", (text or "").lower())
+        if token not in {"that", "this", "with", "from", "they", "have", "been", "were", "them", "their", "about"}
+    }
+
+
+def _has_callback_cue(transcript: str) -> bool:
+    lowered = (transcript or "").lower()
+    return any(phrase in lowered for phrase in CALLBACK_CUE_PHRASES)
+
+
+def _note_history_terms(note: dict) -> set[str]:
+    terms = set()
+    for field in ("title", "summary", "insight", "transcript_excerpt"):
+        terms.update(_tokenize_history_text(note.get(field, "")))
+    for item in note.get("themes", []) or []:
+        terms.update(_tokenize_history_text(item))
+    for item in note.get("voice_labels", []) or []:
+        terms.update(_tokenize_history_text(item))
+    return terms
+
+
+def _build_history_note_line(note: dict) -> str:
+    parts = []
+    date = (note.get("date") or "").strip()
+    style = _normalize_reflection_style(note.get("reflection_style"))
+    title = (note.get("title") or "Untitled").strip()
+    if date:
+        parts.append(date)
+    parts.append(style.title())
+    header = " | ".join(parts) + f" | {title}"
+    lines = [header]
+    summary = (note.get("summary") or "").strip()
+    if summary:
+        lines.append(f"summary: {summary}")
+    insight = (note.get("insight") or "").strip()
+    if insight:
+        lines.append(f"insight: {insight}")
+    voices = note.get("voice_labels") or []
+    if voices:
+        lines.append(f"voices: {', '.join(voices[:3])}")
+    themes = note.get("themes") or []
+    if themes:
+        lines.append(f"themes: {', '.join(themes[:5])}")
+    return "\n".join(lines)
+
+
+def _load_relevant_reflection_history(uid: str, transcript: str, max_items: int = 3) -> list[dict]:
+    try:
+        notes_ref = _get_db().collection("users").document(uid).collection("notes")
+        try:
+            docs = list(
+                notes_ref.order_by("created_at", direction=firestore.Query.DESCENDING).limit(8).stream()
+            )
+        except Exception:
+            docs = list(
+                notes_ref.order_by("date", direction=firestore.Query.DESCENDING).limit(8).stream()
+            )
+    except Exception as exc:
+        print(f"[{uid}] Warning: could not load reflection history: {exc}")
+        return []
+
+    entries = [doc.to_dict() for doc in docs if doc.exists]
+    if not entries:
+        return []
+
+    current_terms = _tokenize_history_text(transcript)
+    current_themes = extract_themes(transcript)
+    callback = _has_callback_cue(transcript)
+    ranked: list[tuple[int, int, dict]] = []
+
+    for idx, note in enumerate(entries):
+        note_terms = _note_history_terms(note)
+        note_themes = set(note.get("themes") or [])
+        score = max(0, 8 - idx)
+        score += len(current_terms & note_terms)
+        score += 4 * len(current_themes & note_themes)
+        if callback and note_terms:
+            score += 3
+        if note.get("voice_labels"):
+            score += 1
+        ranked.append((score, idx, note))
+
+    ranked.sort(key=lambda item: (item[0], -item[1]), reverse=True)
+    chosen = [note for score, _, note in ranked if score > 0][:max_items]
+    if not chosen:
+        chosen = entries[: min(2, len(entries))]
+    return chosen
+
+
+def _history_context_summary(uid: str, transcript: str) -> tuple[list[dict], str]:
+    notes = _load_relevant_reflection_history(uid, transcript)
+    if not notes:
+        return [], ""
+    lines = [
+        "The teacher may be continuing, revising, or disagreeing with earlier reflection framings."
+    ]
+    for note in notes:
+        lines.append(f"- {_build_history_note_line(note)}")
+    if _has_callback_cue(transcript):
+        lines.append(
+            "The current transcript explicitly seems to reference earlier reflections or prior voice framings."
+        )
+    return notes, "\n".join(lines)
 
 
 def _record_source_usage(uid: str, sources_used: list) -> None:
@@ -760,6 +906,7 @@ def _generate_reflection_result(
             transcript,
             profession,
             (user_data.get("tasks_context_summary") or "").strip(),
+            (user_data.get("history_context_summary") or "").strip(),
         )
         return style, _summarize(prompt, api_key), []
 
@@ -770,6 +917,7 @@ def _generate_reflection_result(
             transcript,
             ((user_data.get("profession") or "professional").lower().strip() or "professional"),
             (user_data.get("tasks_context_summary") or "").strip(),
+            (user_data.get("history_context_summary") or "").strip(),
         )
     )
     practical_result = _summarize(practical_prompt, api_key)
@@ -819,12 +967,16 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
     )
     user_data["tasks_context_items"] = task_context_items
     user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
+    history_context_items, history_context_summary = _history_context_summary(uid, transcript)
+    user_data["history_context_items"] = history_context_items
+    user_data["history_context_summary"] = history_context_summary
 
     lane = user_data.get("lane", "professional")
     try:
-        _, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
+        style_key, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
     except Exception as exc:
         print(f"[{uid}] AI error: {exc} — using fallback")
+        style_key = _normalize_reflection_style(user_data.get("reflection_style"))
         ai_result = {"title": Path(filename).stem, "summary": transcript[:300],
                      "action_items": [], "suggested_tags": [], "influenced_by": []}
         sources_used = []
@@ -845,7 +997,7 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
         _record_source_usage(uid, sources_used)
 
     # Store recent note metadata in Firestore for dashboard display
-    _store_note_metadata(uid, ai_result, sources_used, note_name)
+    _store_note_metadata(uid, ai_result, sources_used, note_name, transcript, style_key)
 
     processed_id = _find_or_create_folder(service, "processed", inbox_id)
     service.files().update(
@@ -1520,12 +1672,16 @@ def upload_audio():
     )
     user_data["tasks_context_items"] = task_context_items
     user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
+    history_context_items, history_context_summary = _history_context_summary(uid, transcript)
+    user_data["history_context_items"] = history_context_items
+    user_data["history_context_summary"] = history_context_summary
 
     lane = user_data.get("lane", "professional")
     try:
-        _, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
+        style_key, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
     except Exception as exc:
         print(f"[{uid}] AI error on upload: {exc}")
+        style_key = _normalize_reflection_style(user_data.get("reflection_style"))
         ai_result = {"title": Path(filename).stem, "summary": transcript[:300],
                      "action_items": [], "suggested_tags": [], "influenced_by": []}
         sources_used = []
@@ -1535,7 +1691,7 @@ def upload_audio():
     note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
     if sources_used:
         _record_source_usage(uid, sources_used)
-    _store_note_metadata(uid, ai_result, sources_used, note_name)
+    _store_note_metadata(uid, ai_result, sources_used, note_name, transcript, style_key)
 
     media = MediaInMemoryUpload(note_md.encode(), mimetype="text/plain", resumable=False)
     service.files().create(

@@ -443,8 +443,8 @@
 
     <div class="page-hero">
       <div class="page-hero-kicker">Set up Memnon</div>
-      <h1>Ground your reflection</h1>
-      <p class="page-hero-copy">Choose the reflection style, teaching context, and guiding voices that shape each return.</p>
+      <h1>Tune Reflection</h1>
+      <p class="page-hero-copy">Adjust how Memnon helps you reflect and make sense of your experience.</p>
     </div>
 
     <div class="card setup-feature-card">
@@ -696,7 +696,7 @@
         Save and go to dashboard →
       </button>
       <a id="cancel-link" href="/dashboard" class="btn btn-outline" style="width:100%; justify-content:center; font-size:0.95rem; padding:12px 14px;">
-        Return without saving
+        Return without tuning
       </a>
     </div>
 
@@ -1073,9 +1073,9 @@
         preview: '/corporate_memphis_ version_of_trebulla_no_bg.png',
         fit: 'contain',
         position: 'center bottom',
-        scale: '1.42',
+        scale: '2.18',
         origin: 'center bottom',
-        offsetY: '9%',
+        offsetY: '20%',
         frameClass: 'portrait-bg-trebulla',
       },
       lattice: {
@@ -1746,11 +1746,86 @@
       params.has("preview") ||
       window.location.port === "8000" ||
       window.location.port === "8080";
+    const MOCK_SETUP_KEY = params.get("mock");
+    const MOCK_SETUP_STATES = {
+      practical: {
+        lane: "professional",
+        reflection_style: "practical",
+        preferred_name: "Jordan",
+        spoken_name: "Jordan",
+        preferred_pronouns: "they/them",
+        subjects: "High School Technology",
+        grade_levels: ["9", "10", "11", "12"],
+        school_name: "Jefferson Academy",
+        school_district: "Jeffco Public Schools",
+        school_city: "Broomfield",
+        school_state: "CO",
+        state_standards: [
+          "Common Core State Standards (CCSS)",
+          "ISTE Standards",
+        ],
+        reflect_config: {
+          selected_guides: ["Parker Palmer", "bell hooks"],
+          custom_passages: {},
+        },
+        dashboard_image: { kind: "preset", preset: "lattice" },
+        narration_voice: "ryan",
+      },
+      grounded: {
+        lane: "reflect",
+        reflection_style: "grounded",
+        preferred_name: "Marisol",
+        spoken_name: "Mah-ree-sol",
+        preferred_pronouns: "she/her",
+        subjects: "Middle School Humanities",
+        grade_levels: ["6", "7", "8"],
+        school_name: "Arapahoe Ridge",
+        school_district: "Denver Public Schools",
+        school_city: "Denver",
+        school_state: "CO",
+        state_standards: [
+          "Common Core State Standards (CCSS)",
+        ],
+        reflect_config: {
+          selected_guides: ["Marcus Aurelius", "Howard Thurman", "Thich Nhat Hanh"],
+          custom_passages: {},
+        },
+        dashboard_image: { kind: "preset", preset: "trebulla" },
+        narration_voice: "emily",
+      },
+      complete: {
+        lane: "professional",
+        reflection_style: "complete",
+        preferred_name: "Eitan",
+        spoken_name: "Ay-tahn",
+        preferred_pronouns: "he/him",
+        subjects: "High School Technology",
+        grade_levels: ["8", "9", "10", "11", "12"],
+        school_name: "Jefferson Academy",
+        school_district: "Jeffco Public Schools",
+        school_city: "Broomfield",
+        school_state: "CO",
+        state_standards: [
+          "Common Core State Standards (CCSS)",
+          "Next Generation Science Standards (NGSS)",
+        ],
+        reflect_config: {
+          selected_guides: ["Marcus Aurelius", "Parker Palmer", "Howard Thurman"],
+          custom_passages: {},
+        },
+        dashboard_image: { kind: "preset", preset: "king_memnon" },
+        narration_voice: "jenny",
+      },
+    };
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
     const callbackToken = params.get("token");
+
+    function getMockSetupData() {
+      return MOCK_SETUP_STATES[MOCK_SETUP_KEY] || MOCK_SETUP_STATES.complete;
+    }
 
     if (callbackToken) {
       signInWithCustomToken(auth, callbackToken)
@@ -1769,7 +1844,12 @@
       if (PREVIEW_MODE && !auth.currentUser) {
         document.getElementById("nav-name").textContent = "Preview mode";
         const btn = document.getElementById("save-btn");
-        btn.textContent = "Preview mode — sign in to save";
+        if (MOCK_SETUP_KEY) {
+          prefill(getMockSetupData());
+          btn.textContent = `Previewing ${MOCK_SETUP_KEY} reflection — sign in to save`;
+        } else {
+          btn.textContent = "Preview mode — sign in to save";
+        }
       }
     });
 
@@ -1803,7 +1883,7 @@
     document.getElementById("save-btn").addEventListener("click", async () => {
       if (!currentUser) {
         if (PREVIEW_MODE) {
-          alert("Preview mode only. Open the authenticated app to save setup.");
+          alert("Preview mode only. Open the authenticated app to save reflection tuning.");
         }
         return;
       }
