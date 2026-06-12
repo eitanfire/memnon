@@ -137,6 +137,7 @@ def _verify_firebase_token(req) -> str | None:
         print(f"[auth] Missing bearer token for {req.path} origin={req.headers.get('Origin', '')}")
         return None
     try:
+        _get_db()
         return fb_auth.verify_id_token(header[7:])["uid"]
     except Exception as exc:
         token = header[7:]
