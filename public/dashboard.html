@@ -65,6 +65,10 @@
       grid-template-columns: 1fr;
       gap: 12px;
     }
+    .capture-archive-stack {
+      display: grid;
+      gap: 14px;
+    }
     .summary-tile {
       border: 1px solid #e8e6e0;
       border-radius: 10px;
@@ -97,6 +101,32 @@
       font-size: 0.8rem;
       color: #888;
       margin-bottom: 12px;
+    }
+    .summary-tile--latest {
+      border-color: #d9c39b;
+      background:
+        radial-gradient(circle at top right, rgba(244, 223, 180, 0.35), rgba(244, 223, 180, 0) 42%),
+        linear-gradient(180deg, #fffdfa 0%, #f9f3e7 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.72),
+        0 14px 28px rgba(90, 68, 36, 0.08);
+    }
+    .summary-tile--archive {
+      padding-top: 14px;
+      padding-bottom: 14px;
+    }
+    .archive-link-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .archive-inline-note {
+      font-size: 0.79rem;
+      color: #6d6459;
+      line-height: 1.5;
+      margin-top: 10px;
     }
     .capture-mode-grid {
       display: grid;
@@ -199,12 +229,7 @@
       margin-top: 16px;
     }
     .recording-player-wrap {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid #ece5d9;
-    }
-    .summary-tile.featured .recording-player-wrap {
-      margin-top: 14px;
+      margin-top: 0;
       padding: 14px;
       border-top: none;
       border-radius: 14px;
@@ -212,7 +237,7 @@
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
     }
     .recording-player-wrap:first-of-type {
-      margin-top: 14px;
+      margin-top: 0;
     }
     .reflection-view-toggle {
       display: inline-flex;
@@ -579,6 +604,27 @@
       color: #7b6546;
       border: 1px solid rgba(206, 188, 161, 0.66);
     }
+    .context-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 15px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #fff7eb 0%, #f7ead4 100%);
+      border: 1px solid rgba(201, 168, 76, 0.45);
+      color: #5a4424;
+      box-shadow: 0 10px 22px rgba(93, 71, 42, 0.08);
+    }
+    .context-cta:hover,
+    .context-cta:focus-visible {
+      background: linear-gradient(180deg, #fffaf1 0%, #f8ecd9 100%);
+      border-color: rgba(201, 168, 76, 0.62);
+      color: #4a3518;
+      transform: translateY(-1px);
+    }
     .btn.is-disabled,
     .btn[aria-disabled="true"] {
       opacity: 0.58;
@@ -635,7 +681,8 @@
           </div>
           <div id="lane-pills" class="context-pill-row"></div>
         </div>
-        <a href="/setup" class="btn btn-outline" style="padding:7px 14px; font-size:0.8rem; white-space:nowrap;">
+        <a href="/setup" class="btn context-cta" style="white-space:nowrap;">
+          <span aria-hidden="true">⚙</span>
           Tune Reflection
         </a>
         </div>
@@ -655,11 +702,11 @@
         <div>
           <h2>Capture & Archive</h2>
           <p class="editorial-copy">
-            Speak or write in the app, then return when the reflection is ready.
+            Capture a new reflection, hear the latest return, or reopen the archive.
           </p>
         </div>
       </div>
-      <div class="summary-grid">
+      <div class="capture-archive-stack">
         <div class="summary-tile">
           <div>
             <div class="summary-tile-kicker">Capture</div>
@@ -687,15 +734,11 @@
             </div>
           </div>
         </div>
-        <div class="summary-tile featured">
+        <div class="summary-tile summary-tile--latest">
           <div>
-            <div class="summary-tile-kicker">Archive</div>
-            <div class="summary-tile-title">archive</div>
-            <div class="summary-tile-copy">Your saved reflections</div>
-            <a id="notes-link" href="#" target="_blank"
-               class="btn btn-primary" style="padding:7px 12px; font-size:0.8rem;">
-              Open archive ↗
-            </a>
+            <div class="summary-tile-kicker">Latest reflection</div>
+            <div class="summary-tile-title">Receive the latest return</div>
+            <div class="summary-tile-copy">Listen, read, and decide what thread to carry forward.</div>
             <div class="recording-player-wrap">
               <div class="recording-player-label" id="reflection-player-label">Latest complete reflection</div>
               <div class="reflection-view-toggle" id="reflection-view-toggle">
@@ -720,11 +763,24 @@
             </div>
           </div>
         </div>
+        <div class="summary-tile summary-tile--archive">
+          <div class="summary-tile-kicker">Archive</div>
+          <div class="archive-link-row">
+            <div>
+              <div class="summary-tile-title">Open the archive</div>
+              <div class="summary-tile-copy" style="margin-bottom:0;">Revisit saved reflections in Google Drive.</div>
+            </div>
+            <a id="notes-link" href="#" target="_blank"
+               class="btn btn-primary" style="padding:7px 12px; font-size:0.8rem;">
+              Open archive ↗
+            </a>
+          </div>
+          <div class="archive-inline-note">
+            <span id="archive-summary-copy">Each capture returns as a complete spoken reflection in your</span>
+            <strong>archive</strong>.
+          </div>
+        </div>
       </div>
-      <p class="summary-note">
-        <span id="archive-summary-copy">Capture a reflection here. Memnon turns it into a spoken reflection and saves it to your</span>
-        <strong>archive</strong> in Google Drive.
-      </p>
       </div>
       <div class="editorial-media" aria-hidden="true">
         <img src="/sun_and_sound.png" alt="" />
@@ -748,7 +804,12 @@
 
     <!-- Recent Notes -->
     <div class="card dashboard-secondary-card" id="recent-notes-card" style="display:none;">
-      <h2>Recent notes</h2>
+      <div class="editorial-header" style="margin-bottom:10px;">
+        <div>
+          <h2 style="margin-bottom:6px;">Recent notes</h2>
+          <p class="muted" style="margin:0;">A short record of recent returns and the voices in conversation.</p>
+        </div>
+      </div>
       <div id="recent-notes-list" style="margin-top:14px;"></div>
     </div>
 
@@ -810,9 +871,9 @@
       complete: "Complete reflection",
     };
     const REFLECTION_STYLE_ARCHIVE_COPY = {
-      practical: "Record here. Memnon turns the memo into a practical spoken reflection and saves it to your",
-      grounded: "Record here. Memnon turns the memo into a grounded spoken reflection and saves it to your",
-      complete: "Record here. Memnon turns the memo into a complete spoken reflection that combines practical guidance with grounded reflection, and saves it to your",
+      practical: "Each capture returns as a practical spoken reflection in your",
+      grounded: "Each capture returns as a grounded spoken reflection in your",
+      complete: "Each capture returns as a complete spoken reflection in your",
     };
 
     const params = new URLSearchParams(window.location.search);
