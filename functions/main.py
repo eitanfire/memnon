@@ -423,6 +423,14 @@ def _normalize_reflection_style(raw: str | None) -> str:
     return "complete"
 
 
+def _coerce_bool(raw, default: bool = True) -> bool:
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).strip().lower() not in {"0", "false", "off", "no", ""}
+
+
 def _is_teacher_profession(user_data: dict) -> bool:
     profession = (user_data.get("profession") or "").lower().strip()
     return (
@@ -432,6 +440,22 @@ def _is_teacher_profession(user_data: dict) -> bool:
         or "instructor" in profession
         or "professor" in profession
     )
+
+
+def _reflection_user_data(user_data: dict, include_teaching_context: bool = True) -> dict:
+    reflection_data = dict(user_data or {})
+    reflection_data["include_teaching_context"] = include_teaching_context
+    if include_teaching_context:
+        return reflection_data
+
+    reflection_data["lane"] = "reflect"
+    reflection_data["profession"] = "personal reflection"
+    reflection_data["grade_levels"] = []
+    reflection_data["subjects"] = ""
+    reflection_data["school_state"] = ""
+    reflection_data["school_name"] = ""
+    reflection_data["state_standards"] = []
+    return reflection_data
 
 
 def _build_complete_reflection_prompt(
@@ -647,6 +671,7 @@ def _store_note_metadata(
     note_name: str,
     transcript: str,
     reflection_style: str,
+    include_teaching_context: bool = True,
     embedding_v1: list[float] | None = None,
     embedding_meta: dict | None = None,
     history_source_text: str = "",
@@ -661,6 +686,7 @@ def _store_note_metadata(
             "note_name":    note_name,
             "influenced_by": sources_used or [],
             "reflection_style": reflection_style,
+            "include_teaching_context": include_teaching_context,
             "insight": ai.get("insight", "")[:240],
             "action_items": (ai.get("action_items") or [])[:3],
             "suggested_tags": (ai.get("suggested_tags") or [])[:8],
@@ -1076,29 +1102,31 @@ def _process_reflection_entry(
     transcript: str,
     api_key: str,
     source_filename: str,
+    include_teaching_context: bool = True,
     source_audio_bytes: bytes | None = None,
     source_mime_type: str | None = None,
 ) -> dict:
+    reflection_user_data = _reflection_user_data(user_data, include_teaching_context=include_teaching_context)
     task_context_items = _derive_task_context(
         transcript,
-        _fetch_open_tasks_for_user(uid, user_data),
+        _fetch_open_tasks_for_user(uid, reflection_user_data),
     )
-    user_data["tasks_context_items"] = task_context_items
-    user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
+    reflection_user_data["tasks_context_items"] = task_context_items
+    reflection_user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
     history_context_items, history_context_summary = _history_context_summary(
         uid,
         transcript,
         hf_api_key=HUGGING_FACE_API_KEY,
     )
-    user_data["history_context_items"] = history_context_items
-    user_data["history_context_summary"] = history_context_summary
+    reflection_user_data["history_context_items"] = history_context_items
+    reflection_user_data["history_context_summary"] = history_context_summary
 
-    lane = user_data.get("lane", "professional")
+    lane = reflection_user_data.get("lane", "professional")
     try:
-        style_key, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
+        style_key, ai_result, sources_used = _generate_reflection_result(transcript, reflection_user_data, api_key)
     except Exception as exc:
         print(f"[{uid}] AI error on entry processing: {exc}")
-        style_key = _normalize_reflection_style(user_data.get("reflection_style"))
+        style_key = _normalize_reflection_style(reflection_user_data.get("reflection_style"))
         ai_result = {
             "title": Path(source_filename).stem,
             "summary": transcript[:300],
@@ -1128,6 +1156,7 @@ def _process_reflection_entry(
         note_name,
         transcript,
         style_key,
+        include_teaching_context=include_teaching_context,
         embedding_v1=history_embedding,
         embedding_meta=embedding_result,
         history_source_text=history_source_text,
@@ -1162,7 +1191,7 @@ def _process_reflection_entry(
             transcript,
             ai_result,
             sources_used,
-            user_data,
+            reflection_user_data,
             api_key,
         )
         if reflection_script:
@@ -1913,6 +1942,7 @@ def upload_audio():
         return jsonify({"error": "user not found"}), 404
     user_data = doc.to_dict()
     user_data = dict(user_data)
+    include_teaching_context = _coerce_bool(request.form.get("include_teaching_context"), True)
 
     creds = _drive_creds(uid)
     if not creds:
@@ -1941,6 +1971,7 @@ def upload_audio():
         transcript,
         api_key,
         filename,
+        include_teaching_context=include_teaching_context,
         source_audio_bytes=audio_bytes,
         source_mime_type=upload_mime_type,
     )
@@ -2019,6 +2050,7 @@ def create_text_reflection():
 
     data = request.get_json(silent=True) or {}
     raw_text = (data.get("text") or "").strip()
+    include_teaching_context = _coerce_bool(data.get("include_teaching_context"), True)
     transcript = re.sub(r"\n{3,}", "\n\n", raw_text)
     if len(transcript.split()) < 3:
         return jsonify({"error": "text too short"}), 400
@@ -2045,6 +2077,7 @@ def create_text_reflection():
         transcript,
         api_key,
         filename,
+        include_teaching_context=include_teaching_context,
     )
 
     print(f"[{uid}] Text entry note saved: {result['note_name']}")

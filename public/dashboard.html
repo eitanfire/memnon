@@ -62,7 +62,7 @@
     }
     .summary-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 12px;
     }
     .summary-tile {
@@ -108,6 +108,38 @@
       justify-content: center;
       font-size: 0.85rem;
       padding: 8px 12px;
+    }
+    .capture-context-toggle {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #e8dece;
+      background: rgba(252, 247, 239, 0.86);
+    }
+    .capture-context-toggle label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .capture-context-toggle input {
+      margin-top: 2px;
+      accent-color: #2d5fe6;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+    .capture-context-toggle-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #4d3f2f;
+      line-height: 1.4;
+    }
+    .capture-context-toggle-copy {
+      font-size: 0.76rem;
+      color: #796d61;
+      line-height: 1.5;
+      margin-top: 2px;
     }
     .capture-text-panel {
       margin-top: 12px;
@@ -529,6 +561,24 @@
       color: #7d7467;
       line-height: 1.55;
     }
+    .context-pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .context-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      line-height: 1.2;
+      background: #f5efe3;
+      color: #7b6546;
+      border: 1px solid rgba(206, 188, 161, 0.66);
+    }
     .btn.is-disabled,
     .btn[aria-disabled="true"] {
       opacity: 0.58;
@@ -557,7 +607,7 @@
       <div class="dashboard-hero-copy">
         <div class="page-hero-kicker">Dashboard</div>
         <h1>Welcome back, <span id="first-name"></span> 👋</h1>
-        <p>Record, receive, and revisit reflections shaped by your teaching context and guiding voices.</p>
+        <p>Record, receive, and revisit reflections shaped by the context and voices you choose.</p>
       </div>
       <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Tune reflection portrait">
         <div class="welcome-mark-frame">
@@ -572,18 +622,25 @@
       <div class="editorial-main">
         <div class="editorial-header">
           <div>
-          <h2 id="lane-title">Teaching context</h2>
-          <p id="lane-desc" style="color:#555;">Your classroom context shapes how Memnon reads your notes and frames the reflection you receive.</p>
-          <p style="margin-top:8px;">
-            <span class="tag" id="lane-detail"></span>
-          </p>
+          <h2 id="lane-title">Reflection Context</h2>
+          <p id="lane-desc" style="color:#555;">These settings shape how Memnon will ground your next reflection.</p>
+          <div class="capture-context-toggle" style="margin-top:14px;">
+            <label for="capture-teaching-context">
+              <input id="capture-teaching-context" type="checkbox" checked />
+              <span>
+                <div class="capture-context-toggle-title">Use teaching context</div>
+                <div class="capture-context-toggle-copy">When on, Memnon includes your classroom, school, and standards context in the next reflection.</div>
+              </span>
+            </label>
+          </div>
+          <div id="lane-pills" class="context-pill-row"></div>
         </div>
         <a href="/setup" class="btn btn-outline" style="padding:7px 14px; font-size:0.8rem; white-space:nowrap;">
           Tune Reflection
         </a>
         </div>
         <p class="editorial-copy" id="lane-copy">
-          Practical guidance and grounded reflection, shaped by the teaching context you set up.
+          Memnon can ground the next reflection in your classroom context, selected frameworks, guiding voices, and memory across entries.
         </p>
       </div>
       <div class="editorial-media" aria-hidden="true">
@@ -747,10 +804,6 @@
     };
 
     const API = "https://api-4hth6oktaa-uc.a.run.app";
-    const LANE_LABELS = {
-      professional: { icon: "🏫", label: "Teaching Context" },
-      reflect:      { icon: "🌿", label: "Guiding Voices" },
-    };
     const REFLECTION_STYLE_LABELS = {
       practical: "Practical guidance",
       grounded: "Grounded reflection",
@@ -837,20 +890,12 @@
 
     function applyDashboardPreviewState(mockData = null) {
       const data = mockData || getMockDashboardData();
+      currentProfileData = data;
       const firstName = data.preferred_name || "there";
       document.getElementById("first-name").textContent = firstName;
       document.getElementById("nav-name").textContent = "Preview mode";
-      const lane = data.lane || "professional";
-      const info = LANE_LABELS[lane] || LANE_LABELS.professional;
-      const summary = lane === "reflect"
-        ? summarizeGuidingVoices(data)
-        : summarizeTeachingContext(data);
-
-      document.getElementById("lane-title").textContent = `${info.icon} ${info.label}`;
-      document.getElementById("lane-desc").textContent = summary.description;
-      document.getElementById("lane-detail").textContent = `${summary.detail || "Preview mode"} · Preview mode`;
-      document.getElementById("lane-detail").style.display = "inline-flex";
-      document.getElementById("lane-copy").textContent = summary.copy;
+      renderTeachingContextToggle(true, true);
+      renderReflectionContextCard(data, { previewMode: true });
       applyDashboardPortraitStyle(
         document.getElementById("welcome-mark-image"),
         normalizeDashboardImageConfig(data.dashboard_image)
@@ -1035,55 +1080,102 @@
     let currentReflectionStyle = "complete";
     let latestReflectionNote = null;
     let currentReflectionView = "listen";
+    let currentProfileData = null;
 
     function formatList(items) {
       return items.filter(Boolean).join(", ");
+    }
+
+    function toProperNounLabel(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      if (!/[_-]/.test(raw)) return raw;
+      const special = {
+        al: "Al",
+        ghazali: "Ghazali",
+        lao: "Lao",
+        tzu: "Tzu",
+        thừa: "Thừa",
+      };
+      return raw
+        .split(/[_-]+/)
+        .filter(Boolean)
+        .map((part) => {
+          const lower = part.toLowerCase();
+          if (special[lower]) return special[lower];
+          return lower.charAt(0).toUpperCase() + lower.slice(1);
+        })
+        .join(" ");
     }
 
     function reflectionStyleKey(data) {
       return data.reflection_style in REFLECTION_STYLE_LABELS ? data.reflection_style : "complete";
     }
 
-    function summarizeTeachingContext(data) {
+    function summarizeReflectionContext(data, options = {}) {
       const styleKey = reflectionStyleKey(data);
       const reflectionStyle = REFLECTION_STYLE_LABELS[styleKey];
+      const includeTeachingContext = options.includeTeachingContext !== false;
       const subjects = (data.subjects || "").trim();
       const grades = Array.isArray(data.grade_levels) ? data.grade_levels : [];
       const standards = Array.isArray(data.state_standards) ? data.state_standards : [];
+      const selectedGuides = Array.isArray(data.reflect_config?.selected_guides)
+        ? data.reflect_config.selected_guides.map(toProperNounLabel).filter(Boolean)
+        : [];
       const schoolName = (data.school_name || "").trim();
       const schoolState = (data.school_state || "").trim();
-
-      const detailParts = [];
-      if (subjects) detailParts.push(subjects);
-      if (grades.length) detailParts.push(`Grades ${formatList(grades)}`);
-      if (schoolState) detailParts.push(schoolState);
-      if (schoolName) detailParts.push(schoolName);
-
-      const descParts = [];
-      if (subjects && grades.length) {
-        descParts.push(`${subjects} across grades ${formatList(grades)}.`);
-      } else if (subjects) {
-        descParts.push(`${subjects}.`);
-      } else if (grades.length) {
-        descParts.push(`Grades ${formatList(grades)}.`);
-      } else {
-        descParts.push("Your classroom context shapes the return you receive.");
-      }
-      if (standards.length) {
-        descParts.push(`${standards.length} standards framework${standards.length === 1 ? "" : "s"} selected.`);
-      }
-
+      const teachingDetail = includeTeachingContext
+        ? [subjects || "", grades.length ? `Grades ${formatList(grades)}` : "", schoolState, schoolName]
+            .filter(Boolean)
+            .join(" · ")
+        : "Off for the next reflection";
+      const standardsLabel = includeTeachingContext
+        ? standards.length
+          ? standards.join(", ")
+          : "No frameworks selected"
+        : "Off";
+      const voicesLabel = selectedGuides.length
+        ? selectedGuides.join(", ")
+        : "No voices selected";
       return {
-        description: descParts.join(" "),
-        detail: [reflectionStyle, ...detailParts].filter(Boolean).join(" · "),
-        copy: standards.length
-          ? styleKey === "complete"
-            ? `Practical guidance and grounded reflection, shaped by your teaching context and ${standards.length} selected framework${standards.length === 1 ? "" : "s"}.`
-            : `${reflectionStyle}, shaped by your teaching context and ${standards.length} selected framework${standards.length === 1 ? "" : "s"}.`
-          : styleKey === "complete"
-            ? "Practical guidance and grounded reflection, shaped by the teaching context you set up."
-            : `${reflectionStyle}, shaped by the teaching context you set up.`,
+        description: includeTeachingContext
+          ? "These settings shape how Memnon will ground your next reflection."
+          : "The next reflection will keep your voices and reflection history, but leave out classroom, school, and standards context.",
+        copy: includeTeachingContext
+          ? teachingDetail || "Teaching context is on for the next reflection."
+          : "Use this when you want the next reflection to stay personal without routing it through your professional setup.",
+        pills: [
+          `Teaching context: ${includeTeachingContext ? "On" : "Off"}`,
+          `Voices: ${voicesLabel}`,
+          `Frameworks: ${standardsLabel}`,
+          `Mode: ${reflectionStyle}`,
+        ],
       };
+    }
+
+    function getIncludeTeachingContextEntry() {
+      return document.getElementById("capture-teaching-context")?.checked !== false;
+    }
+
+    function renderTeachingContextToggle(isEnabled = true, disabled = false) {
+      const input = document.getElementById("capture-teaching-context");
+      if (!input) return;
+      input.checked = !!isEnabled;
+      input.disabled = !!disabled;
+    }
+
+    function renderReflectionContextCard(data, options = {}) {
+      if (!data) return;
+      const summary = summarizeReflectionContext(data, {
+        includeTeachingContext: options.includeTeachingContext ?? getIncludeTeachingContextEntry(),
+      });
+      document.getElementById("lane-title").textContent = "🧭 Reflection Context";
+      document.getElementById("lane-desc").textContent = summary.description;
+      document.getElementById("lane-copy").textContent = summary.copy;
+      const pillsEl = document.getElementById("lane-pills");
+      if (pillsEl) {
+        pillsEl.innerHTML = summary.pills.map((item) => `<span class="context-pill">${item}</span>`).join("");
+      }
     }
 
     function updateReflectionArchiveLabels(styleKey) {
@@ -1180,6 +1272,7 @@
       const input = document.getElementById("capture-text-input");
       const saveBtn = document.getElementById("capture-text-save");
       const text = (input?.value || "").trim();
+      const includeTeachingContext = getIncludeTeachingContextEntry();
       if (text.split(/\s+/).filter(Boolean).length < 3) {
         renderCaptureTextPanel(true, {
           statusText: "Write a little more before capturing this reflection.",
@@ -1197,7 +1290,7 @@
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, include_teaching_context: includeTeachingContext }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -1565,12 +1658,14 @@
       const statusEl = document.getElementById("upload-status");
       statusEl.style.display = "block";
       statusEl.textContent = "⏳ Uploading and processing…";
+      const includeTeachingContext = getIncludeTeachingContextEntry();
 
       try {
         async function sendUpload(forceRefresh = false) {
           const token = await getToken(forceRefresh);
           const form = new FormData();
           form.append("file", blob, filename);
+          form.append("include_teaching_context", includeTeachingContext ? "true" : "false");
           return fetch(`${API}/upload`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${token}` },
@@ -1652,6 +1747,13 @@
 
     document.getElementById("capture-text-save")?.addEventListener("click", saveWrittenReflection);
     document.getElementById("reflection-continue-btn")?.addEventListener("click", continueReflectionThread);
+    document.getElementById("capture-teaching-context")?.addEventListener("change", () => {
+      if (currentProfileData) {
+        renderReflectionContextCard(currentProfileData, {
+          includeTeachingContext: getIncludeTeachingContextEntry(),
+        });
+      }
+    });
     document.getElementById("write-btn")?.addEventListener("click", () => {
       const panel = document.getElementById("capture-text-panel");
       renderCaptureTextPanel(!!panel?.hidden);
@@ -1676,25 +1778,10 @@
 
       if (res.ok) {
         const data = await res.json();
-        const lane = data.lane || "professional";
-        const info = LANE_LABELS[lane] || LANE_LABELS.professional;
-        const summary = lane === "reflect"
-          ? summarizeGuidingVoices(data)
-          : summarizeTeachingContext(data);
+        currentProfileData = data;
         updateReflectionArchiveLabels(data.reflection_style || "complete");
-
-        document.getElementById("lane-title").textContent = `${info.icon} ${info.label}`;
-        document.getElementById("lane-desc").textContent = summary.description;
-        document.getElementById("lane-copy").textContent = summary.copy;
-
-        const detail = summary.detail;
-        const detailEl = document.getElementById("lane-detail");
-        if (detail) {
-          detailEl.textContent = detail;
-          detailEl.style.display = "inline-flex";
-        } else {
-          detailEl.style.display = "none";
-        }
+        renderTeachingContextToggle(true, false);
+        renderReflectionContextCard(data);
 
         // inbox folder link removed — direct upload is now the primary ingest path
         if (data.notes_folder_id) {
