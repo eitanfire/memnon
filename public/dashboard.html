@@ -281,64 +281,26 @@
       color: #8a857d;
       line-height: 1.5;
     }
-    .reflection-followup {
+    .reflection-continuation {
       margin-top: 12px;
       padding-top: 12px;
       border-top: 1px solid #ece5d9;
     }
-    .reflection-followup[hidden] {
+    .reflection-continuation[hidden] {
       display: none !important;
     }
-    .reflection-followup-prompt {
+    .reflection-continuation-prompt {
       font-size: 0.9rem;
       font-weight: 600;
       color: #473626;
       line-height: 1.45;
       margin-bottom: 6px;
     }
-    .reflection-followup-copy {
+    .reflection-continuation-copy {
       font-size: 0.79rem;
       color: #746a5f;
       line-height: 1.5;
       margin-bottom: 10px;
-    }
-    .reflection-followup textarea {
-      width: 100%;
-      min-height: 84px;
-      resize: vertical;
-      border-radius: 12px;
-      border: 1px solid #dbcdb8;
-      background: rgba(255, 252, 246, 0.92);
-      color: #3d3126;
-      padding: 11px 12px;
-      font: inherit;
-      line-height: 1.5;
-      box-sizing: border-box;
-    }
-    .reflection-followup textarea:focus {
-      outline: none;
-      border-color: #b89258;
-      box-shadow: 0 0 0 3px rgba(184, 146, 88, 0.12);
-    }
-    .reflection-followup-actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
-    .reflection-followup-status {
-      font-size: 0.76rem;
-      color: #7b705f;
-      line-height: 1.45;
-      min-height: 1.2em;
-    }
-    .reflection-followup-status.is-success {
-      color: #2f6a45;
-    }
-    .reflection-followup-status.is-error {
-      color: #9b3d2c;
     }
     .record-mark {
       font-size: 1.2rem;
@@ -691,16 +653,12 @@
               <div id="reflection-read-panel" class="reflection-panel reflection-read-panel" hidden>
                 <div id="reflection-read-content" class="recording-player-empty">Loading the latest reflection text…</div>
               </div>
-              <div id="reflection-followup" class="reflection-followup" hidden>
-                <div id="reflection-followup-prompt" class="reflection-followup-prompt">What feels true to you here?</div>
-                <div class="reflection-followup-copy">Add a brief reply if you want the next reflection to remember where you agree, resist, or want to continue the conversation.</div>
-                <textarea id="reflection-followup-input" placeholder="I still disagree with the earlier framing that..."></textarea>
-                <div class="reflection-followup-actions">
-                  <button id="reflection-followup-save" class="btn btn-primary" style="padding:8px 14px; font-size:0.8rem;">
-                    Continue reflection
-                  </button>
-                  <div id="reflection-followup-status" class="reflection-followup-status" aria-live="polite"></div>
-                </div>
+              <div id="reflection-continuation" class="reflection-continuation" hidden>
+                <div class="reflection-continuation-prompt">Carry this forward in your next reflection.</div>
+                <div class="reflection-continuation-copy">You can agree, push back, or continue the thread in your next voice note or written entry.</div>
+                <button id="reflection-continue-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                  Continue the thread
+                </button>
               </div>
             </div>
           </div>
@@ -939,10 +897,7 @@
         action_items: ["Name the expectation earlier", "Keep your tone calm and direct"],
       });
       setReflectionView("listen");
-      renderReflectionFollowup({
-        id: "preview-note",
-        participant_response_count: 0,
-      });
+      renderReflectionContinuation({ id: "preview-note" });
     }
 
     const setupLinks = document.querySelectorAll('a[href="/setup"]');
@@ -1077,11 +1032,6 @@
     const portraitObjectUrls = new Map();
     const reflectionObjectUrls = new Map();
     const GOOGLE_TASKS_URL = "https://tasks.google.com/tasks/";
-    const FOLLOWUP_PROMPTS = [
-      "What feels true to you here?",
-      "What would you answer differently now?",
-      "What feels unfinished, resisted, or newly clear?",
-    ];
     let currentReflectionStyle = "complete";
     let latestReflectionNote = null;
     let currentReflectionView = "listen";
@@ -1149,11 +1099,6 @@
       }
     }
 
-    function chooseFollowupPrompt(note) {
-      const responseCount = Number(note?.participant_response_count || 0);
-      return FOLLOWUP_PROMPTS[responseCount % FOLLOWUP_PROMPTS.length];
-    }
-
     function setReflectionView(view) {
       currentReflectionView = view === "read" ? "read" : "listen";
       const audioPanel = document.getElementById("reflection-audio-panel");
@@ -1190,42 +1135,17 @@
       `;
     }
 
-    function renderReflectionFollowup(note, options = {}) {
+    function renderReflectionContinuation(note) {
       latestReflectionNote = note || null;
-      const panel = document.getElementById("reflection-followup");
-      const prompt = document.getElementById("reflection-followup-prompt");
-      const input = document.getElementById("reflection-followup-input");
-      const saveBtn = document.getElementById("reflection-followup-save");
-      const status = document.getElementById("reflection-followup-status");
-      if (!panel || !prompt || !input || !saveBtn || !status) return;
+      const panel = document.getElementById("reflection-continuation");
+      if (!panel) return;
 
       if (!note) {
         panel.hidden = true;
-        input.value = "";
-        status.textContent = "";
-        status.className = "reflection-followup-status";
         return;
       }
 
       panel.hidden = false;
-      prompt.textContent = chooseFollowupPrompt(note);
-      if (options.clearInput) {
-        input.value = "";
-      }
-
-      const disabled = PREVIEW_MODE || !auth.currentUser;
-      input.disabled = disabled;
-      saveBtn.disabled = disabled;
-      saveBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
-
-      if (disabled) {
-        status.textContent = "Sign in to save a reply into the reflection history.";
-        status.className = "reflection-followup-status";
-        return;
-      }
-
-      status.textContent = options.statusText || "";
-      status.className = `reflection-followup-status${options.statusClass ? ` ${options.statusClass}` : ""}`;
     }
 
     function renderCaptureTextPanel(isOpen, options = {}) {
@@ -1314,61 +1234,20 @@
       }
     }
 
-    async function saveReflectionFollowup() {
-      if (!latestReflectionNote || PREVIEW_MODE || !auth.currentUser) return;
-      const input = document.getElementById("reflection-followup-input");
-      const saveBtn = document.getElementById("reflection-followup-save");
-      const text = (input?.value || "").trim();
-      if (text.length < 6) {
-        renderReflectionFollowup(latestReflectionNote, {
-          statusText: "Write a little more before saving.",
-          statusClass: "is-error",
-        });
-        return;
-      }
-
-      try {
-        saveBtn.disabled = true;
-        saveBtn.setAttribute("aria-disabled", "true");
-        const token = await getToken();
-        const res = await fetch(`${API}/reflection-response`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            note_id: latestReflectionNote.id,
-            text,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data.error || "Could not save response");
+    function continueReflectionThread() {
+      const prefill = latestReflectionNote?.title
+        ? `In response to "${latestReflectionNote.title}"...`
+        : "In response to my last reflection...";
+      renderCaptureTextPanel(true);
+      const input = document.getElementById("capture-text-input");
+      if (input) {
+        if (!input.value.trim()) {
+          input.value = prefill;
         }
-        latestReflectionNote = {
-          ...latestReflectionNote,
-          participant_response_count: data.participant_response_count || ((latestReflectionNote.participant_response_count || 0) + 1),
-          participant_response_excerpt: data.participant_response_excerpt || text.slice(0, 240),
-        };
-        await loadRecentNotes(auth.currentUser.uid);
-        renderReflectionFollowup(latestReflectionNote, {
-          statusText: "Saved. Future reflections can take this reply into account.",
-          statusClass: "is-success",
-          clearInput: true,
-        });
-      } catch (e) {
-        console.error("Could not save reflection follow-up:", e);
-        renderReflectionFollowup(latestReflectionNote, {
-          statusText: "That reply could not be saved right now.",
-          statusClass: "is-error",
-        });
-      } finally {
-        if (!PREVIEW_MODE && auth.currentUser) {
-          saveBtn.disabled = false;
-          saveBtn.setAttribute("aria-disabled", "false");
-        }
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
       }
+      document.getElementById("record-btn")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
     function summarizeGuidingVoices(data) {
@@ -1517,7 +1396,7 @@
         }
         if (snap.empty) {
           renderLatestReflectionText(null);
-          renderReflectionFollowup(null);
+          renderReflectionContinuation(null);
           return;
         }
 
@@ -1572,7 +1451,7 @@
           list.appendChild(div);
         });
         renderLatestReflectionText(latestReflectionNote);
-        renderReflectionFollowup(latestReflectionNote);
+        renderReflectionContinuation(latestReflectionNote);
       } catch(e) {
         console.error("Could not load recent notes:", e);
       }
@@ -1771,8 +1650,8 @@
       });
     }
 
-    document.getElementById("reflection-followup-save")?.addEventListener("click", saveReflectionFollowup);
     document.getElementById("capture-text-save")?.addEventListener("click", saveWrittenReflection);
+    document.getElementById("reflection-continue-btn")?.addEventListener("click", continueReflectionThread);
     document.getElementById("write-btn")?.addEventListener("click", () => {
       const panel = document.getElementById("capture-text-panel");
       renderCaptureTextPanel(!!panel?.hidden);
