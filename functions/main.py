@@ -730,14 +730,21 @@ def _load_relevant_reflection_history(
 ) -> list[dict]:
     try:
         notes_ref = _get_db().collection("users").document(uid).collection("notes")
-        try:
-            docs = list(
-                notes_ref.order_by("created_at", direction=firestore.Query.DESCENDING).limit(8).stream()
-            )
-        except Exception:
-            docs = list(
-                notes_ref.order_by("date", direction=firestore.Query.DESCENDING).limit(8).stream()
-            )
+        docs = []
+        seen_ids: set[str] = set()
+
+        for field_name in ("created_at", "date"):
+            try:
+                field_docs = list(
+                    notes_ref.order_by(field_name, direction=firestore.Query.DESCENDING).limit(8).stream()
+                )
+            except Exception:
+                continue
+            for doc in field_docs:
+                if not doc.exists or doc.id in seen_ids:
+                    continue
+                seen_ids.add(doc.id)
+                docs.append(doc)
     except Exception as exc:
         print(f"[{uid}] Warning: could not load reflection history: {exc}")
         return []
