@@ -98,6 +98,69 @@
       color: #888;
       margin-bottom: 12px;
     }
+    .capture-mode-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .capture-mode-btn {
+      width: 100%;
+      justify-content: center;
+      font-size: 0.85rem;
+      padding: 8px 12px;
+    }
+    .capture-text-panel {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #ece5d9;
+    }
+    .capture-text-panel[hidden] {
+      display: none !important;
+    }
+    .capture-text-copy {
+      font-size: 0.79rem;
+      color: #746a5f;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .capture-text-panel textarea {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid #dbcdb8;
+      background: rgba(255, 252, 246, 0.92);
+      color: #3d3126;
+      padding: 11px 12px;
+      font: inherit;
+      line-height: 1.55;
+      box-sizing: border-box;
+    }
+    .capture-text-panel textarea:focus {
+      outline: none;
+      border-color: #b89258;
+      box-shadow: 0 0 0 3px rgba(184, 146, 88, 0.12);
+    }
+    .capture-text-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .capture-text-status {
+      font-size: 0.76rem;
+      color: #7b705f;
+      line-height: 1.45;
+      min-height: 1.2em;
+    }
+    .capture-text-status.is-success {
+      color: #2f6a45;
+    }
+    .capture-text-status.is-error {
+      color: #9b3d2c;
+    }
     .summary-note {
       color: #555;
       margin-bottom: 0;
@@ -118,6 +181,77 @@
     }
     .recording-player-wrap:first-of-type {
       margin-top: 14px;
+    }
+    .reflection-view-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px;
+      margin-bottom: 10px;
+      border-radius: 999px;
+      background: rgba(247, 240, 229, 0.88);
+      border: 1px solid rgba(217, 195, 155, 0.7);
+    }
+    .reflection-view-toggle button {
+      border: none;
+      background: transparent;
+      color: #756754;
+      border-radius: 999px;
+      padding: 6px 11px;
+      font: inherit;
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .reflection-view-toggle button.is-active {
+      background: #fffdfa;
+      color: #4a3a28;
+      box-shadow: 0 6px 14px rgba(90, 68, 36, 0.08);
+    }
+    .reflection-panel[hidden] {
+      display: none !important;
+    }
+    .reflection-read-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .reflection-read-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #4a3a28;
+      line-height: 1.4;
+    }
+    .reflection-read-summary {
+      font-size: 0.81rem;
+      color: #5c5248;
+      line-height: 1.6;
+    }
+    .reflection-read-insight {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(250, 244, 235, 0.92);
+      border: 1px solid #ece1d2;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: #624f3d;
+    }
+    .reflection-read-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .reflection-read-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.2;
+      background: #f5efe3;
+      color: #7b6546;
+      border: 1px solid rgba(206, 188, 161, 0.66);
     }
     .recording-player-label {
       font-size: 0.72rem;
@@ -289,6 +423,9 @@
         min-height: 200px;
       }
       .summary-grid {
+        grid-template-columns: 1fr;
+      }
+      .capture-mode-grid {
         grid-template-columns: 1fr;
       }
       .welcome-mark-frame {
@@ -499,7 +636,7 @@
         <div>
           <h2>Capture & Archive</h2>
           <p class="editorial-copy">
-            Record in the app, then return when the reflection is ready.
+            Speak or write in the app, then return when the reflection is ready.
           </p>
         </div>
       </div>
@@ -507,12 +644,28 @@
         <div class="summary-tile">
           <div>
             <div class="summary-tile-kicker">Capture</div>
-            <div class="summary-tile-title">Record here</div>
-            <div class="summary-tile-copy">Processed instantly</div>
-            <button id="record-btn" class="btn btn-primary" style="width:100%; justify-content:center; font-size:0.85rem; padding:8px 12px;">
-              <span class="record-mark" aria-hidden="true">🎙</span>
-              Record voice memo
-            </button>
+            <div class="summary-tile-title">Capture reflection</div>
+            <div class="summary-tile-copy">Choose the door that fits the moment.</div>
+            <div class="capture-mode-grid">
+              <button id="record-btn" class="btn btn-primary capture-mode-btn">
+                <span class="record-mark" aria-hidden="true">🎙</span>
+                Record
+              </button>
+              <button id="write-btn" class="btn btn-outline capture-mode-btn">
+                <span aria-hidden="true">⌨️</span>
+                Write
+              </button>
+            </div>
+            <div id="capture-text-panel" class="capture-text-panel" hidden>
+              <div class="capture-text-copy">Write freely. Memnon will treat this as a full reflection entry, not a secondary note.</div>
+              <textarea id="capture-text-input" placeholder="Write what happened, what is weighing on you, or what you want to understand more clearly."></textarea>
+              <div class="capture-text-actions">
+                <button id="capture-text-save" class="btn btn-primary" style="padding:8px 14px; font-size:0.8rem;">
+                  Capture in writing
+                </button>
+                <div id="capture-text-status" class="capture-text-status" aria-live="polite"></div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="summary-tile featured">
@@ -526,8 +679,17 @@
             </a>
             <div class="recording-player-wrap">
               <div class="recording-player-label" id="reflection-player-label">Latest complete reflection</div>
-              <div id="reflection-player-container" class="recording-player">
-                <div class="recording-player-empty">Loading your latest reflection…</div>
+              <div class="reflection-view-toggle" id="reflection-view-toggle">
+                <button id="reflection-view-listen" class="is-active" type="button">Listen</button>
+                <button id="reflection-view-read" type="button">Read</button>
+              </div>
+              <div id="reflection-audio-panel" class="reflection-panel">
+                <div id="reflection-player-container" class="recording-player">
+                  <div class="recording-player-empty">Loading your latest reflection…</div>
+                </div>
+              </div>
+              <div id="reflection-read-panel" class="reflection-panel reflection-read-panel" hidden>
+                <div id="reflection-read-content" class="recording-player-empty">Loading the latest reflection text…</div>
               </div>
               <div id="reflection-followup" class="reflection-followup" hidden>
                 <div id="reflection-followup-prompt" class="reflection-followup-prompt">What feels true to you here?</div>
@@ -545,7 +707,7 @@
         </div>
       </div>
       <p class="summary-note">
-        <span id="archive-summary-copy">Record here. Memnon turns the memo into a spoken reflection and saves it to your</span>
+        <span id="archive-summary-copy">Capture a reflection here. Memnon turns it into a spoken reflection and saves it to your</span>
         <strong>archive</strong> in Google Drive.
       </p>
       </div>
@@ -743,6 +905,7 @@
         recordBtn.disabled = true;
         recordBtn.textContent = "Preview mode — sign in to record";
       }
+      renderCaptureTextPanel(true);
 
       const notesLink = document.getElementById("notes-link");
       if (notesLink) {
@@ -769,6 +932,13 @@
           `;
         }
       }
+      renderLatestReflectionText({
+        title: "June 9, 2026 — Holding structure and presence together",
+        summary: "You were trying to hold clarity and warmth at the same time. The practical challenge was not just what to say, but how to stay present while doing it. The reflection sees both the instructional decision and the inner steadiness it asked of you.",
+        insight: "The stronger move may be structure without hardening.",
+        action_items: ["Name the expectation earlier", "Keep your tone calm and direct"],
+      });
+      setReflectionView("listen");
       renderReflectionFollowup({
         id: "preview-note",
         participant_response_count: 0,
@@ -914,6 +1084,7 @@
     ];
     let currentReflectionStyle = "complete";
     let latestReflectionNote = null;
+    let currentReflectionView = "listen";
 
     function formatList(items) {
       return items.filter(Boolean).join(", ");
@@ -983,6 +1154,42 @@
       return FOLLOWUP_PROMPTS[responseCount % FOLLOWUP_PROMPTS.length];
     }
 
+    function setReflectionView(view) {
+      currentReflectionView = view === "read" ? "read" : "listen";
+      const audioPanel = document.getElementById("reflection-audio-panel");
+      const readPanel = document.getElementById("reflection-read-panel");
+      const listenBtn = document.getElementById("reflection-view-listen");
+      const readBtn = document.getElementById("reflection-view-read");
+      if (audioPanel) {
+        audioPanel.hidden = currentReflectionView !== "listen";
+      }
+      if (readPanel) {
+        readPanel.hidden = currentReflectionView !== "read";
+      }
+      if (listenBtn) {
+        listenBtn.classList.toggle("is-active", currentReflectionView === "listen");
+      }
+      if (readBtn) {
+        readBtn.classList.toggle("is-active", currentReflectionView === "read");
+      }
+    }
+
+    function renderLatestReflectionText(note) {
+      const container = document.getElementById("reflection-read-content");
+      if (!container) return;
+      if (!note) {
+        container.innerHTML = `<div class="recording-player-empty">Your latest reflection text will appear here after processing.</div>`;
+        return;
+      }
+      const actions = Array.isArray(note.action_items) ? note.action_items.filter(Boolean) : [];
+      container.innerHTML = `
+        <div class="reflection-read-title">${note.title || "Latest reflection"}</div>
+        <div class="reflection-read-summary">${note.summary || ""}</div>
+        ${note.insight ? `<div class="reflection-read-insight">${note.insight}</div>` : ""}
+        ${actions.length ? `<div class="reflection-read-actions">${actions.map((item) => `<span class="reflection-read-pill">${item}</span>`).join("")}</div>` : ""}
+      `;
+    }
+
     function renderReflectionFollowup(note, options = {}) {
       latestReflectionNote = note || null;
       const panel = document.getElementById("reflection-followup");
@@ -1019,6 +1226,92 @@
 
       status.textContent = options.statusText || "";
       status.className = `reflection-followup-status${options.statusClass ? ` ${options.statusClass}` : ""}`;
+    }
+
+    function renderCaptureTextPanel(isOpen, options = {}) {
+      const panel = document.getElementById("capture-text-panel");
+      const input = document.getElementById("capture-text-input");
+      const saveBtn = document.getElementById("capture-text-save");
+      const status = document.getElementById("capture-text-status");
+      const writeBtn = document.getElementById("write-btn");
+      if (!panel || !input || !saveBtn || !status || !writeBtn) return;
+
+      panel.hidden = !isOpen;
+      writeBtn.classList.toggle("btn-primary", isOpen);
+      writeBtn.classList.toggle("btn-outline", !isOpen);
+      if (options.clearInput) {
+        input.value = "";
+      }
+      const disabled = PREVIEW_MODE || !auth.currentUser;
+      input.disabled = disabled;
+      saveBtn.disabled = disabled;
+      saveBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
+      if (disabled) {
+        status.textContent = "Sign in to capture a written reflection.";
+        status.className = "capture-text-status";
+        return;
+      }
+      status.textContent = options.statusText || "";
+      status.className = `capture-text-status${options.statusClass ? ` ${options.statusClass}` : ""}`;
+    }
+
+    async function saveWrittenReflection() {
+      if (PREVIEW_MODE || !auth.currentUser) return;
+      const input = document.getElementById("capture-text-input");
+      const saveBtn = document.getElementById("capture-text-save");
+      const text = (input?.value || "").trim();
+      if (text.split(/\s+/).filter(Boolean).length < 3) {
+        renderCaptureTextPanel(true, {
+          statusText: "Write a little more before capturing this reflection.",
+          statusClass: "is-error",
+        });
+        return;
+      }
+      try {
+        saveBtn.disabled = true;
+        saveBtn.setAttribute("aria-disabled", "true");
+        const token = await getToken();
+        const res = await fetch(`${API}/text-reflection`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Could not capture text reflection");
+        }
+        renderCaptureTextPanel(true, {
+          statusText: `Saved. ${data.note || "Your written reflection is processing."}`,
+          statusClass: "is-success",
+          clearInput: true,
+        });
+        const refreshedToken = await getToken(true);
+        await loadLatestAudio(refreshedToken, {
+          listPath: "/reflections",
+          streamPath: "/reflection",
+          containerId: "reflection-player-container",
+          emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[currentReflectionStyle] || "Complete").toLowerCase()} reflection will appear here after processing.`,
+          errorMessage: "The latest reflection could not be loaded.",
+          fallbackName: "Latest reflection",
+          cache: reflectionObjectUrls,
+        });
+        await loadRecentNotes(auth.currentUser.uid);
+        setReflectionView("read");
+      } catch (e) {
+        console.error("Could not save written reflection:", e);
+        renderCaptureTextPanel(true, {
+          statusText: "That written reflection could not be captured right now.",
+          statusClass: "is-error",
+        });
+      } finally {
+        if (!PREVIEW_MODE && auth.currentUser) {
+          saveBtn.disabled = false;
+          saveBtn.setAttribute("aria-disabled", "false");
+        }
+      }
     }
 
     async function saveReflectionFollowup() {
@@ -1223,6 +1516,7 @@
           snap = await getDocs(query(notesRef, orderBy("date", "desc"), limit(5)));
         }
         if (snap.empty) {
+          renderLatestReflectionText(null);
           renderReflectionFollowup(null);
           return;
         }
@@ -1277,6 +1571,7 @@
           `;
           list.appendChild(div);
         });
+        renderLatestReflectionText(latestReflectionNote);
         renderReflectionFollowup(latestReflectionNote);
       } catch(e) {
         console.error("Could not load recent notes:", e);
@@ -1477,6 +1772,13 @@
     }
 
     document.getElementById("reflection-followup-save")?.addEventListener("click", saveReflectionFollowup);
+    document.getElementById("capture-text-save")?.addEventListener("click", saveWrittenReflection);
+    document.getElementById("write-btn")?.addEventListener("click", () => {
+      const panel = document.getElementById("capture-text-panel");
+      renderCaptureTextPanel(!!panel?.hidden);
+    });
+    document.getElementById("reflection-view-listen")?.addEventListener("click", () => setReflectionView("listen"));
+    document.getElementById("reflection-view-read")?.addEventListener("click", () => setReflectionView("read"));
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
@@ -1556,7 +1858,7 @@
           mediaRecorder.onstop = async () => {
             const blob = new Blob(chunks, { type: "audio/webm" });
             const filename = `active-schema-${Date.now()}.webm`;
-            recordBtn.innerHTML = '<span class="record-mark" aria-hidden="true">🎙</span> Record voice memo';
+            recordBtn.innerHTML = '<span class="record-mark" aria-hidden="true">🎙</span> Record';
             recordBtn.classList.remove("btn-danger");
             recordBtn.classList.add("btn-primary");
             stream.getTracks().forEach(t => t.stop());
@@ -1572,6 +1874,7 @@
               cache: reflectionObjectUrls,
             });
             await loadRecentNotes(user.uid);
+            setReflectionView("listen");
           };
           mediaRecorder.start();
           recordBtn.textContent = "⏹ Stop recording";
@@ -1582,6 +1885,8 @@
 
       const recordBtn = document.getElementById("record-btn");
       if (recordBtn) recordBtn.addEventListener("click", handleRecord);
+      renderCaptureTextPanel(false);
+      setReflectionView("listen");
     });
 
     document.getElementById("signout-btn").addEventListener("click", async () => {

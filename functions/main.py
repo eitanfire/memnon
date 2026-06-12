@@ -387,6 +387,25 @@ def _find_or_create_reflections_folder(service) -> str:
     return _find_or_create_folder(service, "memnon-reflections")
 
 
+def _ensure_user_output_folders(service, uid: str, user_data: dict) -> tuple[str, str, str]:
+    notes_id = user_data.get("notes_folder_id")
+    if not notes_id:
+        notes_id = _find_or_create_folder(service, "memnon-notes")
+        _get_db().collection("users").document(uid).update({"notes_folder_id": notes_id})
+
+    recordings_id = user_data.get("recordings_folder_id")
+    if not recordings_id:
+        recordings_id = _find_or_create_recordings_folder(service)
+        _get_db().collection("users").document(uid).update({"recordings_folder_id": recordings_id})
+
+    reflections_id = user_data.get("reflections_folder_id")
+    if not reflections_id:
+        reflections_id = _find_or_create_reflections_folder(service)
+        _get_db().collection("users").document(uid).update({"reflections_folder_id": reflections_id})
+
+    return notes_id, recordings_id, reflections_id
+
+
 def _is_audio(f: dict) -> bool:
     return (f.get("mimeType") in AUDIO_MIME_TYPES or
             any(f.get("name", "").lower().endswith(ext) for ext in AUDIO_EXTENSIONS))
@@ -1048,6 +1067,132 @@ def _generate_reflection_result(
     )
     integrated_result = _summarize(integration_prompt, api_key)
     return style, integrated_result, sources_used
+
+
+def _process_reflection_entry(
+    service,
+    uid: str,
+    user_data: dict,
+    transcript: str,
+    api_key: str,
+    source_filename: str,
+    source_audio_bytes: bytes | None = None,
+    source_mime_type: str | None = None,
+) -> dict:
+    task_context_items = _derive_task_context(
+        transcript,
+        _fetch_open_tasks_for_user(uid, user_data),
+    )
+    user_data["tasks_context_items"] = task_context_items
+    user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
+    history_context_items, history_context_summary = _history_context_summary(
+        uid,
+        transcript,
+        hf_api_key=HUGGING_FACE_API_KEY,
+    )
+    user_data["history_context_items"] = history_context_items
+    user_data["history_context_summary"] = history_context_summary
+
+    lane = user_data.get("lane", "professional")
+    try:
+        style_key, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
+    except Exception as exc:
+        print(f"[{uid}] AI error on entry processing: {exc}")
+        style_key = _normalize_reflection_style(user_data.get("reflection_style"))
+        ai_result = {
+            "title": Path(source_filename).stem,
+            "summary": transcript[:300],
+            "action_items": [],
+            "suggested_tags": [],
+            "influenced_by": [],
+        }
+        sources_used = []
+
+    notes_id, recordings_id, reflections_id = _ensure_user_output_folders(service, uid, user_data)
+    note_name = (
+        datetime.now().strftime("%Y-%m-%d") + " — " +
+        ai_result.get("title", Path(source_filename).stem)[:60] + ".md"
+    )
+    note_md = _render_note(lane, ai_result, transcript, source_filename, sources_used)
+    history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
+    embedding_result = embed_text_details(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else {"vector": []}
+    history_embedding = embedding_result.get("vector") or []
+    if HUGGING_FACE_API_KEY and not history_embedding:
+        print(f"[{uid}] Warning: history embedding missing for {note_name}")
+    if sources_used:
+        _record_source_usage(uid, sources_used)
+    _store_note_metadata(
+        uid,
+        ai_result,
+        sources_used,
+        note_name,
+        transcript,
+        style_key,
+        embedding_v1=history_embedding,
+        embedding_meta=embedding_result,
+        history_source_text=history_source_text,
+    )
+
+    media = MediaInMemoryUpload(note_md.encode(), mimetype="text/plain", resumable=False)
+    service.files().create(
+        body={"name": note_name, "parents": [notes_id]},
+        media_body=media,
+        fields="id",
+    ).execute()
+
+    recording_name = None
+    if source_audio_bytes:
+        audio_ext = Path(source_filename).suffix or ".webm"
+        recording_name = f"{datetime.now().strftime('%Y-%m-%d %H-%M-%S')} — recording{audio_ext}"
+        audio_media = MediaInMemoryUpload(
+            source_audio_bytes,
+            mimetype=source_mime_type or "audio/webm",
+            resumable=False,
+        )
+        service.files().create(
+            body={"name": recording_name, "parents": [recordings_id]},
+            media_body=audio_media,
+            fields="id,name",
+        ).execute()
+
+    reflection_name = None
+    try:
+        narration_voice = _normalize_narration_voice(user_data.get("narration_voice"))
+        reflection_script = _build_grounded_reflection_script(
+            transcript,
+            ai_result,
+            sources_used,
+            user_data,
+            api_key,
+        )
+        if reflection_script:
+            reflection_bytes = _generate_grounded_reflection_audio(
+                reflection_script,
+                ai_result.get("title", Path(source_filename).stem),
+                narration_voice,
+            )
+            reflection_title = ai_result.get("title", Path(source_filename).stem)[:60].strip() or "Grounded Reflection"
+            reflection_name = f"{datetime.now().strftime('%Y-%m-%d')} — {reflection_title}.mp3"
+            reflection_media = MediaInMemoryUpload(
+                reflection_bytes,
+                mimetype="audio/mpeg",
+                resumable=False,
+            )
+            service.files().create(
+                body={"name": reflection_name, "parents": [reflections_id]},
+                media_body=reflection_media,
+                fields="id,name",
+            ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Grounded reflection audio failed: {exc}")
+
+    return {
+        "note_name": note_name,
+        "recording_name": recording_name,
+        "reflection_audio": reflection_name,
+        "style_key": style_key,
+        "ai_result": ai_result,
+    }
 
 
 def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, notes_id: str):
@@ -1775,21 +1920,6 @@ def upload_audio():
 
     service = build("drive", "v3", credentials=creds, cache_discovery=False)
 
-    # Ensure notes folder exists
-    notes_id = user_data.get("notes_folder_id")
-    if not notes_id:
-        notes_id = _find_or_create_folder(service, "memnon-notes")
-        _get_db().collection("users").document(uid).update({"notes_folder_id": notes_id})
-
-    recordings_id = user_data.get("recordings_folder_id")
-    if not recordings_id:
-        recordings_id = _find_or_create_recordings_folder(service)
-        _get_db().collection("users").document(uid).update({"recordings_folder_id": recordings_id})
-    reflections_id = user_data.get("reflections_folder_id")
-    if not reflections_id:
-        reflections_id = _find_or_create_reflections_folder(service)
-        _get_db().collection("users").document(uid).update({"reflections_folder_id": reflections_id})
-
     # Run pipeline
     try:
         transcript = _transcribe(audio_bytes, filename, api_key)
@@ -1804,100 +1934,19 @@ def upload_audio():
     if len(transcript.split()) < 3:
         return jsonify({"error": "transcript too short"}), 400
 
-    task_context_items = _derive_task_context(
-        transcript,
-        _fetch_open_tasks_for_user(uid, user_data),
-    )
-    user_data["tasks_context_items"] = task_context_items
-    user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
-    history_context_items, history_context_summary = _history_context_summary(
+    result = _process_reflection_entry(
+        service,
         uid,
+        user_data,
         transcript,
-        hf_api_key=HUGGING_FACE_API_KEY,
-    )
-    user_data["history_context_items"] = history_context_items
-    user_data["history_context_summary"] = history_context_summary
-
-    lane = user_data.get("lane", "professional")
-    try:
-        style_key, ai_result, sources_used = _generate_reflection_result(transcript, user_data, api_key)
-    except Exception as exc:
-        print(f"[{uid}] AI error on upload: {exc}")
-        style_key = _normalize_reflection_style(user_data.get("reflection_style"))
-        ai_result = {"title": Path(filename).stem, "summary": transcript[:300],
-                     "action_items": [], "suggested_tags": [], "influenced_by": []}
-        sources_used = []
-
-    note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
-                 ai_result.get("title", Path(filename).stem)[:60] + ".md")
-    note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
-    history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
-    embedding_result = embed_text_details(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else {"vector": []}
-    history_embedding = embedding_result.get("vector") or []
-    if HUGGING_FACE_API_KEY and not history_embedding:
-        print(f"[{uid}] Warning: history embedding missing for {note_name}")
-    if sources_used:
-        _record_source_usage(uid, sources_used)
-    _store_note_metadata(
-        uid,
-        ai_result,
-        sources_used,
-        note_name,
-        transcript,
-        style_key,
-        embedding_v1=history_embedding,
-        embedding_meta=embedding_result,
-        history_source_text=history_source_text,
+        api_key,
+        filename,
+        source_audio_bytes=audio_bytes,
+        source_mime_type=upload_mime_type,
     )
 
-    media = MediaInMemoryUpload(note_md.encode(), mimetype="text/plain", resumable=False)
-    service.files().create(
-        body={"name": note_name, "parents": [notes_id]},
-        media_body=media, fields="id",
-    ).execute()
-
-    audio_ext = Path(filename).suffix or ".webm"
-    recording_name = f"{datetime.now().strftime('%Y-%m-%d %H-%M-%S')} — recording{audio_ext}"
-    audio_media = MediaInMemoryUpload(audio_bytes, mimetype=upload_mime_type, resumable=False)
-    service.files().create(
-        body={"name": recording_name, "parents": [recordings_id]},
-        media_body=audio_media,
-        fields="id,name",
-    ).execute()
-
-    reflection_name = None
-    try:
-        narration_voice = _normalize_narration_voice(user_data.get("narration_voice"))
-        reflection_script = _build_grounded_reflection_script(
-            transcript,
-            ai_result,
-            sources_used,
-            user_data,
-            api_key,
-        )
-        if reflection_script:
-            reflection_bytes = _generate_grounded_reflection_audio(
-                reflection_script,
-                ai_result.get("title", Path(filename).stem),
-                narration_voice,
-            )
-            reflection_title = ai_result.get("title", Path(filename).stem)[:60].strip() or "Grounded Reflection"
-            reflection_name = f"{datetime.now().strftime('%Y-%m-%d')} — {reflection_title}.mp3"
-            reflection_media = MediaInMemoryUpload(
-                reflection_bytes,
-                mimetype="audio/mpeg",
-                resumable=False,
-            )
-            service.files().create(
-                body={"name": reflection_name, "parents": [reflections_id]},
-                media_body=reflection_media,
-                fields="id,name",
-            ).execute()
-    except Exception as exc:
-        print(f"[{uid}] Grounded reflection audio failed: {exc}")
-
-    print(f"[{uid}] Direct upload note saved: {note_name}")
-    return jsonify({"ok": True, "note": note_name, "reflection_audio": reflection_name})
+    print(f"[{uid}] Direct upload note saved: {result['note_name']}")
+    return jsonify({"ok": True, "note": result["note_name"], "reflection_audio": result["reflection_audio"]})
 
 
 @flask_app.route("/reflection-response", methods=["POST"])
@@ -1959,6 +2008,47 @@ def save_reflection_response():
         "participant_response_count": update_payload["participant_response_count"],
         "participant_response_excerpt": update_payload["participant_response_excerpt"],
     })
+
+
+@flask_app.route("/text-reflection", methods=["POST"])
+def create_text_reflection():
+    """Accept a written reflection entry and run it through the same reflection pipeline."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    raw_text = (data.get("text") or "").strip()
+    transcript = re.sub(r"\n{3,}", "\n\n", raw_text)
+    if len(transcript.split()) < 3:
+        return jsonify({"error": "text too short"}), 400
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "server misconfigured"}), 500
+
+    doc = _get_db().collection("users").document(uid).get()
+    if not doc.exists:
+        return jsonify({"error": "user not found"}), 404
+    user_data = dict(doc.to_dict() or {})
+
+    creds = _drive_creds(uid)
+    if not creds:
+        return jsonify({"error": "Drive not connected"}), 403
+
+    service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    filename = f"text-entry-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
+    result = _process_reflection_entry(
+        service,
+        uid,
+        user_data,
+        transcript,
+        api_key,
+        filename,
+    )
+
+    print(f"[{uid}] Text entry note saved: {result['note_name']}")
+    return jsonify({"ok": True, "note": result["note_name"], "reflection_audio": result["reflection_audio"]})
 
 
 @flask_app.route("/me")
