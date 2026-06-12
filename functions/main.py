@@ -46,7 +46,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from audio_generation import synthesize_reflection_bytes, synthesize_reflection_mp3
-from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, rerank_candidates
+from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
@@ -744,6 +744,61 @@ def _append_participant_response_to_history(existing_history: str, response_text
     if not cleaned_existing:
         return addition
     return f"{cleaned_existing}\n{addition}"
+
+
+def _note_has_embedding(note: dict) -> bool:
+    embedding = note.get("embedding_v1") or []
+    return isinstance(embedding, list) and bool(embedding)
+
+
+def _summarize_note_embedding_coverage(uid: str, sample_limit: int = 5) -> dict:
+    notes_ref = _get_db().collection("users").document(uid).collection("notes")
+    try:
+        docs = list(notes_ref.stream())
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "total_notes": 0,
+            "embedded_notes": 0,
+            "missing_embeddings": 0,
+            "coverage_ratio": 0.0,
+            "sample_missing": [],
+        }
+
+    total_notes = 0
+    embedded_notes = 0
+    missing_metadata_notes = 0
+    sample_missing: list[dict] = []
+
+    for doc in docs:
+        if not doc.exists:
+            continue
+        total_notes += 1
+        note = doc.to_dict() or {}
+        has_embedding = _note_has_embedding(note)
+        if has_embedding:
+            embedded_notes += 1
+        if has_embedding and not note.get("embedding_model"):
+            missing_metadata_notes += 1
+        if (not has_embedding or not note.get("embedding_model")) and len(sample_missing) < sample_limit:
+            sample_missing.append({
+                "id": doc.id,
+                "title": note.get("title", "Untitled"),
+                "date": note.get("date", ""),
+                "has_embedding": has_embedding,
+                "has_embedding_model": bool(note.get("embedding_model")),
+            })
+
+    missing_embeddings = max(total_notes - embedded_notes, 0)
+    coverage_ratio = round((embedded_notes / total_notes), 4) if total_notes else 0.0
+    return {
+        "total_notes": total_notes,
+        "embedded_notes": embedded_notes,
+        "missing_embeddings": missing_embeddings,
+        "missing_metadata_notes": missing_metadata_notes,
+        "coverage_ratio": coverage_ratio,
+        "sample_missing": sample_missing,
+    }
 
 
 def _load_relevant_reflection_history(
@@ -1918,6 +1973,29 @@ def get_me():
     data = doc.to_dict()
     data.pop("google_drive_token", None)   # never send tokens to frontend
     return jsonify(data)
+
+
+@flask_app.route("/hf-status")
+def get_hf_status():
+    """Return Hugging Face runtime health plus embedding coverage for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    doc = _get_db().collection("users").document(uid).get()
+    if not doc.exists:
+        return jsonify({"error": "user not found"}), 404
+
+    user_data = doc.to_dict() or {}
+    return jsonify({
+        "hugging_face_configured": bool(HUGGING_FACE_API_KEY),
+        "runtime": embedding_runtime_status(),
+        "user": {
+            "uid": uid,
+            "email": user_data.get("email", ""),
+        },
+        "coverage": _summarize_note_embedding_coverage(uid),
+    })
 
 
 # ── Cloud Functions ────────────────────────────────────────────────────────────

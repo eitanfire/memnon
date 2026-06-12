@@ -103,35 +103,54 @@ def has_embedding(fields: dict) -> bool:
     return bool(values)
 
 
+def parse_embedding(fields: dict) -> list[float]:
+    values = fields.get("embedding_v1", {}).get("arrayValue", {}).get("values", [])
+    parsed = []
+    for item in values:
+        if "doubleValue" in item:
+            parsed.append(float(item["doubleValue"]))
+        elif "integerValue" in item:
+            parsed.append(float(item["integerValue"]))
+    return parsed
+
+
 def make_patch_fields(fields: dict, hf_key: str, force: bool) -> dict:
     patch_fields: dict[str, dict] = {}
     if not hf_key:
         return patch_fields
 
-    needs_embedding = force or not has_embedding(fields)
-    if not needs_embedding:
+    existing_embedding = parse_embedding(fields)
+    needs_embedding = force or not existing_embedding
+    needs_metadata = bool(existing_embedding) and not get_string(fields, "embedding_model")
+    if not needs_embedding and not needs_metadata:
         return patch_fields
 
     history_source_text = get_string(fields, "history_source_text") or build_history_source_text(fields)
-    if not history_source_text:
+    if not history_source_text and needs_embedding:
         return patch_fields
 
-    result = embed_text_details(history_source_text, hf_key)
-    vector = result.get("vector") or []
-    if not vector:
-        return patch_fields
+    vector = existing_embedding
+    result = {"model": EMBEDDING_MODEL, "provider": EMBEDDING_PROVIDER, "dimensions": len(existing_embedding)}
+    if needs_embedding:
+        result = embed_text_details(history_source_text, hf_key)
+        vector = result.get("vector") or []
+        if not vector:
+            return patch_fields
 
-    patch_fields["history_source_text"] = {"stringValue": history_source_text}
-    patch_fields["embedding_v1"] = {
-        "arrayValue": {
-            "values": [{"doubleValue": value} for value in vector]
+    if history_source_text:
+        patch_fields["history_source_text"] = {"stringValue": history_source_text}
+    if needs_embedding:
+        patch_fields["embedding_v1"] = {
+            "arrayValue": {
+                "values": [{"doubleValue": value} for value in vector]
+            }
         }
-    }
-    patch_fields["embedding_model"] = {"stringValue": str(result.get("model") or EMBEDDING_MODEL)}
-    patch_fields["embedding_provider"] = {"stringValue": str(result.get("provider") or EMBEDDING_PROVIDER)}
-    patch_fields["embedding_dim"] = {"integerValue": str(int(result.get("dimensions") or len(vector)))}
-    patch_fields["embedding_version"] = {"stringValue": "v1"}
-    patch_fields["embedding_created_at"] = {"timestampValue": datetime.now(timezone.utc).isoformat()}
+    if needs_embedding or needs_metadata:
+        patch_fields["embedding_model"] = {"stringValue": str(result.get("model") or EMBEDDING_MODEL)}
+        patch_fields["embedding_provider"] = {"stringValue": str(result.get("provider") or EMBEDDING_PROVIDER)}
+        patch_fields["embedding_dim"] = {"integerValue": str(int(result.get("dimensions") or len(vector)))}
+        patch_fields["embedding_version"] = {"stringValue": "v1"}
+        patch_fields["embedding_created_at"] = {"timestampValue": datetime.now(timezone.utc).isoformat()}
     return patch_fields
 
 
