@@ -46,6 +46,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from audio_generation import synthesize_reflection_bytes, synthesize_reflection_mp3
+from hf_inference import embed_text, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
@@ -113,6 +114,7 @@ NARRATION_VOICES = {
     "en-GB-RyanNeural": {"label": "Ryan", "descriptor": "measured"},
 }
 GOOGLE_TASKS_WEB_URL = "https://tasks.google.com/tasks/"
+HUGGING_FACE_API_KEY = os.environ.get("HUGGING_FACE_API_KEY", "")
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -570,6 +572,19 @@ def _render_influenced_by_yaml(sources_used: list) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _build_history_source_text(ai: dict, transcript: str, sources_used: list[dict]) -> str:
+    parts = [
+        (ai.get("title") or "").strip(),
+        (ai.get("summary") or "").strip(),
+        (ai.get("insight") or "").strip(),
+        transcript[:500].strip(),
+    ]
+    voices = [item.get("author", "").strip() for item in (sources_used or []) if item.get("author")]
+    if voices:
+        parts.append("Voices: " + ", ".join(voices[:5]))
+    return "\n".join(part for part in parts if part)
+
+
 def _render_note(lane: str, ai: dict, transcript: str, filename: str,
                  sources_used: list | None = None) -> str:
     extra = []
@@ -612,6 +627,8 @@ def _store_note_metadata(
     note_name: str,
     transcript: str,
     reflection_style: str,
+    embedding_v1: list[float] | None = None,
+    history_source_text: str = "",
 ) -> None:
     """Store recent note metadata in Firestore for dashboard display (keep last 10)."""
     try:
@@ -629,7 +646,10 @@ def _store_note_metadata(
             "themes": sorted(list(extract_themes(transcript)))[:8],
             "voice_labels": [item.get("author", "") for item in (sources_used or []) if item.get("author")][:5],
             "transcript_excerpt": transcript[:240],
+            "history_source_text": history_source_text or _build_history_source_text(ai, transcript, sources_used),
         }
+        if embedding_v1:
+            note_meta["embedding_v1"] = embedding_v1
         # Use a subcollection for notes — one doc per note
         _get_db().collection("users").document(uid)\
                  .collection("notes").add(note_meta)
@@ -702,7 +722,12 @@ def _build_history_note_line(note: dict) -> str:
     return "\n".join(lines)
 
 
-def _load_relevant_reflection_history(uid: str, transcript: str, max_items: int = 3) -> list[dict]:
+def _load_relevant_reflection_history(
+    uid: str,
+    transcript: str,
+    max_items: int = 3,
+    hf_api_key: str = "",
+) -> list[dict]:
     try:
         notes_ref = _get_db().collection("users").document(uid).collection("notes")
         try:
@@ -724,29 +749,34 @@ def _load_relevant_reflection_history(uid: str, transcript: str, max_items: int 
     current_terms = _tokenize_history_text(transcript)
     current_themes = extract_themes(transcript)
     callback = _has_callback_cue(transcript)
-    ranked: list[tuple[int, int, dict]] = []
+    query_embedding = embed_text(transcript, hf_api_key) if hf_api_key else []
+    candidates: list[dict] = []
 
     for idx, note in enumerate(entries):
         note_terms = _note_history_terms(note)
         note_themes = set(note.get("themes") or [])
-        score = max(0, 8 - idx)
-        score += len(current_terms & note_terms)
-        score += 4 * len(current_themes & note_themes)
+        base_score = float(max(0, 8 - idx))
+        base_score += float(len(current_terms & note_terms))
+        base_score += float(4 * len(current_themes & note_themes))
         if callback and note_terms:
-            score += 3
+            base_score += 3.0
         if note.get("voice_labels"):
-            score += 1
-        ranked.append((score, idx, note))
+            base_score += 1.0
+        candidates.append({
+            **note,
+            "base_score": base_score,
+            "embedding_v1": note.get("embedding_v1") or [],
+        })
 
-    ranked.sort(key=lambda item: (item[0], -item[1]), reverse=True)
-    chosen = [note for score, _, note in ranked if score > 0][:max_items]
+    ranked = rerank_candidates(query_embedding, candidates)
+    chosen = [note for note in ranked if float(note.get("base_score", 0)) > 0][:max_items]
     if not chosen:
         chosen = entries[: min(2, len(entries))]
     return chosen
 
 
-def _history_context_summary(uid: str, transcript: str) -> tuple[list[dict], str]:
-    notes = _load_relevant_reflection_history(uid, transcript)
+def _history_context_summary(uid: str, transcript: str, hf_api_key: str = "") -> tuple[list[dict], str]:
+    notes = _load_relevant_reflection_history(uid, transcript, hf_api_key=hf_api_key)
     if not notes:
         return [], ""
     lines = [
@@ -967,7 +997,11 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
     )
     user_data["tasks_context_items"] = task_context_items
     user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
-    history_context_items, history_context_summary = _history_context_summary(uid, transcript)
+    history_context_items, history_context_summary = _history_context_summary(
+        uid,
+        transcript,
+        hf_api_key=HUGGING_FACE_API_KEY,
+    )
     user_data["history_context_items"] = history_context_items
     user_data["history_context_summary"] = history_context_summary
 
@@ -984,6 +1018,8 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
     note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
     note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
                  ai_result.get("title", Path(filename).stem)[:60] + ".md")
+    history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
+    history_embedding = embed_text(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else []
 
     media = MediaInMemoryUpload(note_md.encode(), mimetype="text/plain", resumable=False)
     service.files().create(
@@ -997,7 +1033,16 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
         _record_source_usage(uid, sources_used)
 
     # Store recent note metadata in Firestore for dashboard display
-    _store_note_metadata(uid, ai_result, sources_used, note_name, transcript, style_key)
+    _store_note_metadata(
+        uid,
+        ai_result,
+        sources_used,
+        note_name,
+        transcript,
+        style_key,
+        embedding_v1=history_embedding,
+        history_source_text=history_source_text,
+    )
 
     processed_id = _find_or_create_folder(service, "processed", inbox_id)
     service.files().update(
@@ -1675,7 +1720,11 @@ def upload_audio():
     )
     user_data["tasks_context_items"] = task_context_items
     user_data["tasks_context_summary"] = "\n".join(f"- {item}" for item in task_context_items)
-    history_context_items, history_context_summary = _history_context_summary(uid, transcript)
+    history_context_items, history_context_summary = _history_context_summary(
+        uid,
+        transcript,
+        hf_api_key=HUGGING_FACE_API_KEY,
+    )
     user_data["history_context_items"] = history_context_items
     user_data["history_context_summary"] = history_context_summary
 
@@ -1692,9 +1741,20 @@ def upload_audio():
     note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
                  ai_result.get("title", Path(filename).stem)[:60] + ".md")
     note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
+    history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
+    history_embedding = embed_text(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else []
     if sources_used:
         _record_source_usage(uid, sources_used)
-    _store_note_metadata(uid, ai_result, sources_used, note_name, transcript, style_key)
+    _store_note_metadata(
+        uid,
+        ai_result,
+        sources_used,
+        note_name,
+        transcript,
+        style_key,
+        embedding_v1=history_embedding,
+        history_source_text=history_source_text,
+    )
 
     media = MediaInMemoryUpload(note_md.encode(), mimetype="text/plain", resumable=False)
     service.files().create(
@@ -1766,7 +1826,7 @@ def get_me():
     region="us-central1",
     memory=options.MemoryOption.MB_512,
     timeout_sec=60,
-    secrets=["OPENAI_API_KEY", "GOOGLE_CLIENT_SECRETS", "FLASK_SECRET"],
+    secrets=["OPENAI_API_KEY", "GOOGLE_CLIENT_SECRETS", "FLASK_SECRET", "HUGGING_FACE_API_KEY"],
 )
 def api(req: https_fn.Request) -> https_fn.Response:
     with flask_app.request_context(req.environ):
@@ -1778,7 +1838,7 @@ def api(req: https_fn.Request) -> https_fn.Response:
     region="us-central1",
     memory=options.MemoryOption.MB_512,
     timeout_sec=540,
-    secrets=["OPENAI_API_KEY", "GOOGLE_CLIENT_SECRETS"],
+    secrets=["OPENAI_API_KEY", "GOOGLE_CLIENT_SECRETS", "HUGGING_FACE_API_KEY"],
 )
 def worker(event: scheduler_fn.ScheduledEvent) -> None:
     users = _get_db().collection("users").where("active", "==", True).stream()
