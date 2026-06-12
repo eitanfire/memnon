@@ -689,7 +689,7 @@ def _has_callback_cue(transcript: str) -> bool:
 
 def _note_history_terms(note: dict) -> set[str]:
     terms = set()
-    for field in ("title", "summary", "insight", "transcript_excerpt"):
+    for field in ("title", "summary", "insight", "transcript_excerpt", "participant_response_excerpt"):
         terms.update(_tokenize_history_text(note.get(field, "")))
     for item in note.get("themes", []) or []:
         terms.update(_tokenize_history_text(item))
@@ -720,7 +720,24 @@ def _build_history_note_line(note: dict) -> str:
     themes = note.get("themes") or []
     if themes:
         lines.append(f"themes: {', '.join(themes[:5])}")
+    response_count = int(note.get("participant_response_count") or 0)
+    if response_count:
+        lines.append(f"user replies: {response_count}")
+    response_excerpt = (note.get("participant_response_excerpt") or "").strip()
+    if response_excerpt:
+        lines.append(f"latest reply: {response_excerpt}")
     return "\n".join(lines)
+
+
+def _append_participant_response_to_history(existing_history: str, response_text: str) -> str:
+    cleaned_existing = (existing_history or "").strip()
+    cleaned_response = (response_text or "").strip()
+    if not cleaned_response:
+        return cleaned_existing
+    addition = f"Teacher reply: {cleaned_response}"
+    if not cleaned_existing:
+        return addition
+    return f"{cleaned_existing}\n{addition}"
 
 
 def _load_relevant_reflection_history(
@@ -1816,6 +1833,61 @@ def upload_audio():
 
     print(f"[{uid}] Direct upload note saved: {note_name}")
     return jsonify({"ok": True, "note": note_name, "reflection_audio": reflection_name})
+
+
+@flask_app.route("/reflection-response", methods=["POST"])
+def save_reflection_response():
+    """Attach a user's reply to an existing reflection note for future context."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    note_id = (data.get("note_id") or "").strip()
+    response_text = re.sub(r"\s+", " ", (data.get("text") or "")).strip()
+
+    if not note_id:
+        return jsonify({"error": "missing note_id"}), 400
+    if len(response_text) < 6:
+        return jsonify({"error": "response too short"}), 400
+    if len(response_text) > 2000:
+        return jsonify({"error": "response too long"}), 400
+
+    note_ref = _get_db().collection("users").document(uid).collection("notes").document(note_id)
+    snap = note_ref.get()
+    if not snap.exists:
+        return jsonify({"error": "note not found"}), 404
+
+    note_data = snap.to_dict() or {}
+    existing_responses = note_data.get("participant_responses") or []
+    trimmed_responses = existing_responses[-5:] if isinstance(existing_responses, list) else []
+    trimmed_responses.append({
+        "text": response_text,
+        "created_at": firestore.SERVER_TIMESTAMP,
+    })
+
+    updated_history_source_text = _append_participant_response_to_history(
+        note_data.get("history_source_text", ""),
+        response_text,
+    )
+    embedding_v1 = embed_text(updated_history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else []
+
+    update_payload = {
+        "participant_responses": trimmed_responses,
+        "participant_response_count": int(note_data.get("participant_response_count") or 0) + 1,
+        "participant_response_excerpt": response_text[:240],
+        "participant_response_updated_at": firestore.SERVER_TIMESTAMP,
+        "history_source_text": updated_history_source_text,
+    }
+    if embedding_v1:
+        update_payload["embedding_v1"] = embedding_v1
+
+    note_ref.update(update_payload)
+    return jsonify({
+        "ok": True,
+        "participant_response_count": update_payload["participant_response_count"],
+        "participant_response_excerpt": update_payload["participant_response_excerpt"],
+    })
 
 
 @flask_app.route("/me")

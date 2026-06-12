@@ -147,6 +147,65 @@
       color: #8a857d;
       line-height: 1.5;
     }
+    .reflection-followup {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #ece5d9;
+    }
+    .reflection-followup[hidden] {
+      display: none !important;
+    }
+    .reflection-followup-prompt {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #473626;
+      line-height: 1.45;
+      margin-bottom: 6px;
+    }
+    .reflection-followup-copy {
+      font-size: 0.79rem;
+      color: #746a5f;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .reflection-followup textarea {
+      width: 100%;
+      min-height: 84px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid #dbcdb8;
+      background: rgba(255, 252, 246, 0.92);
+      color: #3d3126;
+      padding: 11px 12px;
+      font: inherit;
+      line-height: 1.5;
+      box-sizing: border-box;
+    }
+    .reflection-followup textarea:focus {
+      outline: none;
+      border-color: #b89258;
+      box-shadow: 0 0 0 3px rgba(184, 146, 88, 0.12);
+    }
+    .reflection-followup-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .reflection-followup-status {
+      font-size: 0.76rem;
+      color: #7b705f;
+      line-height: 1.45;
+      min-height: 1.2em;
+    }
+    .reflection-followup-status.is-success {
+      color: #2f6a45;
+    }
+    .reflection-followup-status.is-error {
+      color: #9b3d2c;
+    }
     .record-mark {
       font-size: 1.2rem;
       line-height: 1;
@@ -298,6 +357,18 @@
     }
     .influenced-line strong {
       color: #51402f;
+      font-weight: 600;
+    }
+    .note-response-line {
+      margin-top: 8px;
+      font-size: 0.79rem;
+      color: #5f5448;
+      line-height: 1.5;
+      padding-top: 8px;
+      border-top: 1px solid #f1eee8;
+    }
+    .note-response-line strong {
+      color: #4a3a28;
       font-weight: 600;
     }
     .influenced-by {
@@ -457,6 +528,17 @@
               <div class="recording-player-label" id="reflection-player-label">Latest complete reflection</div>
               <div id="reflection-player-container" class="recording-player">
                 <div class="recording-player-empty">Loading your latest reflection…</div>
+              </div>
+              <div id="reflection-followup" class="reflection-followup" hidden>
+                <div id="reflection-followup-prompt" class="reflection-followup-prompt">What feels true to you here?</div>
+                <div class="reflection-followup-copy">Add a brief reply if you want the next reflection to remember where you agree, resist, or want to continue the conversation.</div>
+                <textarea id="reflection-followup-input" placeholder="I still disagree with the earlier framing that..."></textarea>
+                <div class="reflection-followup-actions">
+                  <button id="reflection-followup-save" class="btn btn-primary" style="padding:8px 14px; font-size:0.8rem;">
+                    Continue reflection
+                  </button>
+                  <div id="reflection-followup-status" class="reflection-followup-status" aria-live="polite"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -687,6 +769,10 @@
           `;
         }
       }
+      renderReflectionFollowup({
+        id: "preview-note",
+        participant_response_count: 0,
+      });
     }
 
     const setupLinks = document.querySelectorAll('a[href="/setup"]');
@@ -821,7 +907,13 @@
     const portraitObjectUrls = new Map();
     const reflectionObjectUrls = new Map();
     const GOOGLE_TASKS_URL = "https://tasks.google.com/tasks/";
+    const FOLLOWUP_PROMPTS = [
+      "What feels true to you here?",
+      "What would you answer differently now?",
+      "What feels unfinished, resisted, or newly clear?",
+    ];
     let currentReflectionStyle = "complete";
+    let latestReflectionNote = null;
 
     function formatList(items) {
       return items.filter(Boolean).join(", ");
@@ -883,6 +975,106 @@
       }
       if (summary) {
         summary.textContent = REFLECTION_STYLE_ARCHIVE_COPY[style];
+      }
+    }
+
+    function chooseFollowupPrompt(note) {
+      const responseCount = Number(note?.participant_response_count || 0);
+      return FOLLOWUP_PROMPTS[responseCount % FOLLOWUP_PROMPTS.length];
+    }
+
+    function renderReflectionFollowup(note, options = {}) {
+      latestReflectionNote = note || null;
+      const panel = document.getElementById("reflection-followup");
+      const prompt = document.getElementById("reflection-followup-prompt");
+      const input = document.getElementById("reflection-followup-input");
+      const saveBtn = document.getElementById("reflection-followup-save");
+      const status = document.getElementById("reflection-followup-status");
+      if (!panel || !prompt || !input || !saveBtn || !status) return;
+
+      if (!note) {
+        panel.hidden = true;
+        input.value = "";
+        status.textContent = "";
+        status.className = "reflection-followup-status";
+        return;
+      }
+
+      panel.hidden = false;
+      prompt.textContent = chooseFollowupPrompt(note);
+      if (options.clearInput) {
+        input.value = "";
+      }
+
+      const disabled = PREVIEW_MODE || !auth.currentUser;
+      input.disabled = disabled;
+      saveBtn.disabled = disabled;
+      saveBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
+
+      if (disabled) {
+        status.textContent = "Sign in to save a reply into the reflection history.";
+        status.className = "reflection-followup-status";
+        return;
+      }
+
+      status.textContent = options.statusText || "";
+      status.className = `reflection-followup-status${options.statusClass ? ` ${options.statusClass}` : ""}`;
+    }
+
+    async function saveReflectionFollowup() {
+      if (!latestReflectionNote || PREVIEW_MODE || !auth.currentUser) return;
+      const input = document.getElementById("reflection-followup-input");
+      const saveBtn = document.getElementById("reflection-followup-save");
+      const text = (input?.value || "").trim();
+      if (text.length < 6) {
+        renderReflectionFollowup(latestReflectionNote, {
+          statusText: "Write a little more before saving.",
+          statusClass: "is-error",
+        });
+        return;
+      }
+
+      try {
+        saveBtn.disabled = true;
+        saveBtn.setAttribute("aria-disabled", "true");
+        const token = await getToken();
+        const res = await fetch(`${API}/reflection-response`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            note_id: latestReflectionNote.id,
+            text,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Could not save response");
+        }
+        latestReflectionNote = {
+          ...latestReflectionNote,
+          participant_response_count: data.participant_response_count || ((latestReflectionNote.participant_response_count || 0) + 1),
+          participant_response_excerpt: data.participant_response_excerpt || text.slice(0, 240),
+        };
+        await loadRecentNotes(auth.currentUser.uid);
+        renderReflectionFollowup(latestReflectionNote, {
+          statusText: "Saved. Future reflections can take this reply into account.",
+          statusClass: "is-success",
+          clearInput: true,
+        });
+      } catch (e) {
+        console.error("Could not save reflection follow-up:", e);
+        renderReflectionFollowup(latestReflectionNote, {
+          statusText: "That reply could not be saved right now.",
+          statusClass: "is-error",
+        });
+      } finally {
+        if (!PREVIEW_MODE && auth.currentUser) {
+          saveBtn.disabled = false;
+          saveBtn.setAttribute("aria-disabled", "false");
+        }
       }
     }
 
@@ -1030,15 +1222,22 @@
         } catch (error) {
           snap = await getDocs(query(notesRef, orderBy("date", "desc"), limit(5)));
         }
-        if (snap.empty) return;
+        if (snap.empty) {
+          renderReflectionFollowup(null);
+          return;
+        }
 
         const card = document.getElementById("recent-notes-card");
         const list = document.getElementById("recent-notes-list");
         list.innerHTML = "";
         card.style.display = "block";
+        latestReflectionNote = null;
 
         snap.forEach(doc => {
           const n = doc.data();
+          if (!latestReflectionNote) {
+            latestReflectionNote = { id: doc.id, ...n };
+          }
           const div = document.createElement("div");
           div.className = "note-item";
           const styleKey = n.reflection_style in REFLECTION_STYLE_LABELS ? n.reflection_style : null;
@@ -1069,6 +1268,7 @@
             </div>
             <div class="note-summary">${n.summary || ""}</div>
             ${voiceLine ? `<div class="influenced-line"><strong>In conversation with</strong> ${uniqueVoices.slice(0, 3).join(", ")}</div>` : ""}
+            ${n.participant_response_excerpt ? `<div class="note-response-line"><strong>Your latest reply</strong> ${n.participant_response_excerpt}</div>` : ""}
             ${influenced ? `
               <details class="influenced-by">
                 <summary class="influenced-toggle">Show source detail</summary>
@@ -1077,6 +1277,7 @@
           `;
           list.appendChild(div);
         });
+        renderReflectionFollowup(latestReflectionNote);
       } catch(e) {
         console.error("Could not load recent notes:", e);
       }
@@ -1275,6 +1476,8 @@
       });
     }
 
+    document.getElementById("reflection-followup-save")?.addEventListener("click", saveReflectionFollowup);
+
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
       if (!user) return;
@@ -1368,6 +1571,7 @@
               fallbackName: "Latest reflection",
               cache: reflectionObjectUrls,
             });
+            await loadRecentNotes(user.uid);
           };
           mediaRecorder.start();
           recordBtn.textContent = "⏹ Stop recording";
