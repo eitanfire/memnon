@@ -46,7 +46,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from audio_generation import synthesize_reflection_bytes, synthesize_reflection_mp3
-from hf_inference import embed_text, rerank_candidates
+from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
@@ -629,6 +629,7 @@ def _store_note_metadata(
     transcript: str,
     reflection_style: str,
     embedding_v1: list[float] | None = None,
+    embedding_meta: dict | None = None,
     history_source_text: str = "",
 ) -> None:
     """Store recent note metadata in Firestore for dashboard display (keep last 10)."""
@@ -651,6 +652,11 @@ def _store_note_metadata(
         }
         if embedding_v1:
             note_meta["embedding_v1"] = embedding_v1
+            note_meta["embedding_model"] = (embedding_meta or {}).get("model") or EMBEDDING_MODEL
+            note_meta["embedding_provider"] = (embedding_meta or {}).get("provider") or EMBEDDING_PROVIDER
+            note_meta["embedding_dim"] = int((embedding_meta or {}).get("dimensions") or len(embedding_v1))
+            note_meta["embedding_version"] = "v1"
+            note_meta["embedding_created_at"] = firestore.SERVER_TIMESTAMP
         # Use a subcollection for notes — one doc per note
         _get_db().collection("users").document(uid)\
                  .collection("notes").add(note_meta)
@@ -1044,7 +1050,8 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
     note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
                  ai_result.get("title", Path(filename).stem)[:60] + ".md")
     history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
-    history_embedding = embed_text(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else []
+    embedding_result = embed_text_details(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else {"vector": []}
+    history_embedding = embedding_result.get("vector") or []
     if HUGGING_FACE_API_KEY and not history_embedding:
         print(f"[{uid}] Warning: history embedding missing for {note_name}")
 
@@ -1068,6 +1075,7 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
         transcript,
         style_key,
         embedding_v1=history_embedding,
+        embedding_meta=embedding_result,
         history_source_text=history_source_text,
     )
 
@@ -1769,7 +1777,8 @@ def upload_audio():
                  ai_result.get("title", Path(filename).stem)[:60] + ".md")
     note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
     history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
-    history_embedding = embed_text(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else []
+    embedding_result = embed_text_details(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else {"vector": []}
+    history_embedding = embedding_result.get("vector") or []
     if HUGGING_FACE_API_KEY and not history_embedding:
         print(f"[{uid}] Warning: history embedding missing for {note_name}")
     if sources_used:
@@ -1782,6 +1791,7 @@ def upload_audio():
         transcript,
         style_key,
         embedding_v1=history_embedding,
+        embedding_meta=embedding_result,
         history_source_text=history_source_text,
     )
 
@@ -1870,7 +1880,8 @@ def save_reflection_response():
         note_data.get("history_source_text", ""),
         response_text,
     )
-    embedding_v1 = embed_text(updated_history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else []
+    embedding_result = embed_text_details(updated_history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else {"vector": []}
+    embedding_v1 = embedding_result.get("vector") or []
 
     update_payload = {
         "participant_responses": trimmed_responses,
@@ -1881,6 +1892,11 @@ def save_reflection_response():
     }
     if embedding_v1:
         update_payload["embedding_v1"] = embedding_v1
+        update_payload["embedding_model"] = embedding_result.get("model") or EMBEDDING_MODEL
+        update_payload["embedding_provider"] = embedding_result.get("provider") or EMBEDDING_PROVIDER
+        update_payload["embedding_dim"] = int(embedding_result.get("dimensions") or len(embedding_v1))
+        update_payload["embedding_version"] = "v1"
+        update_payload["embedding_created_at"] = firestore.SERVER_TIMESTAMP
 
     note_ref.update(update_payload)
     return jsonify({
