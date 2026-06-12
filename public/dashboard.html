@@ -402,8 +402,8 @@
       <div class="editorial-main">
         <div class="editorial-header">
           <div>
-          <h2 id="lane-title">Loading…</h2>
-          <p id="lane-desc" style="color:#555;"></p>
+          <h2 id="lane-title">Teaching context</h2>
+          <p id="lane-desc" style="color:#555;">Your classroom context shapes how Memnon reads your notes and frames the reflection you receive.</p>
           <p style="margin-top:8px;">
             <span class="tag" id="lane-detail"></span>
           </p>
@@ -413,7 +413,7 @@
         </a>
         </div>
         <p class="editorial-copy" id="lane-copy">
-          This section shapes how Memnon reads your notes when it turns experience into a usable reflection.
+          Practical guidance and grounded reflection, shaped by the teaching context you set up.
         </p>
       </div>
       <div class="editorial-media" aria-hidden="true">
@@ -454,9 +454,9 @@
               Open archive ↗
             </a>
             <div class="recording-player-wrap">
-              <div class="recording-player-label" id="reflection-player-label">Latest reflection</div>
+              <div class="recording-player-label" id="reflection-player-label">Latest complete reflection</div>
               <div id="reflection-player-container" class="recording-player">
-                <div class="recording-player-empty">Your latest reflection will appear here after processing.</div>
+                <div class="recording-player-empty">Loading your latest reflection…</div>
               </div>
             </div>
           </div>
@@ -1023,12 +1023,13 @@
 
     async function loadRecentNotes(uid) {
       try {
-        const q = query(
-          collection(db, "users", uid, "notes"),
-          orderBy("date", "desc"),
-          limit(5)
-        );
-        const snap = await getDocs(q);
+        const notesRef = collection(db, "users", uid, "notes");
+        let snap;
+        try {
+          snap = await getDocs(query(notesRef, orderBy("created_at", "desc"), limit(5)));
+        } catch (error) {
+          snap = await getDocs(query(notesRef, orderBy("date", "desc"), limit(5)));
+        }
         if (snap.empty) return;
 
         const card = document.getElementById("recent-notes-card");
