@@ -2,7 +2,7 @@ import json
 import math
 import os
 import time
-from typing import Any
+from typing import Any, Optional
 
 try:
     from huggingface_hub import InferenceClient
@@ -27,7 +27,7 @@ def _log_hf_event(event: str, **payload: Any) -> None:
     }, ensure_ascii=True, sort_keys=True))
 
 
-def _normalize_model_label(model: str | None) -> str:
+def _normalize_model_label(model: Optional[str]) -> str:
     return model or "<default>"
 
 
@@ -58,7 +58,7 @@ def _cooldown_active() -> bool:
     return time.monotonic() < _EMBEDDING_COOLDOWN_UNTIL
 
 
-def _start_cooldown(reason: str, model: str | None, exc: Exception) -> None:
+def _start_cooldown(reason: str, model: Optional[str], exc: Exception) -> None:
     global _EMBEDDING_COOLDOWN_UNTIL, _EMBEDDING_LAST_FAILURE
     _EMBEDDING_COOLDOWN_UNTIL = time.monotonic() + EMBEDDING_FAILURE_COOLDOWN_SECONDS
     _EMBEDDING_LAST_FAILURE = {
@@ -149,7 +149,7 @@ def embed_text_details(text: str, api_key: str, model: str = EMBEDDING_MODEL) ->
         client = InferenceClient(api_key=api_key, timeout=EMBEDDING_TIMEOUT_SECONDS)
 
     started = time.monotonic()
-    last_exc: Exception | None = None
+    last_exc: Optional[Exception] = None
     for candidate_model in candidates:
         try:
             if candidate_model:
