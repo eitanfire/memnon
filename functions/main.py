@@ -1035,6 +1035,8 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
                  ai_result.get("title", Path(filename).stem)[:60] + ".md")
     history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
     history_embedding = embed_text(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else []
+    if HUGGING_FACE_API_KEY and not history_embedding:
+        print(f"[{uid}] Warning: history embedding missing for {note_name}")
 
     media = MediaInMemoryUpload(note_md.encode(), mimetype="text/plain", resumable=False)
     service.files().create(
@@ -1758,6 +1760,8 @@ def upload_audio():
     note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
     history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
     history_embedding = embed_text(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else []
+    if HUGGING_FACE_API_KEY and not history_embedding:
+        print(f"[{uid}] Warning: history embedding missing for {note_name}")
     if sources_used:
         _record_source_usage(uid, sources_used)
     _store_note_metadata(

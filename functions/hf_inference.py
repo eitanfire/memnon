@@ -39,12 +39,29 @@ def _coerce_embedding(payload: Any) -> list[float]:
 def embed_text(text: str, api_key: str, model: str = EMBEDDING_MODEL) -> list[float]:
     if InferenceClient is None or not api_key or not (text or "").strip():
         return []
+
+    candidates = [model]
+    if model:
+        candidates.append(None)
+
     try:
+        client = InferenceClient(api_key=api_key, provider="hf-inference", timeout=30)
+    except TypeError:
         client = InferenceClient(api_key=api_key, timeout=30)
-        embedding = client.feature_extraction(text, model=model)
-        return _coerce_embedding(embedding)
-    except Exception:
-        return []
+
+    for candidate_model in candidates:
+        try:
+            if candidate_model:
+                embedding = client.feature_extraction(text, model=candidate_model)
+            else:
+                embedding = client.feature_extraction(text)
+            vector = _coerce_embedding(embedding)
+            if vector:
+                return vector
+        except Exception as exc:
+            label = candidate_model or "<default>"
+            print(f"[hf] feature_extraction failed for model={label}: {exc}")
+    return []
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:
