@@ -134,10 +134,17 @@ def _verify_firebase_token(req) -> str | None:
     """Verify Firebase ID token from Authorization header. Returns uid or None."""
     header = req.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
+        print(f"[auth] Missing bearer token for {req.path} origin={req.headers.get('Origin', '')}")
         return None
     try:
         return fb_auth.verify_id_token(header[7:])["uid"]
-    except Exception:
+    except Exception as exc:
+        token = header[7:]
+        token_prefix = token[:18] if token else ""
+        print(
+            f"[auth] Token verification failed for {req.path} "
+            f"origin={req.headers.get('Origin', '')} prefix={token_prefix!r}: {exc}"
+        )
         return None
 
 
