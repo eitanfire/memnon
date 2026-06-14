@@ -31,7 +31,7 @@ import tempfile
 import urllib.parse
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import firebase_admin
@@ -116,6 +116,16 @@ NARRATION_VOICES = {
 }
 GOOGLE_TASKS_WEB_URL = "https://tasks.google.com/tasks/"
 HUGGING_FACE_API_KEY = os.environ.get("HUGGING_FACE_API_KEY", "")
+FOUNDER_METRICS_EMAILS = {
+    email.strip().lower()
+    for email in (os.environ.get("FOUNDER_METRICS_EMAILS", "eitanfire@gmail.com")).split(",")
+    if email.strip()
+}
+FOUNDER_METRICS_EXCLUDED_EMAILS = {
+    email.strip().lower()
+    for email in (os.environ.get("FOUNDER_METRICS_EXCLUDED_EMAILS", "eitanfire@gmail.com")).split(",")
+    if email.strip()
+}
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -251,87 +261,232 @@ def _format_natural_date(raw) -> str:
     return f"{dt.strftime('%B')} {_ordinal_day(dt.day)}"
 
 
-def _summarize_research(uid: str) -> dict:
-    user_ref = _get_db().collection("users").document(uid)
-    user_doc = user_ref.get()
-    user_data = user_doc.to_dict() if user_doc.exists else {}
+def _coerce_datetime(raw):
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        return raw
+    if hasattr(raw, "isoformat"):
+        try:
+            return datetime.fromisoformat(raw.isoformat().replace("Z", "+00:00"))
+        except Exception:
+            pass
+    text = str(raw).strip()
+    if not text:
+        return None
+    iso_match = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", text)
+    if iso_match:
+        return datetime(int(iso_match.group(1)), int(iso_match.group(2)), int(iso_match.group(3)))
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except Exception:
+        return None
 
-    notes_docs = list(user_ref.collection("notes").order_by("created_at", direction=firestore.Query.DESCENDING).limit(50).stream())
-    events_docs = list(user_ref.collection("usage_events").order_by("created_at", direction=firestore.Query.DESCENDING).limit(120).stream())
+
+def _sort_key_with_fallback(payload: dict, *keys: str):
+    for key in keys:
+        value = _coerce_datetime(payload.get(key))
+        if value is not None:
+            return value
+    return datetime.min
+
+
+def _same_calendar_day(left: datetime | None, right: datetime | None) -> bool:
+    if not left or not right:
+        return False
+    return left.date() == right.date()
+
+
+def _user_is_founder(uid: str) -> bool:
+    user_doc = _get_db().collection("users").document(uid).get()
+    if not user_doc.exists:
+        return False
+    email = str((user_doc.to_dict() or {}).get("email") or "").strip().lower()
+    return email in FOUNDER_METRICS_EMAILS
+
+
+def _user_is_excluded_from_founder_metrics(user_data: dict) -> bool:
+    email = str((user_data or {}).get("email") or "").strip().lower()
+    return email in FOUNDER_METRICS_EXCLUDED_EMAILS
+
+
+def _summarize_research(requester_uid: str) -> dict:
+    requester_doc = _get_db().collection("users").document(requester_uid).get()
+    requester_data = requester_doc.to_dict() if requester_doc.exists else {}
+
+    now = datetime.now()
+    seven_days_ago = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)
 
     style_counter = Counter()
     teaching_context_counter = Counter()
     voice_counter = Counter()
     framework_counter = Counter()
-    reply_count = 0
-    recent_notes = []
-
-    for snap in notes_docs:
-        note = snap.to_dict() or {}
-        style = note.get("reflection_style") or "complete"
-        style_counter[style] += 1
-        if note.get("include_teaching_context") is False:
-            teaching_context_counter["off"] += 1
-        else:
-            teaching_context_counter["on"] += 1
-        for voice in note.get("voice_labels", []) or []:
-            voice_name = re.sub(r"\s+", " ", str(voice or "")).strip()
-            if voice_name:
-                voice_counter[voice_name] += 1
-        reply_count += int(note.get("participant_response_count") or 0)
-        recent_notes.append({
-            "id": snap.id,
-            "title": note.get("title") or "Untitled",
-            "date": _format_natural_date(note.get("date") or note.get("created_at")),
-            "summary": (note.get("summary") or "").strip()[:240],
-            "reflection_style": style,
-            "include_teaching_context": note.get("include_teaching_context") is not False,
-            "voices": [v for v in (note.get("voice_labels") or []) if v][:4],
-        })
-
     event_counter = Counter()
-    recent_events = []
-    for snap in events_docs:
-        event = snap.to_dict() or {}
-        event_name = event.get("event_name") or "unknown"
-        event_counter[event_name] += 1
-        recent_events.append({
-            "id": snap.id,
-            "event_name": event_name,
-            "created_at": _serialize_firestore_value(event.get("created_at")),
-            "metadata": event.get("metadata") or {},
+
+    total_notes_count = 0
+    total_reply_count = 0
+    all_recent_notes = []
+    all_recent_events = []
+    recent_users = []
+
+    recent_active_users_7d = 0
+    newly_activated_users_7d = 0
+    returned_users_7d = 0
+    core_action_users_7d = 0
+
+    for user_snap in _get_db().collection("users").stream():
+        user_id = user_snap.id
+        user_data = user_snap.to_dict() or {}
+        if _user_is_excluded_from_founder_metrics(user_data):
+            continue
+        user_ref = _get_db().collection("users").document(user_id)
+        notes = []
+        for note_snap in user_ref.collection("notes").stream():
+            note = note_snap.to_dict() or {}
+            note["_id"] = note_snap.id
+            notes.append(note)
+        notes.sort(key=lambda item: _sort_key_with_fallback(item, "created_at", "date"), reverse=True)
+
+        events = []
+        for event_snap in user_ref.collection("usage_events").stream():
+            event = event_snap.to_dict() or {}
+            event["_id"] = event_snap.id
+            events.append(event)
+        events.sort(key=lambda item: _sort_key_with_fallback(item, "created_at"), reverse=True)
+
+        captures_count = len(notes)
+        plays_count = sum(1 for event in events if event.get("event_name") == "played_reflection_audio")
+        replies_count = sum(int(note.get("participant_response_count") or 0) for note in notes)
+        total_notes_count += captures_count
+        total_reply_count += replies_count
+
+        for note in notes:
+            style = note.get("reflection_style") or "complete"
+            style_counter[style] += 1
+            if note.get("include_teaching_context") is False:
+                teaching_context_counter["off"] += 1
+            else:
+                teaching_context_counter["on"] += 1
+            for voice in note.get("voice_labels", []) or []:
+                voice_name = re.sub(r"\s+", " ", str(voice or "")).strip()
+                if voice_name:
+                    voice_counter[voice_name] += 1
+            all_recent_notes.append({
+                "id": note.get("_id") or "",
+                "user_id": user_id,
+                "user_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
+                "title": note.get("title") or "Untitled",
+                "date": _format_natural_date(note.get("date") or note.get("created_at")),
+                "summary": (note.get("summary") or "").strip()[:240],
+                "reflection_style": style,
+                "include_teaching_context": note.get("include_teaching_context") is not False,
+                "voices": [v for v in (note.get("voice_labels") or []) if v][:4],
+                "_sort_at": _sort_key_with_fallback(note, "created_at", "date"),
+            })
+
+        for event in events:
+            event_name = event.get("event_name") or "unknown"
+            event_counter[event_name] += 1
+            all_recent_events.append({
+                "id": event.get("_id") or "",
+                "user_id": user_id,
+                "user_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
+                "event_name": event_name,
+                "created_at": _serialize_firestore_value(event.get("created_at")),
+                "metadata": event.get("metadata") or {},
+                "_sort_at": _sort_key_with_fallback(event, "created_at"),
+            })
+
+        for framework in user_data.get("state_standards", []) or []:
+            framework_name = re.sub(r"\s+", " ", str(framework or "")).strip()
+            if framework_name:
+                framework_counter[framework_name] += 1
+
+        note_times = [_coerce_datetime(note.get("created_at") or note.get("date")) for note in notes]
+        event_times = [_coerce_datetime(event.get("created_at")) for event in events]
+        all_activity_times = [value for value in (note_times + event_times) if value is not None]
+        last_seen_at = max(all_activity_times) if all_activity_times else None
+        first_capture_at = min([value for value in note_times if value is not None], default=None)
+        latest_note = notes[0] if notes else {}
+        latest_style = latest_note.get("reflection_style") or (user_data.get("reflection_style") or "complete")
+        completed_core_action = captures_count > 0 and plays_count > 0
+
+        capture_days = sorted({value.date().isoformat() for value in note_times if value is not None})
+        activity_days = sorted({value.date().isoformat() for value in all_activity_times})
+        returned_after_first_use = False
+        if first_capture_at:
+            for day_text in activity_days:
+                if day_text != first_capture_at.date().isoformat():
+                    returned_after_first_use = True
+                    break
+
+        active_in_last_7d = bool(last_seen_at and last_seen_at >= seven_days_ago)
+        if active_in_last_7d:
+            recent_active_users_7d += 1
+        if first_capture_at and first_capture_at >= seven_days_ago:
+            newly_activated_users_7d += 1
+        if active_in_last_7d and returned_after_first_use:
+            returned_users_7d += 1
+        if active_in_last_7d and completed_core_action:
+            core_action_users_7d += 1
+
+        recent_users.append({
+            "user_id": user_id,
+            "user_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
+            "email": (user_data.get("email") or "").strip(),
+            "last_seen_at": _serialize_firestore_value(last_seen_at),
+            "first_capture_at": _serialize_firestore_value(first_capture_at),
+            "captures_count": captures_count,
+            "plays_count": plays_count,
+            "replies_count": replies_count,
+            "activated": captures_count > 0,
+            "completed_core_action": completed_core_action,
+            "returned_after_first_use": returned_after_first_use,
+            "latest_reflection_style": latest_style,
+            "latest_note_title": latest_note.get("title") or "",
+            "subjects": (user_data.get("subjects") or "").strip(),
+            "school_name": (user_data.get("school_name") or "").strip(),
+            "_sort_at": last_seen_at or datetime.min,
         })
 
-    guide_usage = user_data.get("guide_usage") or {}
-    passage_usage = user_data.get("passage_usage") or {}
-    for framework in user_data.get("state_standards", []) or []:
-        framework_name = re.sub(r"\s+", " ", str(framework or "")).strip()
-        if framework_name:
-            framework_counter[framework_name] += 1
+    recent_users.sort(key=lambda item: item.get("_sort_at") or datetime.min, reverse=True)
+    all_recent_notes.sort(key=lambda item: item.get("_sort_at") or datetime.min, reverse=True)
+    all_recent_events.sort(key=lambda item: item.get("_sort_at") or datetime.min, reverse=True)
+
+    for item in recent_users:
+        item.pop("_sort_at", None)
+    for item in all_recent_notes:
+        item.pop("_sort_at", None)
+    for item in all_recent_events:
+        item.pop("_sort_at", None)
 
     return {
         "profile": {
-            "preferred_name": user_data.get("preferred_name") or "",
-            "reflection_style": user_data.get("reflection_style") or "complete",
-            "subjects": user_data.get("subjects") or "",
-            "school_name": user_data.get("school_name") or "",
+            "preferred_name": requester_data.get("preferred_name") or requester_data.get("name") or "",
+            "email": requester_data.get("email") or "",
         },
         "summary": {
-            "notes_count": len(notes_docs),
-            "reply_count": reply_count,
+            "notes_count": total_notes_count,
+            "reply_count": total_reply_count,
             "styles": dict(style_counter),
             "teaching_context": {
                 "on": teaching_context_counter.get("on", 0),
                 "off": teaching_context_counter.get("off", 0),
             },
             "events": dict(event_counter),
+            "recent_active_users_7d": recent_active_users_7d,
+            "newly_activated_users_7d": newly_activated_users_7d,
+            "returned_users_7d": returned_users_7d,
+            "core_action_users_7d": core_action_users_7d,
+            "users_count": len(recent_users),
         },
-        "guide_usage": guide_usage,
-        "passage_usage_count": len(passage_usage),
+        "guide_usage": {},
+        "passage_usage_count": 0,
         "top_voices": [{"label": name, "count": count} for name, count in voice_counter.most_common(6)],
         "top_frameworks": [{"label": name, "count": count} for name, count in framework_counter.most_common(6)],
-        "recent_notes": recent_notes[:8],
-        "recent_events": recent_events[:20],
+        "recent_notes": all_recent_notes[:8],
+        "recent_events": all_recent_events[:20],
+        "recent_users": recent_users[:18],
     }
 
 
@@ -2292,6 +2447,8 @@ def get_research_summary():
     uid = _verify_firebase_token(request)
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
+    if not _user_is_founder(uid):
+        return jsonify({"error": "forbidden"}), 403
     return jsonify(_summarize_research(uid))
 
 
@@ -2301,29 +2458,38 @@ def list_research_notes():
     uid = _verify_firebase_token(request)
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
-
-    docs = _get_db().collection("users").document(uid).collection("research_notes") \
-        .order_by("created_at", direction=firestore.Query.DESCENDING).limit(40).stream()
+    if not _user_is_founder(uid):
+        return jsonify({"error": "forbidden"}), 403
 
     items = []
-    for snap in docs:
-        payload = snap.to_dict() or {}
-        items.append({
-            "id": snap.id,
-            "teacher_name": payload.get("teacher_name") or "",
-            "role": payload.get("role") or "",
-            "school_context": payload.get("school_context") or "",
-            "top_problem": payload.get("top_problem") or "",
-            "current_workaround": payload.get("current_workaround") or "",
-            "strongest_reaction": payload.get("strongest_reaction") or "",
-            "confusions": payload.get("confusions") or "",
-            "would_use_weekly": payload.get("would_use_weekly") or "",
-            "quote": payload.get("quote") or "",
-            "next_step": payload.get("next_step") or "",
-            "apps_discussed": payload.get("apps_discussed") or [],
-            "tags": payload.get("tags") or [],
-            "created_at": _serialize_firestore_value(payload.get("created_at")),
-        })
+    for user_snap in _get_db().collection("users").stream():
+        user_data = user_snap.to_dict() or {}
+        docs = _get_db().collection("users").document(user_snap.id).collection("research_notes").stream()
+        for snap in docs:
+            payload = snap.to_dict() or {}
+            items.append({
+                "id": snap.id,
+                "user_id": user_snap.id,
+                "owner_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
+                "teacher_name": payload.get("teacher_name") or "",
+                "role": payload.get("role") or "",
+                "school_context": payload.get("school_context") or "",
+                "top_problem": payload.get("top_problem") or "",
+                "current_workaround": payload.get("current_workaround") or "",
+                "strongest_reaction": payload.get("strongest_reaction") or "",
+                "confusions": payload.get("confusions") or "",
+                "would_use_weekly": payload.get("would_use_weekly") or "",
+                "quote": payload.get("quote") or "",
+                "next_step": payload.get("next_step") or "",
+                "apps_discussed": payload.get("apps_discussed") or [],
+                "tags": payload.get("tags") or [],
+                "created_at": _serialize_firestore_value(payload.get("created_at")),
+                "_sort_at": _coerce_datetime(payload.get("created_at")) or datetime.min,
+            })
+
+    items.sort(key=lambda item: item.get("_sort_at") or datetime.min, reverse=True)
+    for item in items:
+        item.pop("_sort_at", None)
     return jsonify({"items": items})
 
 
@@ -2333,6 +2499,8 @@ def create_research_note():
     uid = _verify_firebase_token(request)
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
+    if not _user_is_founder(uid):
+        return jsonify({"error": "forbidden"}), 403
 
     data = request.get_json(silent=True) or {}
 

@@ -214,6 +214,57 @@
       color: var(--muted);
       line-height: 1.55;
     }
+    .user-rows {
+      display: grid;
+      gap: 10px;
+    }
+    .user-row {
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.76);
+      border: 1px solid rgba(172, 133, 73, 0.16);
+    }
+    .user-row-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .user-row-title {
+      font-weight: 700;
+    }
+    .user-row-meta {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .user-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .user-chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(246, 232, 204, 0.68);
+      color: #583c1b;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1px solid rgba(172, 133, 73, 0.18);
+    }
+    .user-chip.is-positive {
+      background: rgba(222, 245, 229, 0.9);
+      color: #166534;
+      border-color: rgba(34, 197, 94, 0.2);
+    }
+    .user-chip.is-muted {
+      background: rgba(240, 233, 223, 0.9);
+      color: #6f5b46;
+      border-color: rgba(172, 133, 73, 0.12);
+    }
     form {
       display: grid;
       gap: 12px;
@@ -344,18 +395,18 @@
 
   <main class="container">
     <section class="hero">
-      <div class="card hero-card">
-        <div class="hero-kicker">Research</div>
-        <h1>See how Memnon is being used, and capture what teachers actually say.</h1>
+        <div class="card hero-card">
+          <div class="hero-kicker">Research</div>
+        <h1>See who is using Memnon, what they do, and what they say about it.</h1>
         <p class="hero-copy">
-          This view turns the reflection history you already store into a lightweight research console: usage patterns, recent reflections, interview notes, and the questions most likely to surface whether the product is solving something real.
+          This founder view turns Memnon's existing reflection history and usage events into a practical operating console: active users, activation, core action completion, return behavior, recent activity, and field notes from teacher conversations.
         </p>
       </div>
       <div class="card hero-panel">
         <div>
           <div class="section-kicker">What This Uses</div>
-          <h2>Existing reflection history, replies, voices, frameworks, and new usage events.</h2>
-          <p>No new analytics stack. This page reads the same app history already tied to each signed-in account, then adds a simple layer for product-research notes.</p>
+          <h2>Existing reflections, replies, research notes, and usage events across Memnon users.</h2>
+          <p>No separate analytics stack yet. This page computes founder metrics from the app data Memnon already stores, then pairs that signal with qualitative notes.</p>
         </div>
         <div class="hero-pills" id="hero-pills">
           <span class="pill">Loading profile…</span>
@@ -368,21 +419,21 @@
         <div class="card section-card">
           <div class="section-head">
             <div>
-              <div class="section-kicker">Usage snapshot</div>
-              <h2>What the app is seeing</h2>
-              <p>Recent note volume, reply behavior, teaching-context usage, and which reflection modes are actually getting exercised.</p>
+              <div class="section-kicker">Founder snapshot</div>
+              <h2>What matters this week</h2>
+              <p>Use this to check whether people are reaching first value, engaging with the return, and coming back after first use.</p>
             </div>
             <button id="refresh-summary-btn" class="btn">Refresh</button>
           </div>
           <div class="stats-grid" id="stats-grid">
-            <div class="stat"><div class="stat-label">Notes</div><div class="stat-value">-</div></div>
-            <div class="stat"><div class="stat-label">Replies</div><div class="stat-value">-</div></div>
-            <div class="stat"><div class="stat-label">Events</div><div class="stat-value">-</div></div>
-            <div class="stat"><div class="stat-label">Top mode</div><div class="stat-value">-</div></div>
+            <div class="stat"><div class="stat-label">Active users (7d)</div><div class="stat-value">-</div></div>
+            <div class="stat"><div class="stat-label">Activated (7d)</div><div class="stat-value">-</div></div>
+            <div class="stat"><div class="stat-label">Core action (7d)</div><div class="stat-value">-</div></div>
+            <div class="stat"><div class="stat-label">Returned (7d)</div><div class="stat-value">-</div></div>
           </div>
           <div class="meta-grid">
             <div class="meta-box">
-              <h3>Reflection modes</h3>
+              <h3>Reflection modes in use</h3>
               <div class="pill-row" id="style-pills"><span class="pill">Loading…</span></div>
             </div>
             <div class="meta-box">
@@ -403,9 +454,20 @@
         <div class="card section-card">
           <div class="section-head">
             <div>
+              <div class="section-kicker">Recent users</div>
+              <h2>Who used Memnon and whether they got to value</h2>
+              <p>This is the table that matters most right now: recent activity, first capture, core action completion, return behavior, and the last reflection context you saw from each person.</p>
+            </div>
+          </div>
+          <div id="recent-users-list" class="user-rows"><div class="empty">Loading users…</div></div>
+        </div>
+
+        <div class="card section-card">
+          <div class="section-head">
+            <div>
               <div class="section-kicker">Recent signals</div>
               <h2>Latest reflection and event activity</h2>
-              <p>Useful for checking whether people are recording, writing, replying, listening, and revisiting patterns over time.</p>
+              <p>Use this for pattern reading and debugging: what was created most recently, and what actions people took around it.</p>
             </div>
           </div>
           <div class="meta-grid">
@@ -600,26 +662,53 @@
     }
 
     function renderStats(summary) {
-      const styles = summary?.styles || {};
-      const events = summary?.events || {};
-      const topMode = Object.entries(styles).sort((a, b) => b[1] - a[1])[0]?.[0] || "none yet";
       const statsGrid = document.getElementById("stats-grid");
       statsGrid.innerHTML = `
-        <div class="stat"><div class="stat-label">Notes</div><div class="stat-value">${summary?.notes_count ?? 0}</div></div>
-        <div class="stat"><div class="stat-label">Replies</div><div class="stat-value">${summary?.reply_count ?? 0}</div></div>
-        <div class="stat"><div class="stat-label">Events</div><div class="stat-value">${Object.values(events).reduce((sum, count) => sum + Number(count || 0), 0)}</div></div>
-        <div class="stat"><div class="stat-label">Top mode</div><div class="stat-value">${titleCaseFromEvent(topMode)}</div></div>
+        <div class="stat"><div class="stat-label">Active users (7d)</div><div class="stat-value">${summary?.recent_active_users_7d ?? 0}</div></div>
+        <div class="stat"><div class="stat-label">Activated (7d)</div><div class="stat-value">${summary?.newly_activated_users_7d ?? 0}</div></div>
+        <div class="stat"><div class="stat-label">Core action (7d)</div><div class="stat-value">${summary?.core_action_users_7d ?? 0}</div></div>
+        <div class="stat"><div class="stat-label">Returned (7d)</div><div class="stat-value">${summary?.returned_users_7d ?? 0}</div></div>
       `;
+    }
+
+    function renderRecentUsers(users) {
+      const list = document.getElementById("recent-users-list");
+      if (!list) return;
+      list.innerHTML = users.length
+        ? users.map((user) => `
+            <div class="user-row">
+              <div class="user-row-head">
+                <div>
+                  <div class="user-row-title">${user.user_label || "Unknown user"}</div>
+                  <div class="user-row-meta">${[user.email, user.subjects, user.school_name].filter(Boolean).join(" · ") || "No profile context yet"}</div>
+                </div>
+                <div class="user-row-meta">Last seen ${formatDateTime(user.last_seen_at) || "No activity yet"}</div>
+              </div>
+              <div class="user-chip-row">
+                <span class="user-chip ${user.activated ? "is-positive" : "is-muted"}">${user.activated ? "Activated" : "Not activated"}</span>
+                <span class="user-chip ${user.completed_core_action ? "is-positive" : "is-muted"}">${user.completed_core_action ? "Core action completed" : "Core action not yet completed"}</span>
+                <span class="user-chip ${user.returned_after_first_use ? "is-positive" : "is-muted"}">${user.returned_after_first_use ? "Returned after first use" : "No later return yet"}</span>
+                <span class="user-chip">Captures ${user.captures_count ?? 0}</span>
+                <span class="user-chip">Plays ${user.plays_count ?? 0}</span>
+                <span class="user-chip">Replies ${user.replies_count ?? 0}</span>
+              </div>
+              <div class="user-row-meta">
+                First capture ${formatDateTime(user.first_capture_at) || "Not yet"} · Latest mode ${titleCaseFromEvent(user.latest_reflection_style || "unknown")}
+              </div>
+              <div class="list-copy">${user.latest_note_title ? `Latest note: ${user.latest_note_title}` : "No saved reflection title yet."}</div>
+            </div>
+          `).join("")
+        : `<div class="empty">No Memnon users found yet.</div>`;
     }
 
     function renderResearchSummary(data) {
       const preferredName = data?.profile?.preferred_name || "You";
       renderStats(data.summary || {});
       renderPills("hero-pills", [
-        data?.profile?.subjects || "No subject set",
-        data?.profile?.school_name || "No school set",
-        `${(data?.summary?.notes_count ?? 0)} recent notes`,
+        `${(data?.summary?.users_count ?? 0)} total users`,
+        `${(data?.summary?.notes_count ?? 0)} saved reflections`,
         `${(data?.summary?.reply_count ?? 0)} saved replies`,
+        `${Object.values(data?.summary?.events || {}).reduce((sum, count) => sum + Number(count || 0), 0)} tracked events`,
       ]);
       renderPills("style-pills", Object.entries(data.summary?.styles || {}), ([style, count]) => `${titleCaseFromEvent(style)} · ${count}`);
       renderPills("teaching-context-pills", [
@@ -628,6 +717,7 @@
       ]);
       renderPills("voice-pills", data.top_voices || [], (item) => `${item.label} · ${item.count}`);
       renderPills("framework-pills", data.top_frameworks || [], (item) => `${item.label} · ${item.count}`);
+      renderRecentUsers(data.recent_users || []);
 
       const notes = data.recent_notes || [];
       const notesList = document.getElementById("recent-notes-list");
@@ -635,7 +725,7 @@
         ? notes.map((note) => `
             <div class="list-item">
               <div class="list-title">${note.title}</div>
-              <div class="list-subtitle">${note.date || "Recent"} · ${titleCaseFromEvent(note.reflection_style)} · Teaching context ${note.include_teaching_context ? "on" : "off"}</div>
+              <div class="list-subtitle">${note.user_label || "Unknown"} · ${note.date || "Recent"} · ${titleCaseFromEvent(note.reflection_style)} · Teaching context ${note.include_teaching_context ? "on" : "off"}</div>
               ${note.summary ? `<div class="list-copy">${note.summary}</div>` : ""}
             </div>
           `).join("")
@@ -647,7 +737,7 @@
         ? events.map((event) => `
             <div class="list-item">
               <div class="list-title">${titleCaseFromEvent(event.event_name)}</div>
-              <div class="list-subtitle">${formatDateTime(event.created_at) || "Recent"}</div>
+              <div class="list-subtitle">${event.user_label || "Unknown"} · ${formatDateTime(event.created_at) || "Recent"}</div>
               <div class="list-copy">${Object.keys(event.metadata || {}).length ? Object.entries(event.metadata).map(([key, value]) => `${titleCaseFromEvent(key)}: ${Array.isArray(value) ? value.join(", ") : value}`).join(" · ") : "No extra metadata"}</div>
             </div>
           `).join("")
@@ -663,7 +753,7 @@
         ? items.map((item) => `
             <div class="list-item">
               <div class="list-title">${item.teacher_name || item.role || "Teacher conversation"}</div>
-              <div class="list-subtitle">${[item.role, item.school_context, formatDateTime(item.created_at)].filter(Boolean).join(" · ")}</div>
+              <div class="list-subtitle">${[item.owner_label, item.role, item.school_context, formatDateTime(item.created_at)].filter(Boolean).join(" · ")}</div>
               <div class="list-copy"><strong>Hardest problem:</strong> ${item.top_problem || "Not recorded"}</div>
               ${item.strongest_reaction ? `<div class="list-copy"><strong>Reaction:</strong> ${item.strongest_reaction}</div>` : ""}
               ${item.quote ? `<div class="list-copy"><strong>Quote:</strong> "${item.quote}"</div>` : ""}
