@@ -638,6 +638,9 @@
   <nav>
     <span class="nav-brand"><img class="brand-mark" src="/nav-logo.png" alt="" /> Memnon</span>
     <div class="nav-right">
+      <a id="research-link" class="btn btn-outline" href="/research" style="padding:6px 14px; font-size:0.8rem;">
+        Research
+      </a>
       <span id="nav-name" class="muted"></span>
       <button id="signout-btn" class="btn btn-outline" style="padding:6px 14px; font-size:0.8rem;">
         Sign out
@@ -894,6 +897,7 @@
       home: isStaticLocalhost ? "/index.html" : "/",
       dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
       setup: isStaticLocalhost ? "/setup.html" : "/setup",
+      research: isStaticLocalhost ? "/research.html" : "/research",
     };
 
     const MOCK_DASHBOARD_STATES = {
@@ -1010,6 +1014,7 @@
     setupLinks.forEach((link) => {
       link.setAttribute("href", routes.setup);
     });
+    document.getElementById("research-link")?.setAttribute("href", routes.research);
 
     let callbackSignInPromise = Promise.resolve();
 
@@ -1362,6 +1367,10 @@
           statusClass: "is-success",
           clearInput: true,
         });
+        await logUsageEvent("captured_reflection_text_client", {
+          include_teaching_context: includeTeachingContext,
+          word_count: text.split(/\s+/).filter(Boolean).length,
+        });
         const refreshedToken = await getToken(true);
         await loadLatestAudio(refreshedToken, {
           listPath: "/reflections",
@@ -1529,6 +1538,12 @@
         `;
         const audio = container.querySelector("audio");
         if (audio) {
+          audio.addEventListener("play", () => {
+            logUsageEvent("played_reflection_audio", {
+              reflection_name: displayName,
+              source: containerId,
+            });
+          }, { once: true });
           audio.addEventListener("error", () => {
             container.innerHTML = `<div class="recording-player-empty">${errorMessage}</div>`;
           }, { once: true });
@@ -1714,6 +1729,27 @@
       return _cachedToken;
     }
 
+    async function logUsageEvent(eventName, metadata = {}) {
+      if (PREVIEW_MODE || !auth.currentUser) return;
+      try {
+        const token = await getToken();
+        if (!token) return;
+        await fetch(`${API}/usage-event`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            event_name: eventName,
+            metadata,
+          }),
+        });
+      } catch (error) {
+        console.error("Could not log usage event:", error);
+      }
+    }
+
     // ── Upload audio to /upload endpoint ──
     async function uploadAudio(blob, filename) {
       const statusEl = document.getElementById("upload-status");
@@ -1807,20 +1843,40 @@
     }
 
     document.getElementById("capture-text-save")?.addEventListener("click", saveWrittenReflection);
-    document.getElementById("reflection-continue-btn")?.addEventListener("click", continueReflectionThread);
-    document.getElementById("capture-teaching-context")?.addEventListener("change", () => {
+    document.getElementById("reflection-continue-btn")?.addEventListener("click", async () => {
+      continueReflectionThread();
+      await logUsageEvent("continued_reflection_thread", {
+        note_id: latestReflectionNote?.id || "",
+      });
+    });
+    document.getElementById("capture-teaching-context")?.addEventListener("change", async () => {
       if (currentProfileData) {
         renderReflectionContextCard(currentProfileData, {
           includeTeachingContext: getIncludeTeachingContextEntry(),
         });
       }
+      await logUsageEvent("toggled_teaching_context", {
+        include_teaching_context: getIncludeTeachingContextEntry(),
+      });
     });
-    document.getElementById("write-btn")?.addEventListener("click", () => {
+    document.getElementById("write-btn")?.addEventListener("click", async () => {
       const panel = document.getElementById("capture-text-panel");
       renderCaptureTextPanel(!!panel?.hidden);
+      await logUsageEvent("opened_write_capture", {
+        panel_open: !!panel?.hidden,
+      });
     });
-    document.getElementById("reflection-view-listen")?.addEventListener("click", () => setReflectionView("listen"));
-    document.getElementById("reflection-view-read")?.addEventListener("click", () => setReflectionView("read"));
+    document.getElementById("reflection-view-listen")?.addEventListener("click", async () => {
+      setReflectionView("listen");
+      await logUsageEvent("switched_reflection_view", { view: "listen" });
+    });
+    document.getElementById("reflection-view-read")?.addEventListener("click", async () => {
+      setReflectionView("read");
+      await logUsageEvent("switched_reflection_view", { view: "read" });
+    });
+    document.getElementById("notes-link")?.addEventListener("click", async () => {
+      await logUsageEvent("opened_archive");
+    });
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
@@ -1862,6 +1918,10 @@
           fallbackName: `Latest ${(REFLECTION_STYLE_LABELS[data.reflection_style || "complete"] || "Complete").toLowerCase()} reflection`,
           cache: reflectionObjectUrls,
         });
+        await logUsageEvent("opened_dashboard", {
+          reflection_style: data.reflection_style || "complete",
+          include_teaching_context: getIncludeTeachingContextEntry(),
+        });
       }
 
       // Load recent notes with influenced_by
@@ -1879,6 +1939,7 @@
           return;
         }
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          logUsageEvent("started_audio_capture");
           mediaRecorder = new MediaRecorder(stream);
           chunks = [];
           mediaRecorder.ondataavailable = e => chunks.push(e.data);

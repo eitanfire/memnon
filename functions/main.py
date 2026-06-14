@@ -20,6 +20,7 @@ OAuth redirect URI to register in Google Cloud Console:
 """
 
 import base64
+from collections import Counter
 import hashlib
 import io
 import json
@@ -165,6 +166,173 @@ def _append_query_params(url: str, params: dict[str, str]) -> str:
     query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
     query.update(params)
     return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(query)))
+
+
+def _sanitize_usage_metadata(value, depth: int = 0):
+    if depth > 3:
+        return None
+    if isinstance(value, dict):
+        cleaned = {}
+        for key, item in value.items():
+            key_str = str(key).strip()[:80]
+            if not key_str:
+                continue
+            normalized = _sanitize_usage_metadata(item, depth + 1)
+            if normalized is not None:
+                cleaned[key_str] = normalized
+        return cleaned
+    if isinstance(value, list):
+        cleaned = []
+        for item in value[:12]:
+            normalized = _sanitize_usage_metadata(item, depth + 1)
+            if normalized is not None:
+                cleaned.append(normalized)
+        return cleaned
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value
+    if value is None:
+        return None
+    text = re.sub(r"\s+", " ", str(value)).strip()
+    return text[:240] if text else None
+
+
+def _log_usage_event(uid: str, event_name: str, metadata: dict | None = None) -> None:
+    normalized_name = re.sub(r"[^a-z0-9:_-]+", "_", (event_name or "").strip().lower())[:80]
+    if not normalized_name:
+        return
+    payload = {
+        "event_name": normalized_name,
+        "created_at": firestore.SERVER_TIMESTAMP,
+    }
+    cleaned_metadata = _sanitize_usage_metadata(metadata or {})
+    if cleaned_metadata:
+        payload["metadata"] = cleaned_metadata
+    _get_db().collection("users").document(uid).collection("usage_events").add(payload)
+
+
+def _serialize_firestore_value(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    return value
+
+
+def _ordinal_day(value: int) -> str:
+    if 10 <= value % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(value % 10, "th")
+    return f"{value}{suffix}"
+
+
+def _format_natural_date(raw) -> str:
+    if not raw:
+        return ""
+    if isinstance(raw, datetime):
+        dt = raw
+    else:
+        text = str(raw).strip()
+        iso_match = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", text)
+        if iso_match:
+            dt = datetime(int(iso_match.group(1)), int(iso_match.group(2)), int(iso_match.group(3)))
+        else:
+            try:
+                dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except Exception:
+                return text
+    return f"{dt.strftime('%B')} {_ordinal_day(dt.day)}"
+
+
+def _summarize_research(uid: str) -> dict:
+    user_ref = _get_db().collection("users").document(uid)
+    user_doc = user_ref.get()
+    user_data = user_doc.to_dict() if user_doc.exists else {}
+
+    notes_docs = list(user_ref.collection("notes").order_by("created_at", direction=firestore.Query.DESCENDING).limit(50).stream())
+    events_docs = list(user_ref.collection("usage_events").order_by("created_at", direction=firestore.Query.DESCENDING).limit(120).stream())
+
+    style_counter = Counter()
+    teaching_context_counter = Counter()
+    voice_counter = Counter()
+    framework_counter = Counter()
+    reply_count = 0
+    recent_notes = []
+
+    for snap in notes_docs:
+        note = snap.to_dict() or {}
+        style = note.get("reflection_style") or "complete"
+        style_counter[style] += 1
+        if note.get("include_teaching_context") is False:
+            teaching_context_counter["off"] += 1
+        else:
+            teaching_context_counter["on"] += 1
+        for voice in note.get("voice_labels", []) or []:
+            voice_name = re.sub(r"\s+", " ", str(voice or "")).strip()
+            if voice_name:
+                voice_counter[voice_name] += 1
+        reply_count += int(note.get("participant_response_count") or 0)
+        recent_notes.append({
+            "id": snap.id,
+            "title": note.get("title") or "Untitled",
+            "date": _format_natural_date(note.get("date") or note.get("created_at")),
+            "summary": (note.get("summary") or "").strip()[:240],
+            "reflection_style": style,
+            "include_teaching_context": note.get("include_teaching_context") is not False,
+            "voices": [v for v in (note.get("voice_labels") or []) if v][:4],
+        })
+
+    event_counter = Counter()
+    recent_events = []
+    for snap in events_docs:
+        event = snap.to_dict() or {}
+        event_name = event.get("event_name") or "unknown"
+        event_counter[event_name] += 1
+        recent_events.append({
+            "id": snap.id,
+            "event_name": event_name,
+            "created_at": _serialize_firestore_value(event.get("created_at")),
+            "metadata": event.get("metadata") or {},
+        })
+
+    guide_usage = user_data.get("guide_usage") or {}
+    passage_usage = user_data.get("passage_usage") or {}
+    for framework in user_data.get("state_standards", []) or []:
+        framework_name = re.sub(r"\s+", " ", str(framework or "")).strip()
+        if framework_name:
+            framework_counter[framework_name] += 1
+
+    return {
+        "profile": {
+            "preferred_name": user_data.get("preferred_name") or "",
+            "reflection_style": user_data.get("reflection_style") or "complete",
+            "subjects": user_data.get("subjects") or "",
+            "school_name": user_data.get("school_name") or "",
+        },
+        "summary": {
+            "notes_count": len(notes_docs),
+            "reply_count": reply_count,
+            "styles": dict(style_counter),
+            "teaching_context": {
+                "on": teaching_context_counter.get("on", 0),
+                "off": teaching_context_counter.get("off", 0),
+            },
+            "events": dict(event_counter),
+        },
+        "guide_usage": guide_usage,
+        "passage_usage_count": len(passage_usage),
+        "top_voices": [{"label": name, "count": count} for name, count in voice_counter.most_common(6)],
+        "top_frameworks": [{"label": name, "count": count} for name, count in framework_counter.most_common(6)],
+        "recent_notes": recent_notes[:8],
+        "recent_events": recent_events[:20],
+    }
 
 
 def _requested_google_scopes(include_tasks: bool = False) -> list[str]:
@@ -1976,6 +2144,11 @@ def upload_audio():
         source_mime_type=upload_mime_type,
     )
 
+    _log_usage_event(uid, "captured_reflection_audio", {
+        "include_teaching_context": include_teaching_context,
+        "reflection_style": user_data.get("reflection_style") or "complete",
+        "source": "record",
+    })
     print(f"[{uid}] Direct upload note saved: {result['note_name']}")
     return jsonify({"ok": True, "note": result["note_name"], "reflection_audio": result["reflection_audio"]})
 
@@ -2034,6 +2207,10 @@ def save_reflection_response():
         update_payload["embedding_created_at"] = firestore.SERVER_TIMESTAMP
 
     note_ref.update(update_payload)
+    _log_usage_event(uid, "saved_reflection_reply", {
+        "note_id": note_id,
+        "response_length": len(response_text),
+    })
     return jsonify({
         "ok": True,
         "participant_response_count": update_payload["participant_response_count"],
@@ -2080,8 +2257,129 @@ def create_text_reflection():
         include_teaching_context=include_teaching_context,
     )
 
+    _log_usage_event(uid, "captured_reflection_text", {
+        "include_teaching_context": include_teaching_context,
+        "reflection_style": user_data.get("reflection_style") or "complete",
+        "word_count": len(transcript.split()),
+    })
     print(f"[{uid}] Text entry note saved: {result['note_name']}")
     return jsonify({"ok": True, "note": result["note_name"], "reflection_audio": result["reflection_audio"]})
+
+
+@flask_app.route("/usage-event", methods=["POST"])
+def create_usage_event():
+    """Store a lightweight product usage event for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    event_name = (data.get("event_name") or "").strip()
+    if not event_name:
+        return jsonify({"error": "missing event_name"}), 400
+
+    metadata = data.get("metadata")
+    if metadata is not None and not isinstance(metadata, dict):
+        return jsonify({"error": "metadata must be an object"}), 400
+
+    _log_usage_event(uid, event_name, metadata or {})
+    return jsonify({"ok": True})
+
+
+@flask_app.route("/research-summary")
+def get_research_summary():
+    """Return a compact research summary for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify(_summarize_research(uid))
+
+
+@flask_app.route("/research-notes")
+def list_research_notes():
+    """Return saved teacher interview and research notes for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    docs = _get_db().collection("users").document(uid).collection("research_notes") \
+        .order_by("created_at", direction=firestore.Query.DESCENDING).limit(40).stream()
+
+    items = []
+    for snap in docs:
+        payload = snap.to_dict() or {}
+        items.append({
+            "id": snap.id,
+            "teacher_name": payload.get("teacher_name") or "",
+            "role": payload.get("role") or "",
+            "school_context": payload.get("school_context") or "",
+            "top_problem": payload.get("top_problem") or "",
+            "current_workaround": payload.get("current_workaround") or "",
+            "strongest_reaction": payload.get("strongest_reaction") or "",
+            "confusions": payload.get("confusions") or "",
+            "would_use_weekly": payload.get("would_use_weekly") or "",
+            "quote": payload.get("quote") or "",
+            "next_step": payload.get("next_step") or "",
+            "apps_discussed": payload.get("apps_discussed") or [],
+            "tags": payload.get("tags") or [],
+            "created_at": _serialize_firestore_value(payload.get("created_at")),
+        })
+    return jsonify({"items": items})
+
+
+@flask_app.route("/research-notes", methods=["POST"])
+def create_research_note():
+    """Save a structured teacher conversation note for product research."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+
+    def clean_text(key: str, limit_value: int = 800) -> str:
+        return re.sub(r"\s+", " ", str(data.get(key) or "")).strip()[:limit_value]
+
+    def clean_list(key: str, limit_items: int = 8) -> list[str]:
+        raw = data.get(key) or []
+        if isinstance(raw, str):
+            raw = [part.strip() for part in raw.split(",")]
+        if not isinstance(raw, list):
+            return []
+        cleaned = []
+        for item in raw[:limit_items]:
+            text = re.sub(r"\s+", " ", str(item or "")).strip()
+            if text:
+                cleaned.append(text[:120])
+        return cleaned
+
+    top_problem = clean_text("top_problem", 1200)
+    if len(top_problem) < 8:
+        return jsonify({"error": "top_problem is too short"}), 400
+
+    payload = {
+        "teacher_name": clean_text("teacher_name", 120),
+        "role": clean_text("role", 160),
+        "school_context": clean_text("school_context", 240),
+        "top_problem": top_problem,
+        "current_workaround": clean_text("current_workaround", 1200),
+        "strongest_reaction": clean_text("strongest_reaction", 1200),
+        "confusions": clean_text("confusions", 1200),
+        "would_use_weekly": clean_text("would_use_weekly", 80),
+        "quote": clean_text("quote", 1200),
+        "next_step": clean_text("next_step", 600),
+        "apps_discussed": clean_list("apps_discussed"),
+        "tags": clean_list("tags"),
+        "created_at": firestore.SERVER_TIMESTAMP,
+    }
+
+    note_ref = _get_db().collection("users").document(uid).collection("research_notes").document()
+    note_ref.set(payload)
+    _log_usage_event(uid, "saved_research_note", {
+        "apps_discussed_count": len(payload["apps_discussed"]),
+        "tags_count": len(payload["tags"]),
+        "would_use_weekly": payload["would_use_weekly"] or "unspecified",
+    })
+    return jsonify({"ok": True, "id": note_ref.id})
 
 
 @flask_app.route("/me")
