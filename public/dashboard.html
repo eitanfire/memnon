@@ -69,6 +69,63 @@
       display: grid;
       gap: 14px;
     }
+    .dashboard-capture-card {
+      display: block;
+      padding: clamp(22px, 3vw, 34px);
+    }
+    .dashboard-capture-intro {
+      max-width: 760px;
+      margin: 0 auto 1.2rem;
+      text-align: center;
+    }
+    .dashboard-capture-title {
+      margin: 0;
+      color: #0f172a;
+      font-size: clamp(2rem, 3vw, 3.2rem);
+      font-weight: 600;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+    }
+    .dashboard-capture-description {
+      margin: 0.8rem auto 0;
+      max-width: 640px;
+      color: #5a5f6a;
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+    .capture-prompt-shell {
+      margin: 0 auto;
+      max-width: 920px;
+      padding: 1rem;
+      border-radius: 26px;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.82),
+        rgba(250, 247, 241, 0.96)
+      );
+      border: 1px solid rgba(184, 146, 88, 0.14);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.78),
+        0 18px 32px rgba(15, 23, 42, 0.08);
+    }
+    .capture-prompt-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .capture-prompt-actions .capture-mode-btn {
+      min-height: 52px;
+      font-size: 0.95rem;
+    }
+    .dashboard-capture-secondary {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .dashboard-capture-secondary > * {
+      min-width: 0;
+    }
     .summary-tile {
       border: 1px solid #e8e6e0;
       border-radius: 10px;
@@ -114,6 +171,25 @@
     .summary-tile--archive {
       padding-top: 14px;
       padding-bottom: 14px;
+    }
+    .capture-header-copy {
+      min-width: 0;
+      flex: 1;
+    }
+    .capture-header-avatar {
+      flex-shrink: 0;
+      align-self: flex-start;
+      margin-top: 4px;
+    }
+    .capture-header-avatar .welcome-mark-frame {
+      width: 92px;
+      height: 92px;
+      padding: 8px;
+      border-radius: 22px;
+    }
+    .capture-header-avatar .welcome-mark-label {
+      font-size: 0.68rem;
+      margin-top: 4px;
     }
     .archive-link-row {
       display: flex;
@@ -433,6 +509,29 @@
       text-transform: uppercase;
       color: #7c6a55;
     }
+    .nav-portrait-link {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      color: inherit;
+      text-decoration: none;
+      margin-left: 4px;
+    }
+    .nav-portrait-link .welcome-mark-frame {
+      width: 58px;
+      height: 58px;
+      padding: 5px;
+      border-radius: 16px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 249, 230, 0.7),
+        0 10px 20px rgba(93, 71, 42, 0.14);
+    }
+    .nav-portrait-link .welcome-mark-label {
+      margin-top: 3px;
+      font-size: 0.58rem;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
     @media (max-width: 700px) {
       .editorial-card {
         grid-template-columns: 1fr;
@@ -452,6 +551,15 @@
         height: 96px;
         padding: 8px;
         border-radius: 22px;
+      }
+      .nav-portrait-link .welcome-mark-frame {
+        width: 44px;
+        height: 44px;
+        padding: 4px;
+        border-radius: 12px;
+      }
+      .nav-portrait-link .welcome-mark-label {
+        display: none;
       }
     }
 
@@ -632,6 +740,31 @@
       pointer-events: none;
       box-shadow: none;
     }
+    @media (max-width: 980px) {
+      .dashboard-capture-secondary {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 640px) {
+      .dashboard-capture-card {
+        padding: 20px 16px;
+      }
+      .dashboard-capture-title {
+        font-size: clamp(1.7rem, 8vw, 2.35rem);
+      }
+      .dashboard-capture-description {
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+      .capture-prompt-shell {
+        padding: 0.85rem;
+        border-radius: 22px;
+      }
+      .capture-prompt-actions,
+      .capture-mode-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body class="dashboard-page">
@@ -645,6 +778,12 @@
       <button id="signout-btn" class="btn btn-outline" style="padding:6px 14px; font-size:0.8rem;">
         Sign out
       </button>
+      <a id="welcome-mark-link" class="welcome-mark-link nav-portrait-link" href="/setup#dashboard-portrait" aria-label="Tune reflection portrait">
+        <div class="welcome-mark-frame">
+          <img id="welcome-mark-image" src="/lattice.png" alt="Dashboard portrait" />
+        </div>
+        <div class="welcome-mark-label">Portrait</div>
+      </a>
     </div>
   </nav>
 
@@ -652,91 +791,36 @@
 
     <div id="upload-status" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:8px; background:#eff6ff; color:#1d4ed8; font-size:0.875rem;"></div>
 
-    <div class="card dashboard-hero">
-      <div class="dashboard-hero-copy">
-        <div class="page-hero-kicker">Dashboard</div>
-        <h1>Welcome back, <span id="first-name"></span> 👋</h1>
-        <p>Record, receive, and revisit reflections shaped by the context and voices you choose.</p>
-      </div>
-      <a id="welcome-mark-link" class="welcome-mark-link" href="/setup#dashboard-portrait" aria-label="Tune reflection portrait">
-        <div class="welcome-mark-frame">
-          <img id="welcome-mark-image" src="/lattice.png" alt="Dashboard portrait" />
-        </div>
-        <div class="welcome-mark-label">Edit portrait</div>
-      </a>
-    </div>
-
-    <!-- Lane -->
-    <div class="card editorial-card dashboard-secondary-card">
-      <div class="editorial-main">
-        <div class="editorial-header">
-          <div>
-          <h2 id="lane-title">Reflection Context</h2>
-          <p id="lane-desc" style="color:#555;">These settings shape how Memnon will ground your next reflection.</p>
-          <div class="capture-context-toggle" style="margin-top:14px;">
-            <label for="capture-teaching-context">
-              <input id="capture-teaching-context" type="checkbox" checked />
-              <span>
-                <div class="capture-context-toggle-title">Use teaching context</div>
-                <div class="capture-context-toggle-copy">When on, Memnon includes your classroom, school, and standards context in the next reflection.</div>
-              </span>
-            </label>
-          </div>
-          <div id="lane-pills" class="context-pill-row"></div>
-        </div>
-        <a href="/setup" class="btn context-cta" style="white-space:nowrap;">
-          <span aria-hidden="true">⚙</span>
-          Tune Reflection
-        </a>
-        </div>
-        <p class="editorial-copy" id="lane-copy">
-          Memnon can ground the next reflection in your classroom context, selected frameworks, guiding voices, and memory across entries.
+    <div class="card dashboard-primary-card dashboard-capture-card">
+      <div class="dashboard-capture-intro">
+        <h1 class="dashboard-capture-title">What is on your mind?</h1>
+        <p class="dashboard-capture-description">
+          Record or write whatever feels present. Memnon can return it as a grounded reflection you can revisit later.
         </p>
       </div>
-      <div class="editorial-media" aria-hidden="true">
-        <img src="/sacred_objects.png" alt="" />
-      </div>
-    </div>
-
-    <!-- Drive folders -->
-    <div class="card editorial-card">
-      <div class="editorial-main">
-      <div class="editorial-header" style="margin-bottom:16px;">
-        <div>
-          <h2>Capture & Archive</h2>
-          <p class="editorial-copy">
-            Capture a new reflection, hear the latest return, or reopen the archive.
-          </p>
+      <div class="capture-prompt-shell">
+        <div class="capture-prompt-actions">
+          <button id="record-btn" class="btn btn-primary capture-mode-btn">
+            <span class="record-mark" aria-hidden="true">🎙</span>
+            Record
+          </button>
+          <button id="write-btn" class="btn btn-outline capture-mode-btn">
+            <span aria-hidden="true">⌨️</span>
+            Write
+          </button>
         </div>
-      </div>
-      <div class="capture-archive-stack">
-        <div class="summary-tile">
-          <div>
-            <div class="summary-tile-kicker">Capture</div>
-            <div class="summary-tile-title">Capture reflection</div>
-            <div class="summary-tile-copy">Choose the door that fits the moment.</div>
-            <div class="capture-mode-grid">
-              <button id="record-btn" class="btn btn-primary capture-mode-btn">
-                <span class="record-mark" aria-hidden="true">🎙</span>
-                Record
-              </button>
-              <button id="write-btn" class="btn btn-outline capture-mode-btn">
-                <span aria-hidden="true">⌨️</span>
-                Write
-              </button>
-            </div>
-            <div id="capture-text-panel" class="capture-text-panel" hidden>
-              <div class="capture-text-copy">Write freely. Memnon will treat this as a full reflection entry, not a secondary note.</div>
-              <textarea id="capture-text-input" placeholder="Write what happened, what is weighing on you, or what you want to understand more clearly."></textarea>
-              <div class="capture-text-actions">
-                <button id="capture-text-save" class="btn btn-primary" style="padding:8px 14px; font-size:0.8rem;">
-                  Capture in writing
-                </button>
-                <div id="capture-text-status" class="capture-text-status" aria-live="polite"></div>
-              </div>
-            </div>
+        <div id="capture-text-panel" class="capture-text-panel" hidden>
+          <div class="capture-text-copy">Write freely. Memnon will treat this as a full reflection entry, not a secondary note.</div>
+          <textarea id="capture-text-input" placeholder="Write what happened, what is weighing on you, or what you want to understand more clearly."></textarea>
+          <div class="capture-text-actions">
+            <button id="capture-text-save" class="btn btn-primary" style="padding:8px 14px; font-size:0.8rem;">
+              Capture in writing
+            </button>
+            <div id="capture-text-status" class="capture-text-status" aria-live="polite"></div>
           </div>
         </div>
+      </div>
+      <div class="dashboard-capture-secondary">
         <div class="summary-tile summary-tile--latest">
           <div>
             <div class="summary-tile-kicker">Latest reflection</div>
@@ -784,9 +868,37 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Lane -->
+    <div class="card editorial-card dashboard-secondary-card">
+      <div class="editorial-main">
+        <div class="editorial-header">
+          <div>
+          <h2 id="lane-title">Reflection Context</h2>
+          <p id="lane-desc" style="color:#555;">These settings shape how Memnon will ground your next reflection.</p>
+          <div class="capture-context-toggle" style="margin-top:14px;">
+            <label for="capture-teaching-context">
+              <input id="capture-teaching-context" type="checkbox" checked />
+              <span>
+                <div class="capture-context-toggle-title">Use teaching context</div>
+                <div class="capture-context-toggle-copy">When on, Memnon includes your classroom, school, and standards context in the next reflection.</div>
+              </span>
+            </label>
+          </div>
+          <div id="lane-pills" class="context-pill-row"></div>
+        </div>
+        <a href="/setup" class="btn context-cta" style="white-space:nowrap;">
+          <span aria-hidden="true">⚙</span>
+          Tune Reflection
+        </a>
+        </div>
+        <p class="editorial-copy" id="lane-copy">
+          Memnon can ground the next reflection in your classroom context, selected frameworks, guiding voices, and memory across entries.
+        </p>
       </div>
       <div class="editorial-media" aria-hidden="true">
-        <img src="/sun_and_sound.png" alt="" />
+        <img src="/sacred_objects.png" alt="" />
       </div>
     </div>
 
@@ -857,17 +969,20 @@
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getFirestore, collection, query, orderBy, limit, getDocs }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAnalytics, isSupported, logEvent }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 
+    const FIREBASE_MEASUREMENT_ID = "";
     const firebaseConfig = {
       apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
       authDomain: "memnon-app.web.app",
       projectId: "memnon-app",
       storageBucket: "memnon-app.firebasestorage.app",
       messagingSenderId: "714155490867",
-      appId: "1:714155490867:web:f382fddb58a596bede6d46"
+      appId: "1:714155490867:web:f382fddb58a596bede6d46",
+      ...(FIREBASE_MEASUREMENT_ID ? { measurementId: FIREBASE_MEASUREMENT_ID } : {}),
     };
 
-    const API = "https://api-4hth6oktaa-uc.a.run.app";
     const REFLECTION_STYLE_LABELS = {
       practical: "Practical guidance",
       grounded: "Grounded reflection",
@@ -889,10 +1004,16 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db  = getFirestore(app);
+    const analyticsPromise = FIREBASE_MEASUREMENT_ID
+      ? isSupported()
+          .then((supported) => (supported ? getAnalytics(app) : null))
+          .catch(() => null)
+      : Promise.resolve(null);
     const callbackToken = params.get("token");
     const isStaticLocalhost =
       window.location.hostname === "localhost" &&
       (window.location.port === "8000" || window.location.port === "8080");
+    const API = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "/api";
     const routes = {
       home: isStaticLocalhost ? "/index.html" : "/",
       dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
@@ -912,7 +1033,7 @@
         state_standards: ["Common Core State Standards (CCSS)", "ISTE Standards"],
         dashboard_image: { kind: "preset", preset: "lattice" },
         reflect_config: {
-          selected_guides: ["Parker Palmer", "bell hooks"],
+          selected_guides: ["parker_palmer", "bell_hooks"],
         },
       },
       grounded: {
@@ -927,7 +1048,7 @@
         state_standards: ["Common Core State Standards (CCSS)"],
         dashboard_image: { kind: "preset", preset: "trebulla" },
         reflect_config: {
-          selected_guides: ["Marcus Aurelius", "Howard Thurman", "Thich Nhat Hanh"],
+          selected_guides: ["marcus_aurelius", "howard_thurman", "thich_nhat_hanh"],
         },
       },
       complete: {
@@ -944,7 +1065,7 @@
         ],
         dashboard_image: { kind: "preset", preset: "king_memnon" },
         reflect_config: {
-          selected_guides: ["Marcus Aurelius", "Parker Palmer", "Howard Thurman"],
+          selected_guides: ["marcus_aurelius", "parker_palmer", "howard_thurman"],
         },
       },
     };
@@ -984,8 +1105,9 @@
       }
 
       const player = document.getElementById("reflection-player-container");
+      const hasMockReflection = MOCK_REFLECTION_STATE !== "empty";
       if (player) {
-        if (MOCK_REFLECTION_STATE === "empty") {
+        if (!hasMockReflection) {
           player.innerHTML = `<div class="recording-player-empty">No ${REFLECTION_STYLE_LABELS[data.reflection_style || "complete"].toLowerCase()} yet. Record a memo to generate one.</div>`;
         } else {
           const titles = {
@@ -1007,7 +1129,7 @@
         action_items: ["Name the expectation earlier", "Keep your tone calm and direct"],
       });
       setReflectionView("listen");
-      renderReflectionContinuation({ id: "preview-note" });
+      renderReflectionContinuation(hasMockReflection ? { id: "preview-note" } : null);
     }
 
     const setupLinks = document.querySelectorAll('a[href="/setup"]');
@@ -1150,6 +1272,33 @@
 
     function formatList(items) {
       return items.filter(Boolean).join(", ");
+    }
+
+    function normalizeAnalyticsParams(params = {}) {
+      const normalized = {};
+      for (const [key, value] of Object.entries(params || {})) {
+        if (value === undefined || value === null || value === "") continue;
+        if (typeof value === "boolean") {
+          normalized[key] = value ? "true" : "false";
+        } else if (typeof value === "number" || typeof value === "string") {
+          normalized[key] = value;
+        } else if (Array.isArray(value)) {
+          normalized[key] = value.join(", ");
+        } else {
+          normalized[key] = String(value);
+        }
+      }
+      return normalized;
+    }
+
+    async function trackAnalytics(eventName, params = {}) {
+      const analytics = await analyticsPromise;
+      if (!analytics) return;
+      try {
+        logEvent(analytics, eventName, normalizeAnalyticsParams(params));
+      } catch (error) {
+        console.error("Could not log analytics event:", error);
+      }
     }
 
     function toProperNounLabel(value) {
@@ -1610,7 +1759,7 @@
             </div>
             <div class="note-summary">${n.summary || ""}</div>
             ${voiceLine ? `<div class="influenced-line"><strong>In conversation with</strong> ${uniqueVoices.slice(0, 3).join(", ")}</div>` : ""}
-            ${n.participant_response_excerpt ? `<div class="note-response-line"><strong>Your latest reply</strong> ${n.participant_response_excerpt}</div>` : ""}
+            ${(n.participant_response_summary || n.participant_response_excerpt) ? `<div class="note-response-line"><strong>Your latest reply summary</strong> ${n.participant_response_summary || n.participant_response_excerpt}</div>` : ""}
             ${influenced ? `
               <details class="influenced-by">
                 <summary class="influenced-toggle">Show source detail</summary>
@@ -1730,6 +1879,7 @@
     }
 
     async function logUsageEvent(eventName, metadata = {}) {
+      trackAnalytics(eventName, metadata);
       if (PREVIEW_MODE || !auth.currentUser) return;
       try {
         const token = await getToken();
@@ -1780,6 +1930,10 @@
           statusEl.style.background = "#f0fdf4";
           statusEl.style.color = "#15803d";
           statusEl.textContent = `✅ Note saved: ${data.note}`;
+          trackAnalytics("captured_reflection_audio", {
+            include_teaching_context: includeTeachingContext,
+            source: "dashboard_record",
+          });
         } else {
           if (res.status === 401) {
             throw new Error("session expired");
@@ -1883,8 +2037,10 @@
       if (!user) return;
 
       const firstName = (user.displayName || user.email).split(" ")[0];
-      document.getElementById("first-name").textContent = firstName;
-      document.getElementById("nav-name").textContent = user.displayName || user.email;
+      const firstNameEl = document.getElementById("first-name");
+      const navNameEl = document.getElementById("nav-name");
+      if (firstNameEl) firstNameEl.textContent = firstName;
+      if (navNameEl) navNameEl.textContent = user.displayName || user.email;
 
       const token = await user.getIdToken();
       _cachedToken = token;
@@ -1918,14 +2074,16 @@
           fallbackName: `Latest ${(REFLECTION_STYLE_LABELS[data.reflection_style || "complete"] || "Complete").toLowerCase()} reflection`,
           cache: reflectionObjectUrls,
         });
+        await loadRecentNotes(user.uid);
+        trackAnalytics("opened_app", {
+          surface: "dashboard",
+          reflection_style: data.reflection_style || "complete",
+        });
         await logUsageEvent("opened_dashboard", {
           reflection_style: data.reflection_style || "complete",
           include_teaching_context: getIncludeTeachingContextEntry(),
         });
       }
-
-      // Load recent notes with influenced_by
-      loadRecentNotes(user.uid);
 
       // Check for incoming shared file after auth is ready
       await checkSharedFile();

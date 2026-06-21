@@ -28,10 +28,11 @@ import os
 import re
 import secrets
 import tempfile
+import traceback
 import urllib.parse
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import firebase_admin
@@ -77,6 +78,7 @@ CORS(flask_app, origins=[
     "http://localhost:8080",
 ])
 
+
 # ── constants ─────────────────────────────────────────────────────────────────
 
 BASE_GOOGLE_SCOPES = [
@@ -121,6 +123,658 @@ FOUNDER_METRICS_EMAILS = {
     for email in (os.environ.get("FOUNDER_METRICS_EMAILS", "eitanfire@gmail.com")).split(",")
     if email.strip()
 }
+INNEDCO_RESEARCH = {
+    "saved_dates": {
+        "recording_ledger": "2026-06-18",
+        "conference_user_stories": "2026-06-18",
+        "speaker_notes": "2026-06-16",
+    },
+    "recording_ledger": {
+        "summary": {
+            "total_recordings": 17,
+            "already_processed": 13,
+            "needs_transcription": 0,
+            "needs_review": 2,
+            "skip": 1,
+        },
+        "priority_items": [
+            {
+                "file": "Beaver Run Resort & Conference Center 9.m4a",
+                "duration": "36:47",
+                "status": "probable duplicate",
+                "type": "session talk",
+                "action": "already captured",
+                "people": "Confirmed as another capture of the AI/citizenship session family already represented by Beaver Run Resort & Conference Center 4.m4a.",
+            },
+            {
+                "file": "New Recording 27.m4a",
+                "duration": "25:14",
+                "status": "probable duplicate",
+                "type": "session talk",
+                "action": "already captured",
+                "people": "Confirmed as another capture of the Alexandra Seabourn new-teacher-support session already represented by New Recording 24.m4a and New Recording 25.m4a.",
+            },
+        ],
+    },
+    "recording_coverage": {
+        "summary": {
+            "featured_in_research_view": 6,
+            "tracked_background_or_session_audio": 11,
+            "still_needs_follow_up": 0,
+        },
+        "items": [
+            {
+                "file": "Los Pinos Condos.m4a",
+                "duration": "47:02",
+                "source_status": "probable duplicate",
+                "research_visibility": "tracked background",
+                "notes": "Probable duplicate of Los Pinos Condos 2.m4a; keep the better copy for provenance, but do not treat it as separate evidence.",
+            },
+            {
+                "file": "Los Pinos Condos 2.m4a",
+                "duration": "47:02",
+                "source_status": "already processed",
+                "research_visibility": "featured in research view",
+                "notes": "Now represented through the Jaylen McGrew user story and manually re-transcribed to verify the Memnon workflow signal.",
+            },
+            {
+                "file": "508 Kings Crown Rd.m4a",
+                "duration": "01:50",
+                "source_status": "already processed",
+                "research_visibility": "tracked background",
+                "notes": "Marked already captured in the ledger, but not yet surfaced as its own conference story card.",
+            },
+            {
+                "file": "508 Kings Crown Rd 2.m4a",
+                "duration": "05:31",
+                "source_status": "already processed",
+                "research_visibility": "tracked background",
+                "notes": "Mostly ambient or indistinct chatter; kept only for provenance.",
+            },
+            {
+                "file": "Beaver Run Resort & Conference Center 2.m4a",
+                "duration": "02:41",
+                "source_status": "already processed",
+                "research_visibility": "tracked background",
+                "notes": "Marked already captured in the ledger, but not yet surfaced as its own conference story card.",
+            },
+            {
+                "file": "Beaver Run Resort & Conference Center 3.m4a",
+                "duration": "24:22",
+                "source_status": "already processed",
+                "research_visibility": "tracked background",
+                "notes": "Session talk; not user-research evidence.",
+            },
+            {
+                "file": "Beaver Run Resort & Conference Center 4.m4a",
+                "duration": "36:47",
+                "source_status": "already processed",
+                "research_visibility": "tracked background",
+                "notes": "Session talk; not user-research evidence.",
+            },
+            {
+                "file": "Beaver Run Resort & Conference Center 5.m4a",
+                "duration": "07:45",
+                "source_status": "already processed",
+                "research_visibility": "featured in research view",
+                "notes": "Represented through the Jasmine McGarr and Erin Quakenbush user story.",
+            },
+            {
+                "file": "Beaver Run Resort & Conference Center 6.m4a",
+                "duration": "00:06",
+                "source_status": "skip",
+                "research_visibility": "tracked background",
+                "notes": "Too short and unclear to treat as research evidence.",
+            },
+            {
+                "file": "Beaver Run Resort & Conference Center 7.m4a",
+                "duration": "15:43",
+                "source_status": "already processed",
+                "research_visibility": "featured in research view",
+                "notes": "Recovered from the failed folder and reviewed. This is a live Memnon reaction conversation about second-brain framing, Greek naming, and voice-to-workflow AI patterns.",
+            },
+            {
+                "file": "Beaver Run Resort & Conference Center 8.m4a",
+                "duration": "04:05",
+                "source_status": "already processed",
+                "research_visibility": "tracked background",
+                "notes": "Session talk; not user-research evidence.",
+            },
+            {
+                "file": "Beaver Run Resort & Conference Center 9.m4a",
+                "duration": "36:47",
+                "source_status": "probable duplicate",
+                "research_visibility": "tracked background",
+                "notes": "Reviewed and confirmed as another capture of the same AI/citizenship session family already represented by Beaver Run Resort & Conference Center 4.m4a.",
+            },
+            {
+                "file": "New Recording 23.m4a",
+                "duration": "48:27",
+                "source_status": "already processed",
+                "research_visibility": "tracked background",
+                "notes": "Session talk; not user-research evidence.",
+            },
+            {
+                "file": "New Recording 24.m4a",
+                "duration": "25:14",
+                "source_status": "already processed",
+                "research_visibility": "featured in research view",
+                "notes": "Represented through the Alexandra Seabourn user story.",
+            },
+            {
+                "file": "New Recording 25.m4a",
+                "duration": "25:14",
+                "source_status": "already processed",
+                "research_visibility": "featured in research view",
+                "notes": "Second Alexandra Seabourn recording; represented in the combined Alexandra user story.",
+            },
+            {
+                "file": "New Recording 26.m4a",
+                "duration": "01:28",
+                "source_status": "already processed",
+                "research_visibility": "featured in research view",
+                "notes": "Represented as the unidentified educator conversation focused on AI access, creativity, and diversity constraints.",
+            },
+            {
+                "file": "New Recording 27.m4a",
+                "duration": "25:14",
+                "source_status": "probable duplicate",
+                "research_visibility": "tracked background",
+                "notes": "Reviewed and confirmed as another capture of the Alexandra Seabourn mentoring and new-teacher-support session already represented by New Recording 24.m4a and New Recording 25.m4a.",
+            },
+        ],
+    },
+    "session_highlights": [
+        {
+            "title": "AI citizenship session: process over product",
+            "recordings": [
+                "Beaver Run Resort & Conference Center 4.m4a",
+                "Beaver Run Resort & Conference Center 9.m4a",
+            ],
+            "kind": "session talk",
+            "why_it_matters": "Relevant because it framed classroom AI use around reflection, verbal response, ethical modeling, and shifting assessment toward thinking rather than speed.",
+            "key_points": [
+                "Teachers were already using AI as a reflection tool and considering verbal-response workflows that make copy-paste shortcuts less central.",
+                "A strong line from the session was that if students are only graded on right answers, they will take the fastest path; the real shift is valuing explanation, critique, and process.",
+                "The session reinforced a Memnon-adjacent theme: teachers and students both need guided, visible modeling of ethical AI use rather than abstract prohibition.",
+            ],
+        },
+        {
+            "title": "Alexandra Seabourn session: scaffolding new teachers",
+            "recordings": [
+                "New Recording 24.m4a",
+                "New Recording 25.m4a",
+                "New Recording 27.m4a",
+            ],
+            "kind": "session talk",
+            "why_it_matters": "Relevant because it made the teacher-support problem concrete: behavior scaffolds, de-escalating language, parent communication templates, observation support, and emotional safety for novice teachers.",
+            "key_points": [
+                "The session emphasized that novice teachers often seek advice but still need scaffolded language and concrete moves they can actually use in the moment.",
+                "Parent communication templates, walkthrough encouragement, and non-punitive observation routines were framed as practical retention support rather than compliance tools.",
+                "This session sharpened the Memnon fit around reflective grounding, emotional safety, and practical coaching support for new teachers.",
+            ],
+        },
+    ],
+    "user_stories": [
+        {
+            "name": "Alexandra Seabourn",
+            "aliases": ["Alexandra Alexsi Seabourn"],
+            "recording": "New Recording 24.m4a and New Recording 25.m4a",
+            "role_organization": "Instructional Coach / Mentor context",
+            "user_type": "teacher-support leader",
+            "active_problem": "supporting and retaining new teachers through practical coaching and encouragement",
+            "urgency": "high",
+            "signal_strength": "strong",
+            "reaction_to_memnon": "strong resonance with honest, vulnerable, safe reflection",
+            "what_matters": "new teachers need concrete scaffolds, modeled language, support with parent communication, and non-punitive mentoring",
+            "best_follow_up_angle": "Memnon as dual support: practical coaching plus reflective grounding",
+            "best_next_steps": [
+                "Send a follow-up that explicitly recognizes Alexandra Alexsi Seabourn and Alexandra Seabourn as the same contact record.",
+                "Share memnon.app with a short note connecting Memnon to mentoring, scaffolded reflection, and new-teacher retention.",
+                "Invite a concrete reaction to one specific use case: reflective support for novice teachers after hard parent or classroom moments.",
+            ],
+            "draft_next_message": "thank her for the session, share memnon.app, note the overlap with her scaffolding and two-mentor framing, and invite feedback",
+        },
+        {
+            "name": "Unknown Educator From New Recording 26",
+            "recording": "New Recording 26.m4a",
+            "role_organization": "unknown",
+            "user_type": "educator interested in classroom AI access",
+            "active_problem": "how to teach students to use AI and technology well, especially where access and resource constraints matter",
+            "urgency": "medium",
+            "signal_strength": "weak",
+            "reaction_to_memnon": "not directly captured",
+            "what_matters": "students need access to powerful tools; AI may help with creativity and idea generation; diversity and limited supplies may shape how these tools are used",
+            "best_follow_up_angle": "only useful if identity can be recovered from surrounding recordings or memory",
+            "best_next_steps": [
+                "Do not send outreach yet; first identify the person from adjacent conference notes, badge photos, or nearby recordings.",
+                "Once identified, follow up around classroom AI access, constrained-resource settings, and how students actually use the tools.",
+                "Ask one concrete discovery question rather than pitching broadly: where does AI access currently break down for students?",
+            ],
+            "draft_next_message": "not ready until person is identified",
+        },
+        {
+            "name": "Unknown Memnon-Reaction Contact From Beaver Run 7",
+            "recording": "Beaver Run Resort & Conference Center 7.m4a",
+            "role_organization": "unknown conference contact",
+            "user_type": "AI-curious educator or conference peer reacting to workflow tools",
+            "active_problem": "how to turn voice, memory, and ongoing thought capture into useful AI-supported workflows rather than scattered notes",
+            "urgency": "medium",
+            "signal_strength": "medium",
+            "reaction_to_memnon": "positive reaction to the second-brain framing, the Greek naming, and the path from a Python script to a usable product; explicitly connected it to tools like Pocket AI, Plaud-style devices, and NotebookLM-like outputs",
+            "what_matters": "voice-first capture already reads as a meaningful workflow category to this person; Memnon felt legible not because AI was novel, but because the workflow made sense",
+            "best_follow_up_angle": "if the identity can be recovered, follow up around voice-first reflection workflows and what current tools still fail to do for teachers or thoughtful professionals",
+            "best_next_steps": [
+                "Treat this as product-signal evidence even if the identity remains unknown: the category made immediate sense to the listener.",
+                "If you can identify the person, ask which existing voice-to-AI workflow products they have actually tried and where those tools still feel shallow, generic, or poorly contextualized.",
+                "Use this recording as support for the claim that Memnon is entering an already-recognizable workflow space rather than inventing behavior from scratch.",
+            ],
+            "draft_next_message": "not ready until person is identified, but the useful follow-up would be about voice-first AI workflows, second-brain tools, and where teacher-specific context is still missing",
+        },
+        {
+            "name": "Jasmine McGarr and Erin Quakenbush",
+            "aliases": ["mcgarr_jasmine@svvsd.org", "Beaver Run 5 educators"],
+            "recording": "Beaver Run Resort & Conference Center 5.m4a",
+            "role_organization": "specialized-program educators; St. Vrain Valley Schools context",
+            "user_type": "educators working close to behavior support, autism support, accessibility, and teacher training",
+            "active_problem": "how to help adults and then students use powerful tools safely and usefully, especially in specialized settings with communication and accessibility needs",
+            "urgency": "high",
+            "signal_strength": "medium",
+            "reaction_to_memnon": "conversation suggests openness to educator-facing and accessibility-supportive tools",
+            "what_matters": "adult-first piloting reduces risk; accessibility and translation use cases are meaningful; strong professional development access changes adoption; AI may help students who otherwise struggle to communicate or access language",
+            "best_follow_up_angle": "position Memnon and related tools as practical supports for educator experimentation, accessibility, and reflective adoption in specialized programs",
+            "best_next_steps": [
+                "Follow up with Jasmine McGarr and Erin Quakenbush directly, tying the note to adult-first experimentation, accessibility, and communication support.",
+                "Offer a lightweight conversation or demo framed around specialized-program use cases rather than general AI enthusiasm.",
+                "Probe whether Memnon could support staff reflection, documentation, or communication workflows before moving to student-facing claims.",
+            ],
+            "draft_next_message": "great meeting you both at InnEdCO. I kept thinking about your comments on adult-first experimentation, accessibility, and communication support in specialized settings. I'd love to stay in touch and hear more about how those needs show up in practice, and whether a tool like Memnon might be useful on the staff reflection or support side.",
+        },
+        {
+            "name": "Toni Rose Deanon",
+            "aliases": ["TR"],
+            "recording": "Conversation at InnEdCO; no linked recording captured yet",
+            "role_organization": "mentor / teacher-support context for math teachers",
+            "user_type": "teacher mentor and cohort support lead",
+            "active_problem": "supporting a group of math teachers in ways that preserve teacher growth, judgment, and instructional energy",
+            "urgency": "high",
+            "signal_strength": "strong",
+            "reaction_to_memnon": "not directly documented, but the mentoring context suggests strong potential fit",
+            "what_matters": "the importance of play in education, supporting math teachers well, and helping teachers grow without collapsing into rigid or compliance-heavy practice",
+            "best_follow_up_angle": "Memnon as reflective support for mentors and teacher cohorts, especially where teachers need to process classroom moments while preserving play, judgment, and experimentation",
+            "best_next_steps": [
+                "Send a direct follow-up that references mentoring math teachers and the importance of play in education.",
+                "Share memnon.app as a possible support for mentor reflection, coaching debriefs, and teacher cohort growth rather than as a generic AI tool.",
+                "Ask whether Toni Rose reacts more to Memnon as support for mentor reflection, teacher processing after hard class moments, or pattern noticing across a cohort.",
+            ],
+            "draft_next_message": "I really enjoyed our conversation at InnEdCO, especially your perspective on mentoring math teachers and the importance of play in education. I kept thinking Memnon might be relevant in that context, not as another compliance tool, but as a way to help teachers reflect on classroom moments, process challenges, and stay connected to their own judgment. If you're open to it, I'd love to share it and get your reaction from the perspective of someone supporting a teacher cohort.",
+        },
+        {
+            "name": "Joi Lin",
+            "recording": "Conversation at InnEdCO; LinkedIn post follow-up",
+            "role_organization": "responsible AI / EdTech / access-oriented education contact",
+            "user_type": "equity and learning-access oriented connector",
+            "active_problem": "how to use AI and educational technology responsibly while improving learning access for underserved or incarcerated individuals",
+            "urgency": "medium",
+            "signal_strength": "medium",
+            "reaction_to_memnon": "not directly documented",
+            "what_matters": "responsible AI, better learning access, and practical responsibility in how educational systems and tools are designed",
+            "best_follow_up_angle": "start from responsible AI and access rather than a hard Memnon pitch; explore whether reflective support for educators or facilitators working in constrained contexts is relevant",
+            "best_next_steps": [
+                "Follow up on LinkedIn with a note tied to responsible AI, EdTech, and learning access for incarcerated individuals.",
+                "Use the recent LinkedIn post as the bridge rather than switching immediately into product promotion.",
+                "Ask one discovery question about where reflective, educator-support, or workflow-support tools might matter in the contexts Joi cares about.",
+            ],
+            "draft_next_message": "I really appreciated connecting with you and talking about responsible AI, EdTech, and supporting incarcerated individuals through better learning access. I've kept thinking about that conversation. I'd love to stay in touch, and if it's useful, I'd also be glad to share a bit more about what I'm building with Memnon and Teach League in case any of it connects to the work and questions you care about.",
+        },
+        {
+            "name": "Jaylen McGrew",
+            "recording": "Los Pinos Condos 2.m4a",
+            "role_organization": "educator / entrepreneurial teacher context",
+            "user_type": "teacher with entrepreneurial interest and existing AI workflow habits",
+            "active_problem": "how to build tools that genuinely support teaching while preserving teacher voice, autonomy, and sustainable reflective practice",
+            "urgency": "high",
+            "signal_strength": "strong",
+            "reaction_to_memnon": "said he would use something like Memnon and noted that he already talks to his chatbot, with that chatbot reflection hitting many of the same points",
+            "what_matters": "teacher autonomy, values-aligned educational tools, reflection that helps with isolation and hard classroom moments, and workflows that feel grounded in real teaching rather than generic edtech sales pitches",
+            "best_follow_up_angle": "Memnon as a streamlined version of a real workflow he already performs manually: reflective conversation with a chatbot after teaching challenges",
+            "best_next_steps": [
+                "Follow up by naming both sides of the conversation: his excitement about Teach League and his existing chatbot-based reflection workflow that maps to Memnon.",
+                "Ask what his homebrewed chatbot reflection flow currently gets right and where it is clunky, inconsistent, or missing context.",
+                "Position Memnon not as a brand-new behavior to adopt, but as a better-structured, teacher-specific version of a problem he is already solving for himself.",
+            ],
+            "draft_next_message": "I kept thinking about our condo conversation, especially the moment where you said you already talk to your chatbot and that the reflection it gives you hits many of the same points. That feels like a real signal to me that Memnon is pointed at an actual teacher need rather than an invented one. I'd love to hear more about what your current workflow gets right, where it feels clunky, and whether a more teacher-specific version would actually be useful.",
+        },
+    ],
+    "speaker_notes": {
+        "session_title": "Teaching Citizenship in the Age of Artificial Intelligence",
+        "event": "InnEdCO 2026",
+        "speakers": [
+            {
+                "name": "LeeAnn Lindsey",
+                "role": "Director, EdTech and Innovation",
+                "organization": "Northern Arizona University",
+                "why_relevant": "institutional innovation and responsible AI implementation perspective",
+                "outreach_angle": "connect around responsible AI implementation in education and ask how institutional adoption looks from her vantage point",
+                "status": "Need a stronger official public bio or in-app speaker bio to sharpen this profile.",
+            },
+            {
+                "name": "Tara Shanley",
+                "role": "Sr. Director, Product & AI Innovation",
+                "organization": "Learning.com",
+                "why_relevant": "classroom experience plus curriculum and product leadership around digital and AI literacy",
+                "outreach_angle": "compare notes on digital literacy, AI literacy, and pedagogy-first product design for teachers",
+                "status": "Strong overlap with Memnon and teacher-facing AI positioning.",
+            },
+            {
+                "name": "Carolyne Quintana",
+                "role": "CEO",
+                "organization": "Teaching Matters",
+                "why_relevant": "system-level implementation, literacy, equity, and AI integration perspective",
+                "outreach_angle": "ask how she evaluates whether AI supports coherence and equity at scale",
+                "status": "Strong system-level leader for responsible AI and teacher-support conversations.",
+            },
+        ],
+        "cross_speaker_themes": [
+            "AI literacy versus digital literacy",
+            "citizenship, ethics, and truth in student interaction with AI",
+            "institutional adoption versus classroom-level practicality",
+            "how to support teachers without overwhelming them",
+            "what responsible AI looks like in real implementation settings",
+        ],
+        "positioning": [
+            "Teach League as teacher-facing AI work around curriculum and planning",
+            "Memnon as work around reflection, grounded perspective, and teacher support",
+            "CSTA Responsible AI Fellowship",
+            "practical, humane, teacher-trust-centered AI adoption",
+        ],
+    },
+}
+RESEARCH_SIGNALS_DOC = ("app_metrics", "research_signals")
+
+RESEARCH_THEME_RULES = {
+    "problem_themes": {
+        "planning_load": ["plan", "planning", "prep", "preparation", "lesson", "curriculum"],
+        "burnout_energy": ["burnout", "exhaust", "drained", "overwhelm", "surviv", "fatigue"],
+        "student_behavior": ["behavior", "behaviour", "discipline", "classroom management", "disrupt"],
+        "parent_communication": ["parent", "family", "guardian", "email home", "conference"],
+        "assessment_feedback": ["grade", "grading", "assessment", "feedback", "rubric"],
+        "admin_compliance": ["admin", "paperwork", "documentation", "compliance", "meeting"],
+        "time_fragmentation": ["time", "juggle", "too much", "no time", "fragment", "bandwidth"],
+        "privacy_trust": ["private", "privacy", "trust", "sensitive", "confidential"],
+    },
+    "objection_themes": {
+        "unclear_value": ["why", "not sure", "unclear", "confus", "don't get", "doesn't make sense"],
+        "too_personal": ["too personal", "vulnerable", "private", "intimate", "emotional"],
+        "too_much_friction": ["friction", "too many steps", "setup", "complicated", "another app"],
+        "voice_discomfort": ["voice", "speaking", "recording", "audio", "talking out loud"],
+        "workflow_mismatch": ["workflow", "routine", "habit", "fit", "where this goes"],
+        "ai_skepticism": ["ai", "halluc", "accur", "trust the output", "robot"],
+    },
+    "workflow_stages": {
+        "during_school_day": ["during class", "between classes", "prep period", "lunch", "school day"],
+        "end_of_day": ["after school", "end of day", "after class", "dismissal"],
+        "commute_transition": ["drive home", "commute", "car", "walk home"],
+        "planning_block": ["planning time", "lesson planning", "prep block", "sunday"],
+        "hard_moment_recovery": ["hard day", "rough day", "bad day", "meltdown", "incident"],
+    },
+    "desired_outcomes": {
+        "emotional_processing": ["process", "decompress", "let go", "feel seen", "reflect"],
+        "practical_next_steps": ["next step", "tomorrow", "action", "plan", "decide"],
+        "captured_context": ["remember", "context", "keep track", "capture", "hold onto"],
+        "sensemaking_patterns": ["pattern", "notice", "make sense", "connect dots", "understand"],
+        "communication_support": ["share", "communicate", "email", "talk to", "bring to"],
+    },
+}
+
+RESEARCH_SEGMENT_RULES = {
+    "classroom_teacher": ["teacher", "grade", "classroom", "humanities", "math", "science", "ela"],
+    "instructional_coach": ["coach", "instructional coach", "mentor", "facilitator"],
+    "school_leader": ["principal", "assistant principal", "director", "admin"],
+    "specialist": ["counselor", "counsellor", "intervention", "special education", "sped", "librarian"],
+}
+
+
+def _match_research_labels(text: str, rules: dict[str, list[str]], limit: int = 4) -> list[str]:
+    haystack = (text or "").lower()
+    if not haystack:
+        return []
+    matches = []
+    for label, patterns in rules.items():
+        if any(pattern.lower() in haystack for pattern in patterns):
+            matches.append(label)
+        if len(matches) >= limit:
+            break
+    return matches
+
+
+def _score_research_fit(payload: dict) -> int:
+    score = 0
+    weekly = (payload.get("would_use_weekly") or "").strip().lower()
+    if weekly == "yes":
+        score += 2
+    elif weekly == "maybe":
+        score += 1
+
+    if payload.get("strongest_reaction"):
+        score += 1
+    if payload.get("quote"):
+        score += 1
+    if payload.get("next_step"):
+        score += 1
+    if payload.get("confusions"):
+        score -= 1
+
+    return max(1, min(score, 5))
+
+
+def _code_research_note(payload: dict) -> dict:
+    combined_problem_text = " ".join([
+        payload.get("top_problem") or "",
+        payload.get("current_workaround") or "",
+        " ".join(payload.get("tags") or []),
+    ])
+    combined_objection_text = " ".join([
+        payload.get("confusions") or "",
+        payload.get("strongest_reaction") or "",
+        payload.get("quote") or "",
+    ])
+    combined_workflow_text = " ".join([
+        payload.get("top_problem") or "",
+        payload.get("current_workaround") or "",
+        payload.get("next_step") or "",
+        payload.get("quote") or "",
+    ])
+    combined_outcome_text = " ".join([
+        payload.get("strongest_reaction") or "",
+        payload.get("quote") or "",
+        payload.get("next_step") or "",
+    ])
+    segment_text = " ".join([
+        payload.get("role") or "",
+        payload.get("school_context") or "",
+    ])
+
+    segment = _match_research_labels(segment_text, RESEARCH_SEGMENT_RULES, limit=1)
+
+    return {
+        "problem_themes": _match_research_labels(combined_problem_text, RESEARCH_THEME_RULES["problem_themes"]),
+        "objection_themes": _match_research_labels(combined_objection_text, RESEARCH_THEME_RULES["objection_themes"]),
+        "workflow_stages": _match_research_labels(combined_workflow_text, RESEARCH_THEME_RULES["workflow_stages"]),
+        "desired_outcomes": _match_research_labels(combined_outcome_text, RESEARCH_THEME_RULES["desired_outcomes"]),
+        "segment": segment[0] if segment else "other_educator",
+        "fit_score": _score_research_fit(payload),
+    }
+
+
+def _top_counter_items(counter: Counter, limit: int = 6) -> list[dict]:
+    return [{"label": name, "count": count} for name, count in counter.most_common(limit)]
+
+
+def _recommend_reflection_style(problem_counter: Counter, outcome_counter: Counter, objection_counter: Counter) -> str:
+    practical_signal = (
+        problem_counter.get("planning_load", 0)
+        + problem_counter.get("time_fragmentation", 0)
+        + outcome_counter.get("practical_next_steps", 0)
+    )
+    grounded_signal = (
+        problem_counter.get("burnout_energy", 0)
+        + problem_counter.get("privacy_trust", 0)
+        + outcome_counter.get("emotional_processing", 0)
+    )
+    caution_signal = objection_counter.get("too_personal", 0) + objection_counter.get("voice_discomfort", 0)
+
+    if practical_signal >= grounded_signal + 2:
+        return "practical"
+    if grounded_signal > practical_signal and caution_signal <= grounded_signal:
+        return "grounded"
+    return "complete"
+
+
+def _build_research_recommendations_from_counters(
+    problem_counter: Counter,
+    objection_counter: Counter,
+    outcome_counter: Counter,
+) -> dict:
+    recommended_style = _recommend_reflection_style(problem_counter, outcome_counter, objection_counter)
+    guidance = []
+    if problem_counter.get("time_fragmentation", 0) or problem_counter.get("planning_load", 0):
+        guidance.append("Keep action items small, concrete, and realistic for a busy teaching day.")
+    if problem_counter.get("burnout_energy", 0):
+        guidance.append("Name sustainability concerns directly when they are present instead of treating them as secondary.")
+    if objection_counter.get("too_personal", 0) or problem_counter.get("privacy_trust", 0):
+        guidance.append("Use privacy-respecting language and avoid overstating intimacy or certainty.")
+    if outcome_counter.get("practical_next_steps", 0):
+        guidance.append("Prioritize useful next-step clarity over abstract inspiration.")
+    if not guidance:
+        guidance.append("Balance practical help with reflective depth and stay close to the user's words.")
+
+    explanation_map = {
+        "practical": "Research notes currently lean toward time pressure, planning load, and demand for concrete next steps.",
+        "grounded": "Research notes currently lean toward emotional processing and a calmer reflective return.",
+        "complete": "Research notes point to mixed needs: practical clarity plus a more grounded reflective synthesis.",
+    }
+    return {
+        "recommended_reflection_style": recommended_style,
+        "prompt_guidance": guidance[:4],
+        "explanation": explanation_map[recommended_style],
+    }
+
+
+def _recompute_research_signals() -> dict:
+    problem_counter = Counter()
+    objection_counter = Counter()
+    workflow_counter = Counter()
+    outcome_counter = Counter()
+    segment_counter = Counter()
+    weekly_counter = Counter()
+    fit_total = 0
+    note_count = 0
+
+    for user_snap in _get_db().collection("users").stream():
+        docs = _get_db().collection("users").document(user_snap.id).collection("research_notes").stream()
+        for snap in docs:
+            payload = snap.to_dict() or {}
+            coded_research = {
+                "problem_themes": _safe_string_list(payload.get("problem_themes")),
+                "objection_themes": _safe_string_list(payload.get("objection_themes")),
+                "workflow_stages": _safe_string_list(payload.get("workflow_stages")),
+                "desired_outcomes": _safe_string_list(payload.get("desired_outcomes")),
+                "segment": _safe_string(payload.get("segment")),
+                "fit_score": max(0, _safe_int(payload.get("fit_score"), 0)),
+            }
+            if not any([
+                coded_research["problem_themes"],
+                coded_research["objection_themes"],
+                coded_research["workflow_stages"],
+                coded_research["desired_outcomes"],
+                coded_research["segment"],
+                coded_research["fit_score"],
+            ]):
+                coded_research = _code_research_note({
+                    "top_problem": payload.get("top_problem") or "",
+                    "current_workaround": payload.get("current_workaround") or "",
+                    "strongest_reaction": payload.get("strongest_reaction") or "",
+                    "confusions": payload.get("confusions") or "",
+                    "quote": payload.get("quote") or "",
+                    "next_step": payload.get("next_step") or "",
+                    "role": payload.get("role") or "",
+                    "school_context": payload.get("school_context") or "",
+                    "would_use_weekly": payload.get("would_use_weekly") or "",
+                    "tags": _safe_string_list(payload.get("tags")),
+                })
+
+            note_count += 1
+            for item in coded_research["problem_themes"]:
+                problem_counter[item] += 1
+            for item in coded_research["objection_themes"]:
+                objection_counter[item] += 1
+            for item in coded_research["workflow_stages"]:
+                workflow_counter[item] += 1
+            for item in coded_research["desired_outcomes"]:
+                outcome_counter[item] += 1
+            if coded_research["segment"]:
+                segment_counter[coded_research["segment"]] += 1
+            weekly_counter[_safe_string(payload.get("would_use_weekly")) or "unspecified"] += 1
+            fit_total += _safe_int(coded_research["fit_score"], 0)
+
+    recommendations = _build_research_recommendations_from_counters(
+        problem_counter,
+        objection_counter,
+        outcome_counter,
+    )
+    signals = {
+        "updated_at": firestore.SERVER_TIMESTAMP,
+        "summary": {
+            "research_notes_count": note_count,
+            "research_weekly": dict(weekly_counter),
+            "research_avg_fit_score": round(fit_total / note_count, 1) if note_count else 0,
+        },
+        "top_problem_themes": _top_counter_items(problem_counter),
+        "top_objection_themes": _top_counter_items(objection_counter),
+        "top_workflow_stages": _top_counter_items(workflow_counter),
+        "top_desired_outcomes": _top_counter_items(outcome_counter),
+        "top_research_segments": _top_counter_items(segment_counter),
+        "recommendations": recommendations,
+    }
+    _get_db().collection(RESEARCH_SIGNALS_DOC[0]).document(RESEARCH_SIGNALS_DOC[1]).set(signals, merge=True)
+    return signals
+
+
+def _load_research_signals() -> dict:
+    try:
+        doc = _get_db().collection(RESEARCH_SIGNALS_DOC[0]).document(RESEARCH_SIGNALS_DOC[1]).get()
+        if doc.exists:
+            data = doc.to_dict() or {}
+            if isinstance(data.get("recommendations"), dict):
+                return data
+    except Exception:
+        traceback.print_exc()
+    return _recompute_research_signals()
+
+
+def _research_prompt_guidance(mode: str = "general") -> list[str]:
+    signals = _load_research_signals()
+    guidance = list((signals.get("recommendations") or {}).get("prompt_guidance") or [])
+    if mode in {"practical", "complete"}:
+        guidance.append("If workload pressure appears, prefer one or two feasible next steps over a larger plan.")
+    if mode in {"grounded", "script"}:
+        guidance.append("Stay calm and non-performative; do not intensify the emotional tone beyond what the user actually expressed.")
+    if mode == "teaching":
+        guidance.append("Treat teacher sustainability as part of the instructional context when it is relevant, not as an afterthought.")
+    return guidance[:5]
+
+
+def _append_research_prompt_guidance(prompt: str, mode: str = "general") -> str:
+    guidance = _research_prompt_guidance(mode)
+    if not guidance:
+        return prompt
+    lines = "\n".join(f"- {item}" for item in guidance)
+    return f"""{prompt}
+
+Additional product guidance from recent teacher research:
+{lines}
+"""
 FOUNDER_METRICS_EXCLUDED_EMAILS = {
     email.strip().lower()
     for email in (os.environ.get("FOUNDER_METRICS_EXCLUDED_EMAILS", "eitanfire@gmail.com")).split(",")
@@ -226,10 +880,10 @@ def _serialize_firestore_value(value):
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value.isoformat()
+        return _normalize_datetime(value).isoformat()
     if hasattr(value, "isoformat"):
         try:
-            return value.isoformat()
+            return _normalize_datetime(datetime.fromisoformat(value.isoformat().replace("Z", "+00:00"))).isoformat()
         except Exception:
             pass
     return value
@@ -261,14 +915,20 @@ def _format_natural_date(raw) -> str:
     return f"{dt.strftime('%B')} {_ordinal_day(dt.day)}"
 
 
+def _normalize_datetime(value: datetime) -> datetime:
+    if value.tzinfo is not None and value.utcoffset() is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
 def _coerce_datetime(raw):
     if raw is None:
         return None
     if isinstance(raw, datetime):
-        return raw
+        return _normalize_datetime(raw)
     if hasattr(raw, "isoformat"):
         try:
-            return datetime.fromisoformat(raw.isoformat().replace("Z", "+00:00"))
+            return _normalize_datetime(datetime.fromisoformat(raw.isoformat().replace("Z", "+00:00")))
         except Exception:
             pass
     text = str(raw).strip()
@@ -278,9 +938,81 @@ def _coerce_datetime(raw):
     if iso_match:
         return datetime(int(iso_match.group(1)), int(iso_match.group(2)), int(iso_match.group(3)))
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return _normalize_datetime(datetime.fromisoformat(text.replace("Z", "+00:00")))
     except Exception:
         return None
+
+
+def _safe_string(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
+
+
+def _safe_string_list(value, limit: int | None = None) -> list[str]:
+    if isinstance(value, str):
+        items = [value]
+    elif isinstance(value, (list, tuple, set)):
+        items = list(value)
+    else:
+        items = []
+    cleaned = []
+    for item in items:
+        text = _safe_string(item)
+        if text:
+            cleaned.append(text)
+        if limit is not None and len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def _safe_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _empty_research_summary(requester_data: dict | None = None) -> dict:
+    requester_data = requester_data or {}
+    return {
+        "profile": {
+            "preferred_name": requester_data.get("preferred_name") or requester_data.get("name") or "",
+            "email": requester_data.get("email") or "",
+        },
+        "summary": {
+            "notes_count": 0,
+            "reply_count": 0,
+            "research_notes_count": 0,
+            "styles": {},
+            "teaching_context": {"on": 0, "off": 0},
+            "events": {},
+            "research_weekly": {},
+            "research_avg_fit_score": 0,
+            "recent_active_users_7d": 0,
+            "newly_activated_users_7d": 0,
+            "returned_users_7d": 0,
+            "core_action_users_7d": 0,
+            "anonymized_research_participants": 0,
+            "users_count": 0,
+        },
+        "guide_usage": {},
+        "passage_usage_count": 0,
+        "top_voices": [],
+        "top_frameworks": [],
+        "top_problem_themes": [],
+        "top_objection_themes": [],
+        "top_workflow_stages": [],
+        "top_desired_outcomes": [],
+        "top_research_segments": [],
+        "recommendations": _build_research_recommendations_from_counters(Counter(), Counter(), Counter()),
+        "recent_notes": [],
+        "recent_events": [],
+        "recent_research_notes": [],
+        "recent_users": [],
+    }
 
 
 def _sort_key_with_fallback(payload: dict, *keys: str):
@@ -310,11 +1042,15 @@ def _user_is_excluded_from_founder_metrics(user_data: dict) -> bool:
     return email in FOUNDER_METRICS_EXCLUDED_EMAILS
 
 
+def _user_allows_anonymized_research(user_data: dict) -> bool:
+    return bool((user_data or {}).get("allow_anonymized_research"))
+
+
 def _summarize_research(requester_uid: str) -> dict:
     requester_doc = _get_db().collection("users").document(requester_uid).get()
     requester_data = requester_doc.to_dict() if requester_doc.exists else {}
 
-    now = datetime.now()
+    now = _normalize_datetime(datetime.now(timezone.utc))
     seven_days_ago = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)
 
     style_counter = Counter()
@@ -322,23 +1058,39 @@ def _summarize_research(requester_uid: str) -> dict:
     voice_counter = Counter()
     framework_counter = Counter()
     event_counter = Counter()
+    research_problem_counter = Counter()
+    research_objection_counter = Counter()
+    research_workflow_counter = Counter()
+    research_outcome_counter = Counter()
+    research_segment_counter = Counter()
+    research_weekly_counter = Counter()
+    research_fit_total = 0
+    research_notes_count = 0
 
     total_notes_count = 0
     total_reply_count = 0
     all_recent_notes = []
     all_recent_events = []
+    all_research_notes = []
     recent_users = []
 
     recent_active_users_7d = 0
     newly_activated_users_7d = 0
     returned_users_7d = 0
     core_action_users_7d = 0
+    anonymized_research_participants = 0
+    anonymous_user_counter = 0
 
     for user_snap in _get_db().collection("users").stream():
         user_id = user_snap.id
         user_data = user_snap.to_dict() or {}
         if _user_is_excluded_from_founder_metrics(user_data):
             continue
+        allows_anonymized_research = _user_allows_anonymized_research(user_data)
+        if allows_anonymized_research:
+            anonymized_research_participants += 1
+        anonymous_user_counter += 1
+        anonymous_label = f"Teacher {anonymous_user_counter}"
         user_ref = _get_db().collection("users").document(user_id)
         notes = []
         for note_snap in user_ref.collection("notes").stream():
@@ -362,27 +1114,26 @@ def _summarize_research(requester_uid: str) -> dict:
 
         for note in notes:
             style = note.get("reflection_style") or "complete"
-            style_counter[style] += 1
-            if note.get("include_teaching_context") is False:
-                teaching_context_counter["off"] += 1
-            else:
-                teaching_context_counter["on"] += 1
-            for voice in note.get("voice_labels", []) or []:
-                voice_name = re.sub(r"\s+", " ", str(voice or "")).strip()
-                if voice_name:
-                    voice_counter[voice_name] += 1
-            all_recent_notes.append({
-                "id": note.get("_id") or "",
-                "user_id": user_id,
-                "user_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
-                "title": note.get("title") or "Untitled",
-                "date": _format_natural_date(note.get("date") or note.get("created_at")),
-                "summary": (note.get("summary") or "").strip()[:240],
-                "reflection_style": style,
-                "include_teaching_context": note.get("include_teaching_context") is not False,
-                "voices": [v for v in (note.get("voice_labels") or []) if v][:4],
-                "_sort_at": _sort_key_with_fallback(note, "created_at", "date"),
-            })
+            if allows_anonymized_research:
+                style_counter[style] += 1
+                if note.get("include_teaching_context") is False:
+                    teaching_context_counter["off"] += 1
+                else:
+                    teaching_context_counter["on"] += 1
+                for voice in _safe_string_list(note.get("voice_labels")):
+                    voice_name = re.sub(r"\s+", " ", voice).strip()
+                    if voice_name:
+                        voice_counter[voice_name] += 1
+                all_recent_notes.append({
+                    "id": note.get("_id") or "",
+                    "user_id": user_id,
+                    "anonymous_label": anonymous_label,
+                    "date": _format_natural_date(note.get("date") or note.get("created_at")),
+                    "reflection_style": style,
+                    "include_teaching_context": note.get("include_teaching_context") is not False,
+                    "voices_count": len(_safe_string_list(note.get("voice_labels"))),
+                    "_sort_at": _sort_key_with_fallback(note, "created_at", "date"),
+                })
 
         for event in events:
             event_name = event.get("event_name") or "unknown"
@@ -390,17 +1141,87 @@ def _summarize_research(requester_uid: str) -> dict:
             all_recent_events.append({
                 "id": event.get("_id") or "",
                 "user_id": user_id,
-                "user_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
+                "anonymous_label": anonymous_label,
                 "event_name": event_name,
                 "created_at": _serialize_firestore_value(event.get("created_at")),
-                "metadata": event.get("metadata") or {},
+                "metadata": event.get("metadata") if isinstance(event.get("metadata"), dict) else {},
                 "_sort_at": _sort_key_with_fallback(event, "created_at"),
             })
 
-        for framework in user_data.get("state_standards", []) or []:
-            framework_name = re.sub(r"\s+", " ", str(framework or "")).strip()
-            if framework_name:
-                framework_counter[framework_name] += 1
+        if allows_anonymized_research:
+            for framework in _safe_string_list(user_data.get("state_standards")):
+                framework_name = re.sub(r"\s+", " ", framework).strip()
+                if framework_name:
+                    framework_counter[framework_name] += 1
+
+        for research_snap in user_ref.collection("research_notes").stream():
+            research_note = research_snap.to_dict() or {}
+            coded_research = {
+                "problem_themes": _safe_string_list(research_note.get("problem_themes")),
+                "objection_themes": _safe_string_list(research_note.get("objection_themes")),
+                "workflow_stages": _safe_string_list(research_note.get("workflow_stages")),
+                "desired_outcomes": _safe_string_list(research_note.get("desired_outcomes")),
+                "segment": _safe_string(research_note.get("segment")),
+                "fit_score": max(0, _safe_int(research_note.get("fit_score"), 0)),
+            }
+            if not any([
+                coded_research["problem_themes"],
+                coded_research["objection_themes"],
+                coded_research["workflow_stages"],
+                coded_research["desired_outcomes"],
+                coded_research["segment"],
+                coded_research["fit_score"],
+            ]):
+                coded_research = _code_research_note({
+                    "top_problem": research_note.get("top_problem") or "",
+                    "current_workaround": research_note.get("current_workaround") or "",
+                    "strongest_reaction": research_note.get("strongest_reaction") or "",
+                    "confusions": research_note.get("confusions") or "",
+                    "quote": research_note.get("quote") or "",
+                    "next_step": research_note.get("next_step") or "",
+                    "role": research_note.get("role") or "",
+                    "school_context": research_note.get("school_context") or "",
+                    "would_use_weekly": research_note.get("would_use_weekly") or "",
+                    "tags": _safe_string_list(research_note.get("tags")),
+                })
+            research_notes_count += 1
+            for item in coded_research["problem_themes"]:
+                research_problem_counter[item] += 1
+            for item in coded_research["objection_themes"]:
+                research_objection_counter[item] += 1
+            for item in coded_research["workflow_stages"]:
+                research_workflow_counter[item] += 1
+            for item in coded_research["desired_outcomes"]:
+                research_outcome_counter[item] += 1
+
+            segment = (coded_research["segment"] or "").strip()
+            if segment:
+                research_segment_counter[segment] += 1
+
+            weekly_signal = _safe_string(research_note.get("would_use_weekly")) or "unspecified"
+            research_weekly_counter[weekly_signal] += 1
+            research_fit_total += _safe_int(coded_research["fit_score"], 0)
+
+            all_research_notes.append({
+                "id": research_snap.id,
+                "user_id": user_id,
+                "owner_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
+                "teacher_name": _safe_string(research_note.get("teacher_name")),
+                "role": _safe_string(research_note.get("role")),
+                "school_context": _safe_string(research_note.get("school_context")),
+                "top_problem": _safe_string(research_note.get("top_problem")),
+                "strongest_reaction": _safe_string(research_note.get("strongest_reaction")),
+                "quote": _safe_string(research_note.get("quote")),
+                "next_step": _safe_string(research_note.get("next_step")),
+                "would_use_weekly": weekly_signal,
+                "problem_themes": coded_research["problem_themes"],
+                "objection_themes": coded_research["objection_themes"],
+                "workflow_stages": coded_research["workflow_stages"],
+                "desired_outcomes": coded_research["desired_outcomes"],
+                "segment": segment,
+                "fit_score": _safe_int(coded_research["fit_score"], 0),
+                "_sort_at": _coerce_datetime(research_note.get("created_at")) or datetime.min,
+            })
 
         note_times = [_coerce_datetime(note.get("created_at") or note.get("date")) for note in notes]
         event_times = [_coerce_datetime(event.get("created_at")) for event in events]
@@ -432,8 +1253,7 @@ def _summarize_research(requester_uid: str) -> dict:
 
         recent_users.append({
             "user_id": user_id,
-            "user_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
-            "email": (user_data.get("email") or "").strip(),
+            "anonymous_label": anonymous_label,
             "last_seen_at": _serialize_firestore_value(last_seen_at),
             "first_capture_at": _serialize_firestore_value(first_capture_at),
             "captures_count": captures_count,
@@ -443,21 +1263,22 @@ def _summarize_research(requester_uid: str) -> dict:
             "completed_core_action": completed_core_action,
             "returned_after_first_use": returned_after_first_use,
             "latest_reflection_style": latest_style,
-            "latest_note_title": latest_note.get("title") or "",
-            "subjects": (user_data.get("subjects") or "").strip(),
-            "school_name": (user_data.get("school_name") or "").strip(),
+            "allow_anonymized_research": allows_anonymized_research,
             "_sort_at": last_seen_at or datetime.min,
         })
 
     recent_users.sort(key=lambda item: item.get("_sort_at") or datetime.min, reverse=True)
     all_recent_notes.sort(key=lambda item: item.get("_sort_at") or datetime.min, reverse=True)
     all_recent_events.sort(key=lambda item: item.get("_sort_at") or datetime.min, reverse=True)
+    all_research_notes.sort(key=lambda item: item.get("_sort_at") or datetime.min, reverse=True)
 
     for item in recent_users:
         item.pop("_sort_at", None)
     for item in all_recent_notes:
         item.pop("_sort_at", None)
     for item in all_recent_events:
+        item.pop("_sort_at", None)
+    for item in all_research_notes:
         item.pop("_sort_at", None)
 
     return {
@@ -468,24 +1289,40 @@ def _summarize_research(requester_uid: str) -> dict:
         "summary": {
             "notes_count": total_notes_count,
             "reply_count": total_reply_count,
+            "research_notes_count": research_notes_count,
             "styles": dict(style_counter),
             "teaching_context": {
                 "on": teaching_context_counter.get("on", 0),
                 "off": teaching_context_counter.get("off", 0),
             },
             "events": dict(event_counter),
+            "research_weekly": dict(research_weekly_counter),
+            "research_avg_fit_score": round(research_fit_total / research_notes_count, 1) if research_notes_count else 0,
             "recent_active_users_7d": recent_active_users_7d,
             "newly_activated_users_7d": newly_activated_users_7d,
             "returned_users_7d": returned_users_7d,
             "core_action_users_7d": core_action_users_7d,
+            "anonymized_research_participants": anonymized_research_participants,
             "users_count": len(recent_users),
         },
         "guide_usage": {},
         "passage_usage_count": 0,
         "top_voices": [{"label": name, "count": count} for name, count in voice_counter.most_common(6)],
         "top_frameworks": [{"label": name, "count": count} for name, count in framework_counter.most_common(6)],
+        "top_problem_themes": _top_counter_items(research_problem_counter),
+        "top_objection_themes": _top_counter_items(research_objection_counter),
+        "top_workflow_stages": _top_counter_items(research_workflow_counter),
+        "top_desired_outcomes": _top_counter_items(research_outcome_counter),
+        "top_research_segments": _top_counter_items(research_segment_counter),
+        "recommendations": _build_research_recommendations_from_counters(
+            research_problem_counter,
+            research_objection_counter,
+            research_outcome_counter,
+        ),
+        "conference_research": INNEDCO_RESEARCH,
         "recent_notes": all_recent_notes[:8],
         "recent_events": all_recent_events[:20],
+        "recent_research_notes": all_research_notes[:12],
         "recent_users": recent_users[:18],
     }
 
@@ -809,7 +1646,7 @@ def _build_complete_reflection_prompt(
         "grounded": grounded_result,
     }, ensure_ascii=False)
 
-    return f"""You are integrating multiple perspectives into one grounded reflection for {preferred_name}.
+    return _append_research_prompt_guidance(f"""You are integrating multiple perspectives into one grounded reflection for {preferred_name}.
 
 The goal is not to flatten the perspectives. Hold them in conversation and produce one coherent return that helps {preferred_name} feel both supported and grounded.
 
@@ -853,7 +1690,7 @@ Rules:
 - The grounded perspective should deepen, not overwrite, the practical one
 - If current obligations are included, use them lightly
 - If no guiding voice truly matters, return an empty influenced_by array
-"""
+""", "complete")
 
 
 # ── pipeline ──────────────────────────────────────────────────────────────────
@@ -917,9 +1754,7 @@ tags: [{tags}]
 
 {summary}
 
-{extra}## Transcript
-
-{transcript}
+{extra}
 """
 
 
@@ -939,16 +1774,24 @@ def _render_influenced_by_yaml(sources_used: list) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _build_history_source_text(ai: dict, transcript: str, sources_used: list[dict]) -> str:
+def _build_history_source_text(
+    ai: dict,
+    sources_used: list[dict],
+    participant_response_summary: str = "",
+) -> str:
     parts = [
         (ai.get("title") or "").strip(),
         (ai.get("summary") or "").strip(),
         (ai.get("insight") or "").strip(),
-        transcript[:500].strip(),
     ]
+    action_items = [str(item).strip() for item in (ai.get("action_items") or []) if str(item).strip()]
+    if action_items:
+        parts.append("Action items: " + "; ".join(action_items[:3]))
     voices = [item.get("author", "").strip() for item in (sources_used or []) if item.get("author")]
     if voices:
         parts.append("Voices: " + ", ".join(voices[:5]))
+    if participant_response_summary:
+        parts.append("Teacher follow-up: " + participant_response_summary.strip())
     return "\n".join(part for part in parts if part)
 
 
@@ -1015,8 +1858,7 @@ def _store_note_metadata(
             "suggested_tags": (ai.get("suggested_tags") or [])[:8],
             "themes": sorted(list(extract_themes(transcript)))[:8],
             "voice_labels": [item.get("author", "") for item in (sources_used or []) if item.get("author")][:5],
-            "transcript_excerpt": transcript[:240],
-            "history_source_text": history_source_text or _build_history_source_text(ai, transcript, sources_used),
+            "history_source_text": history_source_text or _build_history_source_text(ai, sources_used),
         }
         if embedding_v1:
             note_meta["embedding_v1"] = embedding_v1
@@ -1063,7 +1905,7 @@ def _has_callback_cue(transcript: str) -> bool:
 
 def _note_history_terms(note: dict) -> set[str]:
     terms = set()
-    for field in ("title", "summary", "insight", "transcript_excerpt", "participant_response_excerpt"):
+    for field in ("title", "summary", "insight", "participant_response_summary", "participant_response_excerpt"):
         terms.update(_tokenize_history_text(note.get(field, "")))
     for item in note.get("themes", []) or []:
         terms.update(_tokenize_history_text(item))
@@ -1097,21 +1939,47 @@ def _build_history_note_line(note: dict) -> str:
     response_count = int(note.get("participant_response_count") or 0)
     if response_count:
         lines.append(f"user replies: {response_count}")
-    response_excerpt = (note.get("participant_response_excerpt") or "").strip()
-    if response_excerpt:
-        lines.append(f"latest reply: {response_excerpt}")
+    response_summary = (note.get("participant_response_summary") or note.get("participant_response_excerpt") or "").strip()
+    if response_summary:
+        lines.append(f"latest reply summary: {response_summary}")
     return "\n".join(lines)
 
 
-def _append_participant_response_to_history(existing_history: str, response_text: str) -> str:
-    cleaned_existing = (existing_history or "").strip()
-    cleaned_response = (response_text or "").strip()
+def _summarize_participant_response(response_text: str, api_key: str) -> str:
+    cleaned_response = re.sub(r"\s+", " ", (response_text or "")).strip()
     if not cleaned_response:
-        return cleaned_existing
-    addition = f"Teacher reply: {cleaned_response}"
-    if not cleaned_existing:
-        return addition
-    return f"{cleaned_existing}\n{addition}"
+        return ""
+    if not api_key:
+        return "Teacher added follow-up context on this reflection."
+
+    try:
+        result = _summarize(
+            f"""You are creating privacy-preserving memory for a teacher reflection app.
+
+Paraphrase the teacher's follow-up reply as a short summary for future context.
+Return strict JSON only:
+{{"summary":"one sentence, paraphrased, no quotes, no copied phrases longer than 3 words"}}
+
+Rules:
+- Do not quote the user verbatim.
+- Avoid names or uniquely identifying details unless essential to meaning.
+- Keep it under 180 characters.
+- Preserve commitments, clarifications, or changed perspective when present.
+
+Teacher reply:
+---
+{cleaned_response}
+---
+""",
+            api_key,
+        )
+        summary = re.sub(r"\s+", " ", str(result.get("summary", ""))).strip()
+        if summary:
+            return summary[:180]
+    except Exception:
+        pass
+
+    return "Teacher added follow-up context on this reflection."
 
 
 def _note_has_embedding(note: dict) -> bool:
@@ -1317,7 +2185,7 @@ def _build_grounded_reflection_script(
         "action_items": ai.get("action_items", []),
     }, ensure_ascii=False)
 
-    prompt = f"""You are writing a spoken grounded reflection for {preferred_name}.
+    prompt = _append_research_prompt_guidance(f"""You are writing a spoken grounded reflection for {preferred_name}.
 
 This script will be narrated back to {preferred_name} as audio.
 It should feel thoughtful, warm, and concise, like a trusted instructional coach
@@ -1352,7 +2220,7 @@ Rules:
 - Respect these pronouns when needed: {preferred_pronouns or "use neutral phrasing if possible"}
 - If the script uses their name, write it in the spoken form "{spoken_name}" so the narrator says it correctly
 - Return JSON only
-"""
+""", "script")
 
     result = _summarize(prompt, api_key)
     return (result.get("reflection_script") or "").strip()
@@ -1379,22 +2247,22 @@ def _generate_reflection_result(
 
     if style == "grounded":
         prompt, sources_used = reflect_prompt(transcript, user_data)
-        return style, _summarize(prompt, api_key), sources_used
+        return style, _summarize(_append_research_prompt_guidance(prompt, "grounded"), api_key), sources_used
 
     if style == "practical":
         if lane == "professional" and _is_teacher_profession(user_data):
-            prompt = teaching_practical_prompt(transcript, user_data)
+            prompt = _append_research_prompt_guidance(teaching_practical_prompt(transcript, user_data), "teaching")
             return style, _summarize(prompt, api_key), []
         profession = (user_data.get("profession") or "professional").lower().strip() or "professional"
-        prompt = professional_prompt(
+        prompt = _append_research_prompt_guidance(professional_prompt(
             transcript,
             profession,
             (user_data.get("tasks_context_summary") or "").strip(),
             (user_data.get("history_context_summary") or "").strip(),
-        )
+        ), "practical")
         return style, _summarize(prompt, api_key), []
 
-    practical_prompt = (
+    practical_prompt = _append_research_prompt_guidance((
         teaching_practical_prompt(transcript, user_data)
         if lane == "professional" and _is_teacher_profession(user_data)
         else professional_prompt(
@@ -1403,10 +2271,10 @@ def _generate_reflection_result(
             (user_data.get("tasks_context_summary") or "").strip(),
             (user_data.get("history_context_summary") or "").strip(),
         )
-    )
+    ), "teaching" if lane == "professional" and _is_teacher_profession(user_data) else "practical")
     practical_result = _summarize(practical_prompt, api_key)
     grounded_prompt, sources_used = reflect_prompt(transcript, user_data)
-    grounded_result = _summarize(grounded_prompt, api_key)
+    grounded_result = _summarize(_append_research_prompt_guidance(grounded_prompt, "grounded"), api_key)
     integration_prompt = _build_complete_reflection_prompt(
         transcript,
         user_data,
@@ -1459,13 +2327,13 @@ def _process_reflection_entry(
         }
         sources_used = []
 
-    notes_id, recordings_id, reflections_id = _ensure_user_output_folders(service, uid, user_data)
+    notes_id, _recordings_id, reflections_id = _ensure_user_output_folders(service, uid, user_data)
     note_name = (
         datetime.now().strftime("%Y-%m-%d") + " — " +
         ai_result.get("title", Path(source_filename).stem)[:60] + ".md"
     )
     note_md = _render_note(lane, ai_result, transcript, source_filename, sources_used)
-    history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
+    history_source_text = _build_history_source_text(ai_result, sources_used)
     embedding_result = embed_text_details(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else {"vector": []}
     history_embedding = embedding_result.get("vector") or []
     if HUGGING_FACE_API_KEY and not history_embedding:
@@ -1493,19 +2361,6 @@ def _process_reflection_entry(
     ).execute()
 
     recording_name = None
-    if source_audio_bytes:
-        audio_ext = Path(source_filename).suffix or ".webm"
-        recording_name = f"{datetime.now().strftime('%Y-%m-%d %H-%M-%S')} — recording{audio_ext}"
-        audio_media = MediaInMemoryUpload(
-            source_audio_bytes,
-            mimetype=source_mime_type or "audio/webm",
-            resumable=False,
-        )
-        service.files().create(
-            body={"name": recording_name, "parents": [recordings_id]},
-            media_body=audio_media,
-            fields="id,name",
-        ).execute()
 
     reflection_name = None
     try:
@@ -1601,7 +2456,7 @@ def _process_file(service, uid: str, user_data: dict, f: dict, inbox_id: str, no
     note_md = _render_note(lane, ai_result, transcript, filename, sources_used)
     note_name = (datetime.now().strftime("%Y-%m-%d") + " — " +
                  ai_result.get("title", Path(filename).stem)[:60] + ".md")
-    history_source_text = _build_history_source_text(ai_result, transcript, sources_used)
+    history_source_text = _build_history_source_text(ai_result, sources_used)
     embedding_result = embed_text_details(history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else {"vector": []}
     history_embedding = embedding_result.get("vector") or []
     if HUGGING_FACE_API_KEY and not history_embedding:
@@ -1841,6 +2696,7 @@ def save_setup():
         "school_name":     data.get("school_name", ""),
         "school_district": data.get("school_district", ""),
         "school_city":     data.get("school_city", ""),
+        "allow_anonymized_research": _coerce_bool(data.get("allow_anonymized_research"), False),
         # Reflect lane voices config
         "reflect_config":  data.get("reflect_config", {}),
         "dashboard_image": data.get("dashboard_image", {"kind": "preset", "preset": "lattice"}),
@@ -2332,24 +3188,33 @@ def save_reflection_response():
         return jsonify({"error": "note not found"}), 404
 
     note_data = snap.to_dict() or {}
-    existing_responses = note_data.get("participant_responses") or []
-    trimmed_responses = existing_responses[-5:] if isinstance(existing_responses, list) else []
-    trimmed_responses.append({
-        "text": response_text,
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    response_summary = _summarize_participant_response(response_text, api_key)
+
+    existing_summaries = note_data.get("participant_response_summaries") or []
+    trimmed_summaries = existing_summaries[-5:] if isinstance(existing_summaries, list) else []
+    trimmed_summaries.append({
+        "summary": response_summary,
         "created_at": firestore.SERVER_TIMESTAMP,
     })
 
-    updated_history_source_text = _append_participant_response_to_history(
-        note_data.get("history_source_text", ""),
-        response_text,
+    updated_history_source_text = _build_history_source_text(
+        {
+            "title": note_data.get("title", ""),
+            "summary": note_data.get("summary", ""),
+            "insight": note_data.get("insight", ""),
+            "action_items": note_data.get("action_items", []),
+        },
+        note_data.get("influenced_by") or [],
+        participant_response_summary=response_summary,
     )
     embedding_result = embed_text_details(updated_history_source_text, HUGGING_FACE_API_KEY) if HUGGING_FACE_API_KEY else {"vector": []}
     embedding_v1 = embedding_result.get("vector") or []
 
     update_payload = {
-        "participant_responses": trimmed_responses,
+        "participant_response_summaries": trimmed_summaries,
         "participant_response_count": int(note_data.get("participant_response_count") or 0) + 1,
-        "participant_response_excerpt": response_text[:240],
+        "participant_response_summary": response_summary,
         "participant_response_updated_at": firestore.SERVER_TIMESTAMP,
         "history_source_text": updated_history_source_text,
     }
@@ -2369,7 +3234,7 @@ def save_reflection_response():
     return jsonify({
         "ok": True,
         "participant_response_count": update_payload["participant_response_count"],
-        "participant_response_excerpt": update_payload["participant_response_excerpt"],
+        "participant_response_summary": update_payload["participant_response_summary"],
     })
 
 
@@ -2449,7 +3314,16 @@ def get_research_summary():
         return jsonify({"error": "unauthorized"}), 401
     if not _user_is_founder(uid):
         return jsonify({"error": "forbidden"}), 403
-    return jsonify(_summarize_research(uid))
+    try:
+        return jsonify(_summarize_research(uid))
+    except Exception:
+        traceback.print_exc()
+        requester_doc = _get_db().collection("users").document(uid).get()
+        requester_data = requester_doc.to_dict() if requester_doc.exists else {}
+        return jsonify({
+            **_empty_research_summary(requester_data),
+            "error": "Research summary is temporarily unavailable.",
+        }), 500
 
 
 @flask_app.route("/research-notes")
@@ -2467,22 +3341,56 @@ def list_research_notes():
         docs = _get_db().collection("users").document(user_snap.id).collection("research_notes").stream()
         for snap in docs:
             payload = snap.to_dict() or {}
+            coded_research = {
+                "problem_themes": _safe_string_list(payload.get("problem_themes")),
+                "objection_themes": _safe_string_list(payload.get("objection_themes")),
+                "workflow_stages": _safe_string_list(payload.get("workflow_stages")),
+                "desired_outcomes": _safe_string_list(payload.get("desired_outcomes")),
+                "segment": _safe_string(payload.get("segment")),
+                "fit_score": max(0, _safe_int(payload.get("fit_score"), 0)),
+            }
+            if not any([
+                coded_research["problem_themes"],
+                coded_research["objection_themes"],
+                coded_research["workflow_stages"],
+                coded_research["desired_outcomes"],
+                coded_research["segment"],
+                coded_research["fit_score"],
+            ]):
+                coded_research = _code_research_note({
+                    "top_problem": payload.get("top_problem") or "",
+                    "current_workaround": payload.get("current_workaround") or "",
+                    "strongest_reaction": payload.get("strongest_reaction") or "",
+                    "confusions": payload.get("confusions") or "",
+                    "quote": payload.get("quote") or "",
+                    "next_step": payload.get("next_step") or "",
+                    "role": payload.get("role") or "",
+                    "school_context": payload.get("school_context") or "",
+                    "would_use_weekly": payload.get("would_use_weekly") or "",
+                    "tags": _safe_string_list(payload.get("tags")),
+                })
             items.append({
                 "id": snap.id,
                 "user_id": user_snap.id,
                 "owner_label": (user_data.get("preferred_name") or user_data.get("name") or user_data.get("email") or "Unknown").strip(),
-                "teacher_name": payload.get("teacher_name") or "",
-                "role": payload.get("role") or "",
-                "school_context": payload.get("school_context") or "",
-                "top_problem": payload.get("top_problem") or "",
-                "current_workaround": payload.get("current_workaround") or "",
-                "strongest_reaction": payload.get("strongest_reaction") or "",
-                "confusions": payload.get("confusions") or "",
-                "would_use_weekly": payload.get("would_use_weekly") or "",
-                "quote": payload.get("quote") or "",
-                "next_step": payload.get("next_step") or "",
-                "apps_discussed": payload.get("apps_discussed") or [],
-                "tags": payload.get("tags") or [],
+                "teacher_name": _safe_string(payload.get("teacher_name")),
+                "role": _safe_string(payload.get("role")),
+                "school_context": _safe_string(payload.get("school_context")),
+                "top_problem": _safe_string(payload.get("top_problem")),
+                "current_workaround": _safe_string(payload.get("current_workaround")),
+                "strongest_reaction": _safe_string(payload.get("strongest_reaction")),
+                "confusions": _safe_string(payload.get("confusions")),
+                "would_use_weekly": _safe_string(payload.get("would_use_weekly")),
+                "quote": _safe_string(payload.get("quote")),
+                "next_step": _safe_string(payload.get("next_step")),
+                "apps_discussed": _safe_string_list(payload.get("apps_discussed")),
+                "tags": _safe_string_list(payload.get("tags")),
+                "problem_themes": coded_research["problem_themes"],
+                "objection_themes": coded_research["objection_themes"],
+                "workflow_stages": coded_research["workflow_stages"],
+                "desired_outcomes": coded_research["desired_outcomes"],
+                "segment": coded_research["segment"],
+                "fit_score": _safe_int(coded_research["fit_score"], 0),
                 "created_at": _serialize_firestore_value(payload.get("created_at")),
                 "_sort_at": _coerce_datetime(payload.get("created_at")) or datetime.min,
             })
@@ -2539,13 +3447,22 @@ def create_research_note():
         "tags": clean_list("tags"),
         "created_at": firestore.SERVER_TIMESTAMP,
     }
+    payload.update(_code_research_note(payload))
 
     note_ref = _get_db().collection("users").document(uid).collection("research_notes").document()
     note_ref.set(payload)
+    try:
+        _recompute_research_signals()
+    except Exception as exc:
+        print(f"[{uid}] Warning: could not refresh research signals: {exc}")
     _log_usage_event(uid, "saved_research_note", {
         "apps_discussed_count": len(payload["apps_discussed"]),
         "tags_count": len(payload["tags"]),
         "would_use_weekly": payload["would_use_weekly"] or "unspecified",
+        "problem_themes": payload["problem_themes"],
+        "objection_themes": payload["objection_themes"],
+        "segment": payload["segment"],
+        "fit_score": payload["fit_score"],
     })
     return jsonify({"ok": True, "id": note_ref.id})
 
@@ -2557,10 +3474,10 @@ def get_me():
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
     doc = _get_db().collection("users").document(uid).get()
-    if not doc.exists:
-        return jsonify({}), 404
-    data = doc.to_dict()
+    data = doc.to_dict() if doc.exists else {}
     data.pop("google_drive_token", None)   # never send tokens to frontend
+    data["google_tasks_connected"] = _user_tasks_connected(data)
+    data["research_recommendations"] = (_load_research_signals().get("recommendations") or {})
     return jsonify(data)
 
 
@@ -2596,7 +3513,13 @@ def get_hf_status():
     secrets=["OPENAI_API_KEY", "GOOGLE_CLIENT_SECRETS", "FLASK_SECRET", "HUGGING_FACE_API_KEY"],
 )
 def api(req: https_fn.Request) -> https_fn.Response:
-    with flask_app.request_context(req.environ):
+    environ = dict(req.environ)
+    path = environ.get("PATH_INFO", "") or ""
+    if path == "/api":
+        environ["PATH_INFO"] = "/"
+    elif path.startswith("/api/"):
+        environ["PATH_INFO"] = path[4:] or "/"
+    with flask_app.request_context(environ):
         return flask_app.full_dispatch_request()
 
 

@@ -1840,6 +1840,7 @@
 
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+      import { getAnalytics, isSupported, logEvent } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
       import {
         getAuth,
         signInWithCustomToken,
@@ -1851,6 +1852,7 @@
         getDoc,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+      const FIREBASE_MEASUREMENT_ID = "";
       const firebaseConfig = {
         apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
         authDomain: "memnon-app.web.app",
@@ -1858,11 +1860,17 @@
         storageBucket: "memnon-app.firebasestorage.app",
         messagingSenderId: "714155490867",
         appId: "1:714155490867:web:f382fddb58a596bede6d46",
+        ...(FIREBASE_MEASUREMENT_ID ? { measurementId: FIREBASE_MEASUREMENT_ID } : {}),
       };
 
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
+      const analyticsPromise = FIREBASE_MEASUREMENT_ID
+        ? isSupported()
+            .then((supported) => (supported ? getAnalytics(app) : null))
+            .catch(() => null)
+        : Promise.resolve(null);
       const isStaticLocalhost =
         window.location.hostname === "localhost" &&
         (window.location.port === "8000" || window.location.port === "8080");
@@ -1886,6 +1894,35 @@
         oauth_start_failed: "Memnon could not start Google sign-in. Please try again in a moment.",
         oauth_failed: "Memnon could not complete Google sign-in. Please try again.",
       };
+
+      function normalizeAnalyticsParams(params = {}) {
+        const normalized = {};
+        for (const [key, value] of Object.entries(params || {})) {
+          if (value === undefined || value === null || value === "") continue;
+          if (typeof value === "boolean") {
+            normalized[key] = value ? "true" : "false";
+          } else if (typeof value === "number" || typeof value === "string") {
+            normalized[key] = value;
+          } else if (Array.isArray(value)) {
+            normalized[key] = value.join(", ");
+          } else {
+            normalized[key] = String(value);
+          }
+        }
+        return normalized;
+      }
+
+      async function trackAnalytics(eventName, params = {}) {
+        const analytics = await analyticsPromise;
+        if (!analytics) return;
+        try {
+          logEvent(analytics, eventName, normalizeAnalyticsParams(params));
+        } catch (error) {
+          console.error("Could not log analytics event:", error);
+        }
+      }
+
+      trackAnalytics("opened_app", { surface: "landing" });
 
       function showAuthMessage(message) {
         const existing = document.getElementById("auth-error-banner");
@@ -1914,6 +1951,7 @@
 
       onAuthStateChanged(auth, async (user) => {
         if (!user) return;
+        trackAnalytics("signed_in", { surface: "landing" });
         const snap = await getDoc(doc(db, "users", user.uid));
         const data = snap.exists() ? snap.data() : {};
         window.location.href =

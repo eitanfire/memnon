@@ -195,6 +195,45 @@
       margin-bottom: 10px;
       font-size: 0.98rem;
     }
+    .story-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .story-card {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(172, 133, 73, 0.16);
+    }
+    .story-card h3 {
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+    .story-meta {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .story-copy {
+      color: #4f3d2b;
+      line-height: 1.58;
+      font-size: 0.9rem;
+    }
+    .story-copy + .story-copy {
+      margin-top: 8px;
+    }
+    .story-actions {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: #4f3d2b;
+      line-height: 1.58;
+      font-size: 0.9rem;
+    }
+    .story-actions li + li {
+      margin-top: 6px;
+    }
     .list {
       display: grid;
       gap: 10px;
@@ -213,6 +252,20 @@
     .list-copy {
       color: var(--muted);
       line-height: 1.55;
+    }
+    .list-copy strong {
+      color: var(--text);
+    }
+    .inline-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .inline-pills .pill {
+      font-size: 0.74rem;
+      padding: 6px 10px;
+      background: rgba(242, 224, 191, 0.4);
     }
     .user-rows {
       display: grid;
@@ -323,6 +376,12 @@
       font-size: 0.88rem;
       color: var(--muted);
     }
+    .status.is-error {
+      color: #a63a2c;
+    }
+    .status.is-success {
+      color: #1f6a43;
+    }
     .question-list {
       display: grid;
       gap: 10px;
@@ -397,16 +456,16 @@
     <section class="hero">
         <div class="card hero-card">
           <div class="hero-kicker">Research</div>
-        <h1>See who is using Memnon, what they do, and what they say about it.</h1>
+        <h1>See how Memnon is being used without reading teachers' reflections.</h1>
         <p class="hero-copy">
-          This founder view turns Memnon's existing reflection history and usage events into a practical operating console: active users, activation, core action completion, return behavior, recent activity, and field notes from teacher conversations.
+          This founder view is meant to preserve teacher autonomy. It focuses on aggregate usage, anonymized reflection activity from people who opted in, and field notes you intentionally captured in conversation.
         </p>
       </div>
       <div class="card hero-panel">
         <div>
           <div class="section-kicker">What This Uses</div>
-          <h2>Existing reflections, replies, research notes, and usage events across Memnon users.</h2>
-          <p>No separate analytics stack yet. This page computes founder metrics from the app data Memnon already stores, then pairs that signal with qualitative notes.</p>
+          <h2>Usage events, opt-in anonymized reflection metadata, and founder-entered field notes.</h2>
+          <p>No verbatim reflection text is surfaced here as product research evidence. This page computes founder metrics from activity data already stored in Memnon, then pairs that signal with qualitative notes you chose to record.</p>
         </div>
         <div class="hero-pills" id="hero-pills">
           <span class="pill">Loading profile…</span>
@@ -425,6 +484,7 @@
             </div>
             <button id="refresh-summary-btn" class="btn">Refresh</button>
           </div>
+          <div id="summary-status" class="status">Loading summary…</div>
           <div class="stats-grid" id="stats-grid">
             <div class="stat"><div class="stat-label">Active users (7d)</div><div class="stat-value">-</div></div>
             <div class="stat"><div class="stat-label">Activated (7d)</div><div class="stat-value">-</div></div>
@@ -448,6 +508,30 @@
               <h3>Frameworks in play</h3>
               <div class="pill-row" id="framework-pills"><span class="pill">Loading…</span></div>
             </div>
+            <div class="meta-box">
+              <h3>Recurring teacher problems</h3>
+              <div class="pill-row" id="problem-theme-pills"><span class="pill">Loading…</span></div>
+            </div>
+            <div class="meta-box">
+              <h3>Main objections</h3>
+              <div class="pill-row" id="objection-theme-pills"><span class="pill">Loading…</span></div>
+            </div>
+            <div class="meta-box">
+              <h3>Workflow moments</h3>
+              <div class="pill-row" id="workflow-stage-pills"><span class="pill">Loading…</span></div>
+            </div>
+            <div class="meta-box">
+              <h3>Desired outcomes</h3>
+              <div class="pill-row" id="desired-outcome-pills"><span class="pill">Loading…</span></div>
+            </div>
+            <div class="meta-box">
+              <h3>Research segments</h3>
+              <div class="pill-row" id="research-segment-pills"><span class="pill">Loading…</span></div>
+            </div>
+            <div class="meta-box">
+              <h3>Weekly demand signal</h3>
+              <div class="pill-row" id="research-weekly-pills"><span class="pill">Loading…</span></div>
+            </div>
           </div>
         </div>
 
@@ -455,8 +539,8 @@
           <div class="section-head">
             <div>
               <div class="section-kicker">Recent users</div>
-              <h2>Who used Memnon and whether they got to value</h2>
-              <p>This is the table that matters most right now: recent activity, first capture, core action completion, return behavior, and the last reflection context you saw from each person.</p>
+              <h2>Who got to value, anonymized</h2>
+              <p>This keeps the product question visible without putting a teacher's identity or writing at the center of the analysis.</p>
             </div>
           </div>
           <div id="recent-users-list" class="user-rows"><div class="empty">Loading users…</div></div>
@@ -466,14 +550,14 @@
           <div class="section-head">
             <div>
               <div class="section-kicker">Recent signals</div>
-              <h2>Latest reflection and event activity</h2>
-              <p>Use this for pattern reading and debugging: what was created most recently, and what actions people took around it.</p>
+              <h2>Latest anonymized reflection and event activity</h2>
+              <p>Use this for pattern reading and debugging without exposing the written substance of anyone's reflection.</p>
             </div>
           </div>
           <div class="meta-grid">
             <div>
-              <h3>Recent reflections</h3>
-              <div id="recent-notes-list" class="list"><div class="empty">Loading reflections…</div></div>
+              <h3>Recent reflection activity</h3>
+              <div id="recent-notes-list" class="list"><div class="empty">Loading reflection activity…</div></div>
             </div>
             <div>
               <h3>Recent usage events</h3>
@@ -569,6 +653,51 @@
         <div class="card section-card">
           <div class="section-head">
             <div>
+              <div class="section-kicker">InnEdCO</div>
+              <h2>Conference evidence layer</h2>
+              <p>Research gathered from the recordings, user stories, and speaker notes you captured around InnEdCO.</p>
+            </div>
+          </div>
+          <div class="meta-grid" style="margin-bottom:16px;">
+            <div class="meta-box">
+              <h3>Recording backlog</h3>
+              <div class="pill-row" id="conference-ledger-pills"><span class="pill">Loading…</span></div>
+            </div>
+            <div class="meta-box">
+              <h3>Priority recordings</h3>
+              <div id="conference-priority-list" class="list"><div class="empty">Loading…</div></div>
+            </div>
+            <div class="meta-box">
+              <h3>Cross-speaker themes</h3>
+              <div class="pill-row" id="conference-theme-pills"><span class="pill">Loading…</span></div>
+            </div>
+            <div class="meta-box">
+              <h3>Positioning to use</h3>
+              <div class="pill-row" id="conference-positioning-pills"><span class="pill">Loading…</span></div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <h3 style="margin-bottom:12px;">Recording coverage</h3>
+            <div class="pill-row" id="conference-coverage-pills"><span class="pill">Loading…</span></div>
+            <div id="conference-coverage-list" class="list" style="margin-top:12px;"><div class="empty">Loading…</div></div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <h3 style="margin-bottom:12px;">Relevant session recordings</h3>
+            <div id="conference-session-highlights" class="story-grid"><div class="empty">Loading…</div></div>
+          </div>
+          <div>
+            <h3 style="margin-bottom:12px;">Best follow-up by user</h3>
+            <div id="conference-user-stories" class="story-grid"><div class="empty">Loading…</div></div>
+          </div>
+          <div style="margin-top:16px;">
+            <h3 style="margin-bottom:12px;">Speaker and outreach notes</h3>
+            <div id="conference-speaker-notes" class="story-grid"><div class="empty">Loading…</div></div>
+          </div>
+        </div>
+
+        <div class="card section-card">
+          <div class="section-head">
+            <div>
               <div class="section-kicker">Saved notes</div>
               <h2>Recent teacher conversations</h2>
               <p>Your own lightweight repository of market evidence.</p>
@@ -582,25 +711,33 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAnalytics, isSupported, logEvent } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
     import { getAuth, onAuthStateChanged, signOut, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+    const FIREBASE_MEASUREMENT_ID = "";
     const firebaseConfig = {
       apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
       authDomain: "memnon-app.web.app",
       projectId: "memnon-app",
       storageBucket: "memnon-app.firebasestorage.app",
       messagingSenderId: "714155490867",
-      appId: "1:714155490867:web:f382fddb58a596bede6d46"
+      appId: "1:714155490867:web:f382fddb58a596bede6d46",
+      ...(FIREBASE_MEASUREMENT_ID ? { measurementId: FIREBASE_MEASUREMENT_ID } : {}),
     };
 
-    const API = "https://api-4hth6oktaa-uc.a.run.app";
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
+    const analyticsPromise = FIREBASE_MEASUREMENT_ID
+      ? isSupported()
+          .then((supported) => (supported ? getAnalytics(app) : null))
+          .catch(() => null)
+      : Promise.resolve(null);
     const params = new URLSearchParams(window.location.search);
     const callbackToken = params.get("token");
     const isStaticLocalhost =
       window.location.hostname === "localhost" &&
       (window.location.port === "8000" || window.location.port === "8080");
+    const API = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "/api";
     const routes = {
       home: isStaticLocalhost ? "/index.html" : "/",
       dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
@@ -633,10 +770,41 @@
       return res.json();
     }
 
+    function normalizeAnalyticsParams(params = {}) {
+      const normalized = {};
+      for (const [key, value] of Object.entries(params || {})) {
+        if (value === undefined || value === null || value === "") continue;
+        if (typeof value === "boolean") {
+          normalized[key] = value ? "true" : "false";
+        } else if (typeof value === "number" || typeof value === "string") {
+          normalized[key] = value;
+        } else if (Array.isArray(value)) {
+          normalized[key] = value.join(", ");
+        } else {
+          normalized[key] = String(value);
+        }
+      }
+      return normalized;
+    }
+
+    async function trackAnalytics(eventName, params = {}) {
+      const analytics = await analyticsPromise;
+      if (!analytics) return;
+      try {
+        logEvent(analytics, eventName, normalizeAnalyticsParams(params));
+      } catch (error) {
+        console.error("Could not log analytics event:", error);
+      }
+    }
+
     function titleCaseFromEvent(value) {
       return String(value || "")
         .replace(/[_:-]+/g, " ")
         .replace(/\b\w/g, (match) => match.toUpperCase());
+    }
+
+    function readableLabel(value) {
+      return titleCaseFromEvent(value).replace(/\bAi\b/g, "AI");
     }
 
     function formatDateTime(raw) {
@@ -668,6 +836,10 @@
         <div class="stat"><div class="stat-label">Activated (7d)</div><div class="stat-value">${summary?.newly_activated_users_7d ?? 0}</div></div>
         <div class="stat"><div class="stat-label">Core action (7d)</div><div class="stat-value">${summary?.core_action_users_7d ?? 0}</div></div>
         <div class="stat"><div class="stat-label">Returned (7d)</div><div class="stat-value">${summary?.returned_users_7d ?? 0}</div></div>
+        <div class="stat"><div class="stat-label">Research notes</div><div class="stat-value">${summary?.research_notes_count ?? 0}</div></div>
+        <div class="stat"><div class="stat-label">Would use weekly</div><div class="stat-value">${summary?.research_weekly?.yes ?? 0}</div></div>
+        <div class="stat"><div class="stat-label">Maybe weekly</div><div class="stat-value">${summary?.research_weekly?.maybe ?? 0}</div></div>
+        <div class="stat"><div class="stat-label">Opted into anonymized research</div><div class="stat-value">${summary?.anonymized_research_participants ?? 0}</div></div>
       `;
     }
 
@@ -679,8 +851,8 @@
             <div class="user-row">
               <div class="user-row-head">
                 <div>
-                  <div class="user-row-title">${user.user_label || "Unknown user"}</div>
-                  <div class="user-row-meta">${[user.email, user.subjects, user.school_name].filter(Boolean).join(" · ") || "No profile context yet"}</div>
+                  <div class="user-row-title">${user.anonymous_label || "Teacher"}</div>
+                  <div class="user-row-meta">${user.allow_anonymized_research ? "Allows anonymized reflection research" : "Private reflection mode"}</div>
                 </div>
                 <div class="user-row-meta">Last seen ${formatDateTime(user.last_seen_at) || "No activity yet"}</div>
               </div>
@@ -695,7 +867,6 @@
               <div class="user-row-meta">
                 First capture ${formatDateTime(user.first_capture_at) || "Not yet"} · Latest mode ${titleCaseFromEvent(user.latest_reflection_style || "unknown")}
               </div>
-              <div class="list-copy">${user.latest_note_title ? `Latest note: ${user.latest_note_title}` : "No saved reflection title yet."}</div>
             </div>
           `).join("")
         : `<div class="empty">No Memnon users found yet.</div>`;
@@ -708,6 +879,8 @@
         `${(data?.summary?.users_count ?? 0)} total users`,
         `${(data?.summary?.notes_count ?? 0)} saved reflections`,
         `${(data?.summary?.reply_count ?? 0)} saved replies`,
+        `${(data?.summary?.research_notes_count ?? 0)} research notes`,
+        `${(data?.summary?.anonymized_research_participants ?? 0)} opted into anonymized research`,
         `${Object.values(data?.summary?.events || {}).reduce((sum, count) => sum + Number(count || 0), 0)} tracked events`,
       ]);
       renderPills("style-pills", Object.entries(data.summary?.styles || {}), ([style, count]) => `${titleCaseFromEvent(style)} · ${count}`);
@@ -717,6 +890,12 @@
       ]);
       renderPills("voice-pills", data.top_voices || [], (item) => `${item.label} · ${item.count}`);
       renderPills("framework-pills", data.top_frameworks || [], (item) => `${item.label} · ${item.count}`);
+      renderPills("problem-theme-pills", data.top_problem_themes || [], (item) => `${readableLabel(item.label)} · ${item.count}`);
+      renderPills("objection-theme-pills", data.top_objection_themes || [], (item) => `${readableLabel(item.label)} · ${item.count}`);
+      renderPills("workflow-stage-pills", data.top_workflow_stages || [], (item) => `${readableLabel(item.label)} · ${item.count}`);
+      renderPills("desired-outcome-pills", data.top_desired_outcomes || [], (item) => `${readableLabel(item.label)} · ${item.count}`);
+      renderPills("research-segment-pills", data.top_research_segments || [], (item) => `${readableLabel(item.label)} · ${item.count}`);
+      renderPills("research-weekly-pills", Object.entries(data.summary?.research_weekly || {}), ([label, count]) => `${readableLabel(label)} · ${count}`);
       renderRecentUsers(data.recent_users || []);
 
       const notes = data.recent_notes || [];
@@ -724,12 +903,12 @@
       notesList.innerHTML = notes.length
         ? notes.map((note) => `
             <div class="list-item">
-              <div class="list-title">${note.title}</div>
-              <div class="list-subtitle">${note.user_label || "Unknown"} · ${note.date || "Recent"} · ${titleCaseFromEvent(note.reflection_style)} · Teaching context ${note.include_teaching_context ? "on" : "off"}</div>
-              ${note.summary ? `<div class="list-copy">${note.summary}</div>` : ""}
+              <div class="list-title">${note.anonymous_label || "Teacher"} · ${titleCaseFromEvent(note.reflection_style)}</div>
+              <div class="list-subtitle">${note.date || "Recent"} · Teaching context ${note.include_teaching_context ? "on" : "off"} · ${note.voices_count || 0} voices selected</div>
+              <div class="list-copy">Anonymized activity only. Reflection text stays out of this research surface.</div>
             </div>
           `).join("")
-        : `<div class="empty">No reflections yet.</div>`;
+        : `<div class="empty">No anonymized reflection activity available yet.</div>`;
 
       const events = data.recent_events || [];
       const eventsList = document.getElementById("recent-events-list");
@@ -737,13 +916,122 @@
         ? events.map((event) => `
             <div class="list-item">
               <div class="list-title">${titleCaseFromEvent(event.event_name)}</div>
-              <div class="list-subtitle">${event.user_label || "Unknown"} · ${formatDateTime(event.created_at) || "Recent"}</div>
+              <div class="list-subtitle">${event.anonymous_label || "Teacher"} · ${formatDateTime(event.created_at) || "Recent"}</div>
               <div class="list-copy">${Object.keys(event.metadata || {}).length ? Object.entries(event.metadata).map(([key, value]) => `${titleCaseFromEvent(key)}: ${Array.isArray(value) ? value.join(", ") : value}`).join(" · ") : "No extra metadata"}</div>
             </div>
           `).join("")
         : `<div class="empty">No usage events yet.</div>`;
 
       document.getElementById("nav-name").textContent = preferredName;
+      renderConferenceResearch(data.conference_research || {});
+    }
+
+    function renderConferenceResearch(data) {
+      const ledgerSummary = data?.recording_ledger?.summary || {};
+      renderPills("conference-ledger-pills", [
+        `Total · ${ledgerSummary.total_recordings ?? 0}`,
+        `Processed · ${ledgerSummary.already_processed ?? 0}`,
+        `Transcribe · ${ledgerSummary.needs_transcription ?? 0}`,
+        `Review · ${ledgerSummary.needs_review ?? 0}`,
+        `Skip · ${ledgerSummary.skip ?? 0}`,
+      ]);
+      renderPills("conference-theme-pills", data?.speaker_notes?.cross_speaker_themes || [], (item) => item);
+      renderPills("conference-positioning-pills", data?.speaker_notes?.positioning || [], (item) => item);
+      const coverageSummary = data?.recording_coverage?.summary || {};
+      renderPills("conference-coverage-pills", [
+        `Featured · ${coverageSummary.featured_in_research_view ?? 0}`,
+        `Tracked only · ${coverageSummary.tracked_background_or_session_audio ?? 0}`,
+        `Needs follow-up · ${coverageSummary.still_needs_follow_up ?? 0}`,
+      ]);
+
+      const priorityList = document.getElementById("conference-priority-list");
+      const priorityItems = data?.recording_ledger?.priority_items || [];
+      priorityList.innerHTML = priorityItems.length
+        ? priorityItems.map((item) => `
+            <div class="list-item">
+              <div class="list-title">${item.file}</div>
+              <div class="list-subtitle">${item.duration} · ${readableLabel(item.status)} · ${readableLabel(item.action)}</div>
+              <div class="list-copy">${item.type ? `Type: ${readableLabel(item.type)}` : "Type not yet confirmed."}</div>
+              ${item.people ? `<div class="list-copy">${item.people}</div>` : ""}
+            </div>
+          `).join("")
+        : `<div class="empty">No priority recordings noted.</div>`;
+
+      const coverageList = document.getElementById("conference-coverage-list");
+      const coverageItems = data?.recording_coverage?.items || [];
+      coverageList.innerHTML = coverageItems.length
+        ? coverageItems.map((item) => `
+            <div class="list-item">
+              <div class="list-title">${item.file}</div>
+              <div class="list-subtitle">${[
+                item.duration,
+                readableLabel(item.source_status),
+                readableLabel(item.research_visibility)
+              ].filter(Boolean).join(" · ")}</div>
+              <div class="list-copy">${item.notes || "No notes yet."}</div>
+            </div>
+          `).join("")
+        : `<div class="empty">No recording coverage available.</div>`;
+
+      const sessionList = document.getElementById("conference-session-highlights");
+      const sessionItems = data?.session_highlights || [];
+      sessionList.innerHTML = sessionItems.length
+        ? sessionItems.map((item) => `
+            <div class="story-card">
+              <h3>${item.title}</h3>
+              <div class="story-meta">${[
+                readableLabel(item.kind),
+                ...(item.recordings || [])
+              ].filter(Boolean).join(" · ")}</div>
+              <div class="story-copy"><strong>Why it matters:</strong> ${item.why_it_matters || "Not captured"}</div>
+              ${item.key_points?.length ? `
+                <div class="story-copy"><strong>Key takeaways:</strong></div>
+                <ol class="story-actions">${item.key_points.map((point) => `<li>${point}</li>`).join("")}</ol>
+              ` : ""}
+            </div>
+          `).join("")
+        : `<div class="empty">No session highlights available.</div>`;
+
+      const storyList = document.getElementById("conference-user-stories");
+      const stories = data?.user_stories || [];
+      storyList.innerHTML = stories.length
+        ? stories.map((item) => `
+            <div class="story-card">
+              <h3>${item.name}</h3>
+              <div class="story-meta">${[
+                item.role_organization,
+                item.user_type,
+                item.recording,
+                item.aliases?.length ? `Also appears as: ${item.aliases.join(", ")}` : "",
+                `Urgency: ${readableLabel(item.urgency)}`,
+                `Signal: ${readableLabel(item.signal_strength)}`
+              ].filter(Boolean).join(" · ")}</div>
+              <div class="story-copy"><strong>Problem:</strong> ${item.active_problem || "Not captured"}</div>
+              <div class="story-copy"><strong>What mattered:</strong> ${item.what_matters || "Not captured"}</div>
+              <div class="story-copy"><strong>Reaction to Memnon:</strong> ${item.reaction_to_memnon || "Not captured"}</div>
+              <div class="story-copy"><strong>Follow-up angle:</strong> ${item.best_follow_up_angle || "Not captured"}</div>
+              <div class="story-copy"><strong>Draft message:</strong> ${item.draft_next_message || "Not captured"}</div>
+              ${item.best_next_steps?.length ? `
+                <div class="story-copy"><strong>Best next steps:</strong></div>
+                <ol class="story-actions">${item.best_next_steps.map((step) => `<li>${step}</li>`).join("")}</ol>
+              ` : ""}
+            </div>
+          `).join("")
+        : `<div class="empty">No conference user stories available.</div>`;
+
+      const speakerList = document.getElementById("conference-speaker-notes");
+      const speakers = data?.speaker_notes?.speakers || [];
+      speakerList.innerHTML = speakers.length
+        ? speakers.map((item) => `
+            <div class="story-card">
+              <h3>${item.name}</h3>
+              <div class="story-meta">${[item.role, item.organization].filter(Boolean).join(" · ")}</div>
+              <div class="story-copy"><strong>Why relevant:</strong> ${item.why_relevant || "Not captured"}</div>
+              <div class="story-copy"><strong>Outreach angle:</strong> ${item.outreach_angle || "Not captured"}</div>
+              <div class="story-copy"><strong>Status:</strong> ${item.status || "Not captured"}</div>
+            </div>
+          `).join("")
+        : `<div class="empty">No speaker notes available.</div>`;
     }
 
     function renderResearchNotes(data) {
@@ -758,22 +1046,65 @@
               ${item.strongest_reaction ? `<div class="list-copy"><strong>Reaction:</strong> ${item.strongest_reaction}</div>` : ""}
               ${item.quote ? `<div class="list-copy"><strong>Quote:</strong> "${item.quote}"</div>` : ""}
               ${item.next_step ? `<div class="list-copy"><strong>Next step:</strong> ${item.next_step}</div>` : ""}
+              <div class="inline-pills">
+                ${(item.problem_themes || []).map((theme) => `<span class="pill">Problem: ${readableLabel(theme)}</span>`).join("")}
+                ${(item.objection_themes || []).map((theme) => `<span class="pill">Objection: ${readableLabel(theme)}</span>`).join("")}
+                ${(item.workflow_stages || []).map((theme) => `<span class="pill">Moment: ${readableLabel(theme)}</span>`).join("")}
+                ${(item.desired_outcomes || []).map((theme) => `<span class="pill">Outcome: ${readableLabel(theme)}</span>`).join("")}
+                ${item.segment ? `<span class="pill">Segment: ${readableLabel(item.segment)}</span>` : ""}
+                ${item.would_use_weekly ? `<span class="pill">Weekly: ${readableLabel(item.would_use_weekly)}</span>` : ""}
+                ${item.fit_score ? `<span class="pill">Fit: ${item.fit_score}/5</span>` : ""}
+              </div>
             </div>
           `).join("")
         : `<div class="empty">No research notes saved yet.</div>`;
     }
 
+    function setSummaryStatus(message, state = "") {
+      const el = document.getElementById("summary-status");
+      if (!el) return;
+      el.className = `status${state ? ` is-${state}` : ""}`;
+      el.textContent = message;
+    }
+
+    function setFormStatus(message, state = "") {
+      const el = document.getElementById("form-status");
+      if (!el) return;
+      el.className = `status${state ? ` is-${state}` : ""}`;
+      el.textContent = message;
+    }
+
     async function loadResearchSummary() {
-      const data = await fetchJson("/research-summary");
-      renderResearchSummary(data);
+      setSummaryStatus("Loading summary…");
+      try {
+        const data = await fetchJson("/research-summary");
+        renderResearchSummary(data);
+        setSummaryStatus(data?.error || "Summary loaded.", data?.error ? "error" : "success");
+        return data;
+      } catch (error) {
+        console.error("Could not load research summary:", error);
+        setSummaryStatus(error.message || "Research summary could not be loaded.", "error");
+        throw error;
+      }
     }
 
     async function loadResearchNotes() {
-      const data = await fetchJson("/research-notes");
-      renderResearchNotes(data);
+      try {
+        const data = await fetchJson("/research-notes");
+        renderResearchNotes(data);
+        return data;
+      } catch (error) {
+        console.error("Could not load research notes:", error);
+        const list = document.getElementById("research-notes-list");
+        if (list) {
+          list.innerHTML = `<div class="empty">Research notes could not be loaded. Try Refresh.</div>`;
+        }
+        throw error;
+      }
     }
 
     async function logUsageEvent(eventName, metadata = {}) {
+      trackAnalytics(eventName, metadata);
       try {
         await fetchJson("/usage-event", {
           method: "POST",
@@ -788,13 +1119,12 @@
     async function saveResearchNote(event) {
       event.preventDefault();
       const form = event.currentTarget;
-      const status = document.getElementById("form-status");
       const formData = new FormData(form);
       const payload = Object.fromEntries(formData.entries());
       payload.apps_discussed = String(payload.apps_discussed || "").split(",").map((item) => item.trim()).filter(Boolean);
       payload.tags = String(payload.tags || "").split(",").map((item) => item.trim()).filter(Boolean);
 
-      status.textContent = "Saving…";
+      setFormStatus("Saving…");
       try {
         await fetchJson("/research-notes", {
           method: "POST",
@@ -802,22 +1132,22 @@
           body: JSON.stringify(payload),
         });
         form.reset();
-        status.textContent = "Research note saved.";
-        await Promise.all([loadResearchSummary(), loadResearchNotes()]);
+        setFormStatus("Research note saved.", "success");
+        await Promise.allSettled([loadResearchSummary(), loadResearchNotes()]);
         await logUsageEvent("opened_research_note_after_save");
       } catch (error) {
         console.error("Could not save research note:", error);
-        status.textContent = error.message || "Could not save research note.";
+        setFormStatus(error.message || "Could not save research note.", "error");
       }
     }
 
     document.getElementById("research-form").addEventListener("submit", saveResearchNote);
     document.getElementById("clear-form-btn").addEventListener("click", () => {
       document.getElementById("research-form").reset();
-      document.getElementById("form-status").textContent = "";
+      setFormStatus("");
     });
     document.getElementById("refresh-summary-btn").addEventListener("click", async () => {
-      await Promise.all([loadResearchSummary(), loadResearchNotes()]);
+      await Promise.allSettled([loadResearchSummary(), loadResearchNotes()]);
     });
     document.getElementById("signout-btn").addEventListener("click", async () => {
       await signOut(auth);
@@ -847,7 +1177,8 @@
     onAuthStateChanged(auth, async (user) => {
       if (!user) return;
       document.getElementById("nav-name").textContent = user.displayName || user.email || "Signed in";
-      await Promise.all([loadResearchSummary(), loadResearchNotes()]);
+      trackAnalytics("opened_app", { surface: "research" });
+      await Promise.allSettled([loadResearchSummary(), loadResearchNotes()]);
       await logUsageEvent("opened_research_dashboard");
     });
   </script>

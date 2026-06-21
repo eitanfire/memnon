@@ -32,10 +32,15 @@
       "description": "Yielding, emptiness, the uses of stillness, and harmony with what is.",
       "guides": ["lao_tzu", "zhuangzi"]
     },
+    "education": {
+      "label": "Teaching Voices",
+      "description": "Educators and public thinkers on teaching, formation, inquiry, and the inner life of the classroom.",
+      "guides": ["john_dewey", "parker_palmer", "paulo_freire", "howard_thurman", "bell_hooks"]
+    },
     "secular": {
       "label": "Secular Humanism",
       "description": "Meaning, freedom, dignity, and the examined life drawn from philosophy, literature, and psychology.",
-      "guides": ["viktor_frankl", "james_baldwin", "simone_weil", "bell_hooks"]
+      "guides": ["viktor_frankl", "james_baldwin", "simone_weil"]
     }
   },
 
@@ -687,9 +692,107 @@
       ]
     },
 
+    "john_dewey": {
+      "label": "John Dewey",
+      "tradition": "education",
+      "work": "Democracy and Education; Experience and Education",
+      "dates": "1859–1952",
+      "public_domain": true,
+      "bio": "American philosopher and educator whose work linked democracy, inquiry, experience, and the purposes of schooling.",
+      "passages": [
+        {
+          "id": "jd_1",
+          "ref": "Experience and Education",
+          "text": "We do not learn from experience... we learn from reflecting on experience.",
+          "tags": ["reflection", "experience", "teaching", "learning", "growth"]
+        },
+        {
+          "id": "jd_2",
+          "ref": "Democracy and Education",
+          "text": "Education is not preparation for life; education is life itself.",
+          "tags": ["education", "purpose", "vocation", "presence", "meaning"]
+        },
+        {
+          "id": "jd_3",
+          "ref": "Democracy and Education",
+          "text": "If we teach today's students as we taught yesterday's, we rob them of tomorrow.",
+          "tags": ["teaching", "adaptation", "students", "future", "growth"]
+        }
+      ]
+    },
+
+    "parker_palmer": {
+      "label": "Parker Palmer",
+      "tradition": "education",
+      "work": "The Courage to Teach",
+      "dates": "1939–",
+      "public_domain": false,
+      "bio": "American educator and writer focused on the inner life of teachers, vocation, and integrity in the classroom.",
+      "passages": [
+        {
+          "id": "pp_1",
+          "ref": "The Courage to Teach",
+          "text": "Good teaching cannot be reduced to technique; good teaching comes from the identity and integrity of the teacher.",
+          "tags": ["teaching", "identity", "integrity", "vocation", "practice"]
+        },
+        {
+          "id": "pp_2",
+          "ref": "The Courage to Teach",
+          "text": "We teach who we are.",
+          "tags": ["teaching", "identity", "self_awareness", "integrity", "presence"]
+        }
+      ]
+    },
+
+    "paulo_freire": {
+      "label": "Paulo Freire",
+      "tradition": "education",
+      "work": "Pedagogy of the Oppressed; Teachers as Cultural Workers",
+      "dates": "1921–1997",
+      "public_domain": false,
+      "bio": "Brazilian educator and philosopher whose work centered dialogue, liberation, critical consciousness, and humanizing education.",
+      "passages": [
+        {
+          "id": "pf_1",
+          "ref": "Teachers as Cultural Workers",
+          "text": "Teaching is not the transfer of knowledge, but the creation of the possibilities for the production or construction of knowledge.",
+          "tags": ["teaching", "students", "inquiry", "learning", "agency"]
+        },
+        {
+          "id": "pf_2",
+          "ref": "Pedagogy of the Oppressed",
+          "text": "No one educates anyone else, nor do we educate ourselves alone. We educate one another in communion.",
+          "tags": ["community", "teaching", "relationship", "dialogue", "learning"]
+        }
+      ]
+    },
+
+    "howard_thurman": {
+      "label": "Howard Thurman",
+      "tradition": "education",
+      "work": "Meditations of the Heart; Various",
+      "dates": "1899–1981",
+      "public_domain": false,
+      "bio": "Theologian, writer, and educator whose work joined spiritual depth with vocation, courage, and human dignity.",
+      "passages": [
+        {
+          "id": "ht_1",
+          "ref": "Meditations of the Heart",
+          "text": "Don't ask what the world needs. Ask what makes you come alive, and go do it.",
+          "tags": ["vocation", "purpose", "courage", "calling", "renewal"]
+        },
+        {
+          "id": "ht_2",
+          "ref": "The Inward Journey",
+          "text": "There is something in every one of you that waits and listens for the sound of the genuine in yourself.",
+          "tags": ["identity", "integrity", "inner_life", "discernment", "authenticity"]
+        }
+      ]
+    },
+
     "bell_hooks": {
       "label": "bell hooks",
-      "tradition": "secular",
+      "tradition": "education",
       "work": "Various",
       "dates": "1952–2021",
       "public_domain": false,

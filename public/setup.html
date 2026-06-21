@@ -174,6 +174,60 @@
       font-size: 0.8rem;
       color: #777;
     }
+    .toggle-card {
+      border: 1px solid #e8e6e0;
+      border-radius: 16px;
+      background: #fffdfa;
+      padding: 16px 18px;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .toggle-copy h3 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+    }
+    .toggle-copy p {
+      margin: 0;
+      color: #6b665f;
+      line-height: 1.55;
+      font-size: 0.88rem;
+    }
+    .toggle-input {
+      appearance: none;
+      width: 48px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid #d5c7af;
+      background: #e7dfd1;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.18s ease, border-color 0.18s ease;
+      margin-top: 2px;
+    }
+    .toggle-input::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+      transition: transform 0.18s ease;
+    }
+    .toggle-input:checked {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+    .toggle-input:checked::after {
+      transform: translateX(20px);
+    }
     .mode-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -456,6 +510,7 @@
         Choose what comes back after you record.
       </p>
       <div class="mode-grid" id="reflection-style-grid"></div>
+      <div id="reflection-style-recommendation" class="muted" style="margin-top:12px; line-height:1.55;"></div>
     </div>
 
     <!-- ── Teaching context ── -->
@@ -683,6 +738,27 @@
 
     <div class="card setup-secondary-card">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:1.4rem;">🔒</span>
+        <h2 style="margin:0;">Privacy</h2>
+      </div>
+      <p class="muted" style="margin-bottom:18px;">
+        Decide whether Memnon can use anonymized reflection signals to improve defaults and product decisions.
+      </p>
+      <div class="toggle-card">
+        <div class="toggle-row">
+          <div class="toggle-copy">
+            <h3>Contribute anonymized product signals</h3>
+            <p>
+              Leave this off if you want reflections used only for your own return. If you turn it on, Memnon may use high-level reflection metadata in aggregate. Your reflection text does not appear verbatim in founder research views.
+            </p>
+          </div>
+          <input id="allow-anonymized-research" class="toggle-input" type="checkbox" aria-label="Contribute anonymized product signals" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card setup-secondary-card">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
         <span style="font-size:1.4rem;">🔊</span>
         <h2 style="margin:0;">Narration Voice</h2>
       </div>
@@ -714,10 +790,10 @@
 
   <script>
     let currentUser = null;
-    const API = "https://api-4hth6oktaa-uc.a.run.app";
     const isStaticLocalhost =
       window.location.hostname === "localhost" &&
       (window.location.port === "8000" || window.location.port === "8080");
+    const API = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "/api";
     const routes = {
       home: isStaticLocalhost ? "/index.html" : "/",
       setup: isStaticLocalhost ? "/setup.html" : "/setup",
@@ -1048,6 +1124,7 @@
     };
     let selectedReflectionStyle = 'complete';
     let selectedNarrationVoice = "en-IE-EmilyNeural";
+    let allowAnonymizedResearch = false;
     const portraitPresets = {
       greek_philosopher: {
         kind: 'preset',
@@ -1675,6 +1752,8 @@
 
     // ── Pre-fill returning user ──
     function prefill(data) {
+      const recommendation = data.research_recommendations || {};
+      const hasExplicitStyle = !!(data.reflection_style && reflectionStyles[data.reflection_style]);
       if (data.preferred_name) document.getElementById('preferred-name').value = data.preferred_name;
       if (data.spoken_name) document.getElementById('spoken-name').value = data.spoken_name;
       if (data.preferred_pronouns) document.getElementById('preferred-pronouns').value = data.preferred_pronouns;
@@ -1720,35 +1799,73 @@
         dashboardImageChoice = normalizeDashboardImageConfig(data.dashboard_image);
         updatePortraitSelectionUI();
       }
-      if (data.reflection_style && reflectionStyles[data.reflection_style]) {
+      if (hasExplicitStyle) {
         selectedReflectionStyle = data.reflection_style;
+        updateReflectionStyleSelection();
+      } else if (recommendation.recommended_reflection_style && reflectionStyles[recommendation.recommended_reflection_style]) {
+        selectedReflectionStyle = recommendation.recommended_reflection_style;
         updateReflectionStyleSelection();
       }
       if (data.narration_voice && narrationVoices[data.narration_voice]) {
         selectedNarrationVoice = data.narration_voice;
         updateNarrationVoiceSelection();
       }
+      allowAnonymizedResearch = !!data.allow_anonymized_research;
+      const privacyToggle = document.getElementById('allow-anonymized-research');
+      if (privacyToggle) {
+        privacyToggle.checked = allowAnonymizedResearch;
+      }
       googleTasksConnected = !!data.google_tasks_connected;
       selectedTaskListId = data.google_tasks_list_id || '';
       selectedTaskListName = data.google_tasks_list_name || '';
       updateGoogleTasksUI();
+      renderResearchRecommendation(recommendation, hasExplicitStyle);
+    }
+
+    function renderResearchRecommendation(recommendation = {}, hasExplicitStyle = false) {
+      const el = document.getElementById('reflection-style-recommendation');
+      if (!el) return;
+      if (!recommendation.recommended_reflection_style || !reflectionStyles[recommendation.recommended_reflection_style]) {
+        el.textContent = '';
+        return;
+      }
+      const styleLabel = reflectionStyles[recommendation.recommended_reflection_style].label;
+      const explanation = recommendation.explanation || '';
+      if (hasExplicitStyle) {
+        el.innerHTML = `<strong>Research signal:</strong> ${styleLabel} is the current default recommendation, but your saved setting stays in place. ${explanation}`;
+        return;
+      }
+      el.innerHTML = `<strong>Recommended default:</strong> ${styleLabel}. ${explanation}`;
+    }
+
+    async function fetchMe(forceRefresh = false) {
+      if (!currentUser) return {};
+      const token = await currentUser.getIdToken(forceRefresh);
+      const res = await fetch(`${API}/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error(`Could not load profile: ${res.status}`);
+      }
+      return res.json();
     }
   </script>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAnalytics, isSupported, logEvent } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
     import { getAuth, onAuthStateChanged, signInWithCustomToken }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc }
-      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+    const FIREBASE_MEASUREMENT_ID = "";
     const firebaseConfig = {
       apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
       authDomain: "memnon-app.web.app",
       projectId: "memnon-app",
       storageBucket: "memnon-app.firebasestorage.app",
       messagingSenderId: "714155490867",
-      appId: "1:714155490867:web:f382fddb58a596bede6d46"
+      appId: "1:714155490867:web:f382fddb58a596bede6d46",
+      ...(FIREBASE_MEASUREMENT_ID ? { measurementId: FIREBASE_MEASUREMENT_ID } : {}),
     };
 
     const params = new URLSearchParams(window.location.search);
@@ -1775,7 +1892,7 @@
           "ISTE Standards",
         ],
         reflect_config: {
-          selected_guides: ["Parker Palmer", "bell hooks"],
+          selected_guides: ["parker_palmer", "bell_hooks"],
           custom_passages: {},
         },
         dashboard_image: { kind: "preset", preset: "lattice" },
@@ -1797,7 +1914,7 @@
           "Common Core State Standards (CCSS)",
         ],
         reflect_config: {
-          selected_guides: ["Marcus Aurelius", "Howard Thurman", "Thich Nhat Hanh"],
+          selected_guides: ["marcus_aurelius", "howard_thurman", "thich_nhat_hanh"],
           custom_passages: {},
         },
         dashboard_image: { kind: "preset", preset: "trebulla" },
@@ -1820,7 +1937,7 @@
           "Next Generation Science Standards (NGSS)",
         ],
         reflect_config: {
-          selected_guides: ["Marcus Aurelius", "Parker Palmer", "Howard Thurman"],
+          selected_guides: ["marcus_aurelius", "parker_palmer", "howard_thurman"],
           custom_passages: {},
         },
         dashboard_image: { kind: "preset", preset: "king_memnon" },
@@ -1830,8 +1947,39 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getFirestore(app);
+    const analyticsPromise = FIREBASE_MEASUREMENT_ID
+      ? isSupported()
+          .then((supported) => (supported ? getAnalytics(app) : null))
+          .catch(() => null)
+      : Promise.resolve(null);
     const callbackToken = params.get("token");
+
+    function normalizeAnalyticsParams(params = {}) {
+      const normalized = {};
+      for (const [key, value] of Object.entries(params || {})) {
+        if (value === undefined || value === null || value === "") continue;
+        if (typeof value === "boolean") {
+          normalized[key] = value ? "true" : "false";
+        } else if (typeof value === "number" || typeof value === "string") {
+          normalized[key] = value;
+        } else if (Array.isArray(value)) {
+          normalized[key] = value.join(", ");
+        } else {
+          normalized[key] = String(value);
+        }
+      }
+      return normalized;
+    }
+
+    async function trackAnalytics(eventName, params = {}) {
+      const analytics = await analyticsPromise;
+      if (!analytics) return;
+      try {
+        logEvent(analytics, eventName, normalizeAnalyticsParams(params));
+      } catch (error) {
+        console.error("Could not log analytics event:", error);
+      }
+    }
 
     function getMockSetupData() {
       return MOCK_SETUP_STATES[MOCK_SETUP_KEY] || MOCK_SETUP_STATES.complete;
@@ -1863,14 +2011,20 @@
       }
     });
 
+    trackAnalytics("opened_app", { surface: "setup" });
+
     document.getElementById("cancel-link").setAttribute("href", routes.dashboard);
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) return;
       currentUser = user;
+      trackAnalytics("signed_in", { surface: "setup" });
       document.getElementById("nav-name").textContent = user.displayName || user.email;
-      const snap = await getDoc(doc(db, "users", user.uid));
-      if (snap.exists()) prefill(snap.data());
+      try {
+        prefill(await fetchMe());
+      } catch (e) {
+        console.error("Could not load setup profile:", e);
+      }
       try {
         await loadDrivePortraits();
       } catch (e) {
@@ -1922,6 +2076,7 @@
         grade_levels: Array.from(selectedGrades),
         school_state,
         state_standards: inferredStandards,
+        allow_anonymized_research: document.getElementById("allow-anonymized-research").checked,
         reflect_config: {
           selected_guides: selectedVoices,
           custom_passages: customPassages,
@@ -1941,6 +2096,12 @@
       }
 
       if (res.ok) {
+        trackAnalytics("saved_reflection_settings", {
+          reflection_style: selectedReflectionStyle,
+          narration_voice: selectedNarrationVoice,
+          selected_guides_count: selectedVoices.length,
+          standards_count: inferredStandards.length,
+        });
         window.location.href = routes.dashboard;
       } else {
         btn.disabled = false;

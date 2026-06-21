@@ -15,7 +15,7 @@
   <div class="container" style="max-width:680px;">
     <div style="margin-bottom:32px;">
       <h1>Privacy Policy</h1>
-      <p class="muted">Last updated: June 1, 2026</p>
+      <p class="muted">Last updated: June 20, 2026</p>
     </div>
 
     <div class="card">
@@ -40,14 +40,16 @@
         <li>Your professional lane settings: subjects, grade levels, school name,
             school state, and inferred academic standards</li>
         <li>Your reflect lane settings: chosen voices and philosophical traditions</li>
+        <li>Your privacy preference for whether anonymized reflection metadata may be used to improve Memnon</li>
         <li>The ID of your <strong>memnon-notes</strong> Drive folder</li>
         <li>Metadata about recent notes (title, date, summary, attribution) for
             display in the app — stored in Firebase</li>
       </ul>
       <p style="margin-top:12px;">
-        We do <strong>not</strong> store your audio recordings. Audio is received,
-        transcribed in memory, and immediately discarded. Transcripts are used only
-        to generate your note and are not retained beyond the processing request.
+        We do <strong>not</strong> store your raw audio recordings. Audio is received,
+        transcribed in memory, and discarded after processing. Raw transcripts are
+        used only to generate your reflection and are not retained in Memnon's
+        server-side storage or written verbatim into the notes Memnon saves for you.
       </p>
     </div>
 
@@ -66,6 +68,28 @@
         Memnon does <strong>not</strong> read, modify, or access any other files or
         folders in your Drive. It cannot see files you created or any other app created.
       </p>
+      <p style="margin-top:12px;">
+        Notes Memnon creates in Drive contain the generated reflection, action items,
+        and selected source attributions, but not the full raw transcript. If you add
+        a follow-up reply in the app, Memnon stores only a short paraphrased summary
+        for continuity instead of the verbatim reply text.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Product research and autonomy</h2>
+      <p>
+        Memnon is designed so your reflections primarily serve you, not a founder dashboard.
+        In setup, you can choose whether to contribute <strong>anonymized product signals</strong>.
+        When this setting is off, your reflections are used only to generate your own return and
+        are excluded from reflection-derived founder research views.
+      </p>
+      <p style="margin-top:12px;">
+        When this setting is on, Memnon may use high-level metadata in aggregate
+        (for example: reflection style usage, teaching-context on/off, selected voices count,
+        and other non-verbatim activity signals). Founder research views do not display your
+        reflection text verbatim as product research evidence.
+      </p>
     </div>
 
     <div class="card">
@@ -73,7 +97,8 @@
       <p style="margin-bottom:12px;">
         When you record or upload audio, it is sent over HTTPS to Memnon's server,
         transcribed using OpenAI Whisper, and summarized using OpenAI GPT-4o-mini.
-        The audio and transcript are not stored after processing completes.
+        The audio is not retained after processing completes, and the server does not
+        keep a verbatim copy of your transcript.
       </p>
       <p>
         Memnon is designed for professional and personal reflection. Please do not
