@@ -232,6 +232,38 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertEqual(payload["episode"]["id"], "2026-06-24")
         self.assertEqual(payload["episode"]["audio_url"], "https://api-4hth6oktaa-uc.a.run.app/feed/tok123/2026-06-24.mp3")
 
+    def test_save_setup_clears_weather_cache_when_school_anchor_changes(self):
+        existing_user = {
+            "school_name": "Jefferson Academy",
+            "school_state": "CO",
+            "weather_location_label": "Jefferson Academy Colorado",
+            "weather_latitude": 39.7392,
+            "weather_longitude": -104.9903,
+            "weather_timezone": "America/Denver",
+            "weather_geocoded_from": "Jefferson Academy, CO",
+        }
+        user_ref = FakeUserRef(existing_user)
+        client = self.main.flask_app.test_client()
+
+        with (
+            patch.object(self.main, "_verify_firebase_token", return_value="user123"),
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+        ):
+            response = client.post("/setup", json={
+                "lane": "professional",
+                "profession": "teacher",
+                "reflection_style": "complete",
+                "school_name": "Arapahoe Ridge",
+                "school_state": "CO",
+            })
+
+        self.assertEqual(response.status_code, 200)
+        saved_payload, merge_flag = user_ref.set_calls[-1]
+        self.assertTrue(merge_flag)
+        self.assertIsNone(saved_payload["weather_latitude"])
+        self.assertIsNone(saved_payload["weather_longitude"])
+        self.assertEqual(saved_payload["weather_geocoded_from"], "")
+
     def test_dashboard_includes_admin_regenerate_controls(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")
         self.assertIn('id="daily-brief-regenerate-btn"', html)

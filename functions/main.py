@@ -53,6 +53,7 @@ from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection_bytes, synthesize_reflection_mp3
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
+from weather_context import clear_weather_cache_fields
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
 
@@ -3263,7 +3264,13 @@ def save_setup():
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(silent=True) or {}
-    _get_db().collection("users").document(uid).set({
+    user_ref = _get_db().collection("users").document(uid)
+    existing_doc = user_ref.get()
+    existing_user = existing_doc.to_dict() if existing_doc.exists else {}
+
+    school_name = data.get("school_name", "")
+    school_state = data.get("school_state", "")
+    updates = {
         "lane":           data.get("lane", "professional"),
         "profession":     data.get("profession", "teacher"),
         "reflection_style": _normalize_reflection_style(data.get("reflection_style")),
@@ -3275,9 +3282,9 @@ def save_setup():
         # Teaching-specific fields
         "grade_levels":    data.get("grade_levels", []),
         "subjects":        data.get("subjects", ""),
-        "school_state":    data.get("school_state", ""),
+        "school_state":    school_state,
         "state_standards": data.get("state_standards", []),
-        "school_name":     data.get("school_name", ""),
+        "school_name":     school_name,
         "school_district": data.get("school_district", ""),
         "school_city":     data.get("school_city", ""),
         "allow_anonymized_research": _coerce_bool(data.get("allow_anonymized_research"), False),
@@ -3287,7 +3294,13 @@ def save_setup():
         "google_tasks_list_id": (data.get("google_tasks_list_id") or "").strip(),
         "google_tasks_list_name": (data.get("google_tasks_list_name") or "").strip(),
         "active": True,
-    }, merge=True)
+    }
+    if (
+        str(existing_user.get("school_name") or "").strip() != str(school_name).strip()
+        or str(existing_user.get("school_state") or "").strip() != str(school_state).strip()
+    ):
+        updates.update(clear_weather_cache_fields())
+    user_ref.set(updates, merge=True)
     return jsonify({"ok": True})
 
 
