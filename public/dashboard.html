@@ -172,6 +172,138 @@
       padding-top: 14px;
       padding-bottom: 14px;
     }
+    .summary-tile--daily-brief {
+      margin-top: 14px;
+      border-color: #d9c39b;
+      background:
+        radial-gradient(circle at top right, rgba(233, 213, 171, 0.34), rgba(233, 213, 171, 0) 40%),
+        linear-gradient(180deg, #fffdfa 0%, #f8f1e3 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.74),
+        0 14px 28px rgba(90, 68, 36, 0.08);
+    }
+    .daily-brief-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) auto;
+      gap: 16px;
+      align-items: start;
+    }
+    .daily-brief-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #3f2f20;
+    }
+    .daily-brief-copy {
+      font-size: 0.82rem;
+      color: #5f5548;
+      line-height: 1.58;
+      margin-bottom: 10px;
+      max-width: 700px;
+    }
+    .daily-brief-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .daily-brief-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      align-items: center;
+    }
+    .daily-brief-action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .daily-brief-url-wrap {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(216, 196, 158, 0.55);
+    }
+    .daily-brief-url-wrap[hidden] {
+      display: none !important;
+    }
+    .daily-brief-url-label {
+      display: block;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7c6a55;
+      margin-bottom: 8px;
+    }
+    .daily-brief-url-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .daily-brief-url-row input {
+      width: 100%;
+      min-width: 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #dbcdb8;
+      background: rgba(255, 252, 246, 0.95);
+      color: #4a3a28;
+      font: inherit;
+      font-size: 0.8rem;
+      box-sizing: border-box;
+    }
+    .daily-brief-url-row input:focus {
+      outline: none;
+      border-color: #b89258;
+      box-shadow: 0 0 0 3px rgba(184, 146, 88, 0.12);
+    }
+    .daily-brief-help {
+      margin-top: 8px;
+      font-size: 0.76rem;
+      color: #756a5e;
+      line-height: 1.5;
+    }
+    .daily-brief-apple-note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 251, 243, 0.92);
+      border: 1px solid rgba(220, 208, 186, 0.76);
+      font-size: 0.76rem;
+      color: #685a49;
+      line-height: 1.55;
+    }
+    .daily-brief-apple-note[hidden] {
+      display: none !important;
+    }
+    .daily-brief-status {
+      margin-top: 10px;
+      min-height: 1.2em;
+    }
+    .daily-brief-admin {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(216, 196, 158, 0.7);
+    }
+    .daily-brief-admin[hidden] {
+      display: none !important;
+    }
+    .daily-brief-admin-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8a7254;
+    }
+    .daily-brief-admin-copy {
+      font-size: 0.76rem;
+      color: #685a49;
+      line-height: 1.55;
+      margin-bottom: 10px;
+    }
     .capture-header-copy {
       min-width: 0;
       flex: 1;
@@ -744,6 +876,12 @@
       .dashboard-capture-secondary {
         grid-template-columns: 1fr;
       }
+      .daily-brief-layout {
+        grid-template-columns: 1fr;
+      }
+      .daily-brief-actions {
+        justify-content: flex-start;
+      }
     }
     @media (max-width: 640px) {
       .dashboard-capture-card {
@@ -762,6 +900,9 @@
       }
       .capture-prompt-actions,
       .capture-mode-grid {
+        grid-template-columns: 1fr;
+      }
+      .daily-brief-url-row {
         grid-template-columns: 1fr;
       }
     }
@@ -865,6 +1006,56 @@
           <div class="archive-inline-note">
             <span id="archive-summary-copy">Each capture returns as a complete spoken reflection in your</span>
             <strong>archive</strong>.
+          </div>
+        </div>
+      </div>
+      <div class="summary-tile summary-tile--daily-brief" id="daily-brief-card">
+        <div class="daily-brief-layout">
+          <div>
+            <div class="summary-tile-kicker">Today's brief</div>
+            <div class="daily-brief-title" id="daily-brief-title">Turn on your private daily brief</div>
+            <div class="daily-brief-copy" id="daily-brief-body-copy">
+              Memnon can send one spoken brief each morning to your private podcast feed.
+            </div>
+            <div class="daily-brief-meta" id="daily-brief-meta"></div>
+          </div>
+          <div class="daily-brief-actions">
+            <button id="daily-brief-enable" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
+              Turn on daily brief
+            </button>
+          </div>
+        </div>
+        <div id="daily-brief-url-wrap" class="daily-brief-url-wrap" hidden>
+          <label class="daily-brief-url-label" for="daily-brief-url">Private feed URL</label>
+          <div class="daily-brief-url-row">
+            <input id="daily-brief-url" type="text" readonly value="" />
+            <button id="daily-brief-copy-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+              Copy feed link
+            </button>
+          </div>
+          <div class="daily-brief-action-row">
+            <button id="daily-brief-overcast-btn" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
+              Subscribe in Overcast
+            </button>
+            <button id="daily-brief-share-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+              Share feed link
+            </button>
+          </div>
+          <div class="daily-brief-help" id="daily-brief-help">
+            Use <strong>Subscribe in Overcast</strong> to add this feed to your podcasts. Use the feed link for Apple Podcasts or another app.
+          </div>
+          <div id="daily-brief-apple-note" class="daily-brief-apple-note">
+            <strong>Apple Podcasts:</strong> open <strong>Library</strong>, tap <strong>…</strong>, choose <strong>Add a Show by URL</strong>, then paste this private feed link.
+          </div>
+        </div>
+        <div id="daily-brief-status" class="capture-text-status daily-brief-status" aria-live="polite"></div>
+        <div id="daily-brief-admin-wrap" class="daily-brief-admin" hidden>
+          <span class="daily-brief-admin-label">Admin tools</span>
+          <div id="daily-brief-admin-copy" class="daily-brief-admin-copy"></div>
+          <div class="daily-brief-action-row">
+            <button id="daily-brief-regenerate-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+              Regenerate today's brief
+            </button>
           </div>
         </div>
       </div>
@@ -1103,6 +1294,11 @@
         notesLink.classList.add("is-disabled");
         notesLink.textContent = "Archive available after sign-in";
       }
+      renderDailyBriefSubscription({
+        ...data,
+        daily_feed_enabled: false,
+        daily_feed_url: "",
+      });
 
       const player = document.getElementById("reflection-player-container");
       const hasMockReflection = MOCK_REFLECTION_STATE !== "empty";
@@ -1403,6 +1599,304 @@
       }
       if (summary) {
         summary.textContent = REFLECTION_STYLE_ARCHIVE_COPY[style];
+      }
+    }
+
+    function setDailyBriefStatus(message = "", statusClass = "") {
+      const statusEl = document.getElementById("daily-brief-status");
+      if (!statusEl) return;
+      statusEl.textContent = message;
+      statusEl.className = `capture-text-status daily-brief-status${statusClass ? ` ${statusClass}` : ""}`;
+    }
+
+    function formatDailyBriefTime(raw) {
+      if (!raw) return "";
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+
+    function formatDailyBriefPublishHour(hour) {
+      const normalizedHour = Number(hour);
+      if (!Number.isFinite(normalizedHour)) return "";
+      const base = new Date();
+      base.setHours(normalizedHour, 0, 0, 0);
+      return base.toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+
+    function formatDailyBriefDateTime(raw) {
+      if (!raw) return "";
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleString(undefined, {
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+
+    function renderDailyBriefSubscription(data = null) {
+      const profile = data || currentProfileData || {};
+      const enabled = !!profile.daily_feed_enabled;
+      const feedUrl = profile.daily_feed_url || "";
+      const briefStatus = profile.daily_feed_status || {};
+      const canRegenerate = !!profile.daily_feed_can_regenerate;
+      const previewDisabled = PREVIEW_MODE || !auth.currentUser;
+
+      const enableBtn = document.getElementById("daily-brief-enable");
+      const urlWrap = document.getElementById("daily-brief-url-wrap");
+      const urlInput = document.getElementById("daily-brief-url");
+      const copyBtn = document.getElementById("daily-brief-copy-btn");
+      const overcastBtn = document.getElementById("daily-brief-overcast-btn");
+      const shareBtn = document.getElementById("daily-brief-share-btn");
+      const titleEl = document.getElementById("daily-brief-title");
+      const copyEl = document.getElementById("daily-brief-body-copy");
+      const metaEl = document.getElementById("daily-brief-meta");
+      const helpEl = document.getElementById("daily-brief-help");
+      const appleNote = document.getElementById("daily-brief-apple-note");
+      const adminWrap = document.getElementById("daily-brief-admin-wrap");
+      const adminCopy = document.getElementById("daily-brief-admin-copy");
+      const regenerateBtn = document.getElementById("daily-brief-regenerate-btn");
+
+      if (!enableBtn || !urlWrap || !urlInput || !copyBtn || !overcastBtn || !shareBtn || !titleEl || !copyEl || !metaEl || !helpEl || !appleNote || !adminWrap || !adminCopy || !regenerateBtn) return;
+
+      if (previewDisabled) {
+        enableBtn.disabled = true;
+        enableBtn.setAttribute("aria-disabled", "true");
+        enableBtn.textContent = "Sign in to subscribe";
+        urlWrap.hidden = true;
+        overcastBtn.hidden = true;
+        shareBtn.hidden = true;
+        appleNote.hidden = true;
+        titleEl.textContent = "Turn on your private daily brief";
+        copyEl.textContent = "Sign in to have Memnon publish one spoken brief each morning to your private podcast feed.";
+        metaEl.textContent = "";
+        helpEl.innerHTML = "Once the feed is on, you can subscribe in Overcast or copy the feed link into another podcast app.";
+        adminWrap.hidden = true;
+        return;
+      }
+
+      enableBtn.textContent = enabled ? "Daily brief is on" : "Turn on daily brief";
+      enableBtn.disabled = enabled;
+      enableBtn.setAttribute("aria-disabled", enabled ? "true" : "false");
+      enableBtn.classList.toggle("btn-outline", enabled);
+      enableBtn.classList.toggle("btn-primary", !enabled);
+
+      if (enabled && feedUrl) {
+        urlWrap.hidden = false;
+        urlInput.value = feedUrl;
+        overcastBtn.hidden = false;
+        shareBtn.hidden = false;
+        appleNote.hidden = false;
+        const latestEpisode = briefStatus.latest_episode || {};
+        const publishedTime = formatDailyBriefTime(latestEpisode.published_at);
+        const publishHour = formatDailyBriefPublishHour(briefStatus.publish_hour_local);
+        if (briefStatus.state === "ready" && latestEpisode.title) {
+          titleEl.textContent = latestEpisode.title;
+          copyEl.textContent = "Today's brief is ready in your private podcast feed.";
+          metaEl.textContent = publishedTime ? `Published at ${publishedTime}` : "Published today";
+        } else if (briefStatus.state === "scheduled") {
+          titleEl.textContent = "Today's brief is scheduled";
+          copyEl.textContent = `Memnon generates your brief after ${publishHour || "the morning publish time"}.`;
+          metaEl.textContent = publishHour ? `Next publish window: ${publishHour}` : "";
+        } else if (briefStatus.state === "preparing") {
+          titleEl.textContent = "Today's brief is being prepared";
+          copyEl.textContent = "The morning episode has not landed yet, but the feed is on and should update soon.";
+          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+        } else if (briefStatus.state === "missing") {
+          titleEl.textContent = "No brief yet today";
+          copyEl.textContent = "Your feed is on, but there is not a published brief for today yet.";
+          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+        } else {
+          titleEl.textContent = "Your private daily brief feed is on";
+          copyEl.textContent = "Subscribe in Overcast or use the feed link in another podcast app.";
+          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+        }
+        helpEl.innerHTML = "Use <strong>Subscribe in Overcast</strong> to add the feed directly. Use the feed link for Apple Podcasts or another podcast app.";
+      } else {
+        urlWrap.hidden = true;
+        overcastBtn.hidden = true;
+        shareBtn.hidden = true;
+        appleNote.hidden = true;
+        urlInput.value = "";
+        titleEl.textContent = "Turn on your private daily brief";
+        copyEl.textContent = "Memnon can send one spoken brief each morning to your private podcast feed.";
+        metaEl.textContent = "";
+        helpEl.innerHTML = "Once the feed is on, <strong>Subscribe in Overcast</strong> adds it directly. Apple Podcasts still needs the feed URL pasted in manually.";
+      }
+
+      if (canRegenerate) {
+        const parts = [];
+        const lastGenerated = formatDailyBriefDateTime(briefStatus.last_generated_at);
+        const lastAttempted = formatDailyBriefDateTime(briefStatus.last_attempted_at);
+        const lastErrorAt = formatDailyBriefDateTime(briefStatus.last_error_at);
+        if (lastGenerated) {
+          parts.push(`Last generated ${lastGenerated}.`);
+        }
+        if (briefStatus.last_error) {
+          parts.push(`Last error${lastErrorAt ? ` ${lastErrorAt}` : ""}: ${briefStatus.last_error}`);
+        } else if (lastAttempted && (!lastGenerated || lastAttempted !== lastGenerated)) {
+          parts.push(`Last attempted ${lastAttempted}.`);
+        }
+        if (!parts.length) {
+          parts.push("No generation attempts recorded yet.");
+        }
+        adminWrap.hidden = false;
+        adminCopy.textContent = parts.join(" ");
+        regenerateBtn.disabled = false;
+        regenerateBtn.setAttribute("aria-disabled", "false");
+      } else {
+        adminWrap.hidden = true;
+      }
+    }
+
+    async function copyDailyBriefFeedLink() {
+      const input = document.getElementById("daily-brief-url");
+      const feedUrl = (input?.value || "").trim();
+      if (!feedUrl) {
+        setDailyBriefStatus("Turn on the daily brief first so there is a private feed URL to copy.", "is-error");
+        return;
+      }
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(feedUrl);
+        } else {
+          input.focus();
+          input.select();
+          document.execCommand("copy");
+        }
+        setDailyBriefStatus("Feed link copied. Paste it into your podcatcher.", "is-success");
+        await logUsageEvent("copied_daily_feed_link");
+      } catch (error) {
+        console.error("Could not copy daily feed URL:", error);
+        setDailyBriefStatus("The feed link could not be copied right now.", "is-error");
+      }
+    }
+
+    async function openDailyBriefInOvercast() {
+      const input = document.getElementById("daily-brief-url");
+      const feedUrl = (input?.value || "").trim();
+      if (!feedUrl) {
+        setDailyBriefStatus("Turn on the daily brief first so there is a private feed URL to open.", "is-error");
+        return;
+      }
+      const returnUrl = window.location.href;
+      const overcastUrl = `overcast://x-callback-url/add?url=${encodeURIComponent(feedUrl)}&x-success=${encodeURIComponent(returnUrl)}`;
+      await logUsageEvent("opened_daily_feed_in_overcast");
+      window.location.href = overcastUrl;
+    }
+
+    async function shareDailyBriefFeedLink() {
+      const input = document.getElementById("daily-brief-url");
+      const feedUrl = (input?.value || "").trim();
+      if (!feedUrl) {
+        setDailyBriefStatus("Turn on the daily brief first so there is a private feed URL to share.", "is-error");
+        return;
+      }
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: "Memnon Daily Brief",
+            text: "Private Memnon daily brief feed",
+            url: feedUrl,
+          });
+          setDailyBriefStatus("Feed link shared.", "is-success");
+        } else {
+          await copyDailyBriefFeedLink();
+          return;
+        }
+        await logUsageEvent("shared_daily_feed_link");
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        console.error("Could not share daily feed URL:", error);
+        setDailyBriefStatus("The feed link could not be shared right now.", "is-error");
+      }
+    }
+
+    async function enableDailyBriefSubscription() {
+      if (PREVIEW_MODE || !auth.currentUser) return;
+      const enableBtn = document.getElementById("daily-brief-enable");
+      try {
+        if (enableBtn) {
+          enableBtn.disabled = true;
+          enableBtn.setAttribute("aria-disabled", "true");
+        }
+        setDailyBriefStatus("Turning on your private daily brief…");
+        const token = await getToken();
+        const res = await fetch(`${API}/daily-feed/setup`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ enabled: true }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Could not enable daily brief");
+        }
+        currentProfileData = {
+          ...(currentProfileData || {}),
+          daily_feed_enabled: !!data.enabled,
+          daily_feed_url: data.feed_url || "",
+          daily_feed_timezone: data.daily_feed_timezone || (currentProfileData?.daily_feed_timezone || ""),
+          daily_feed_publish_hour_local: data.daily_feed_publish_hour_local ?? currentProfileData?.daily_feed_publish_hour_local,
+          daily_feed_status: data.daily_feed_status || currentProfileData?.daily_feed_status || null,
+        };
+        renderDailyBriefSubscription(currentProfileData);
+        await copyDailyBriefFeedLink();
+        setDailyBriefStatus("Daily brief is on. You can subscribe in Overcast now.", "is-success");
+        await logUsageEvent("enabled_daily_feed_client");
+      } catch (error) {
+        console.error("Could not enable daily brief:", error);
+        setDailyBriefStatus("The daily brief could not be turned on right now.", "is-error");
+      } finally {
+        renderDailyBriefSubscription(currentProfileData);
+      }
+    }
+
+    async function regenerateDailyBrief() {
+      if (PREVIEW_MODE || !auth.currentUser) return;
+      const regenerateBtn = document.getElementById("daily-brief-regenerate-btn");
+      try {
+        if (regenerateBtn) {
+          regenerateBtn.disabled = true;
+          regenerateBtn.setAttribute("aria-disabled", "true");
+        }
+        setDailyBriefStatus("Regenerating today's brief…");
+        const token = await getToken();
+        const res = await fetch(`${API}/daily-feed/generate-today`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Could not regenerate daily brief");
+        }
+        currentProfileData = {
+          ...(currentProfileData || {}),
+          daily_feed_status: data.daily_feed_status || currentProfileData?.daily_feed_status || null,
+          daily_feed_enabled: true,
+          daily_feed_url: data.feed_url || currentProfileData?.daily_feed_url || "",
+        };
+        renderDailyBriefSubscription(currentProfileData);
+        setDailyBriefStatus("Today's brief was regenerated.", "is-success");
+        await logUsageEvent("regenerated_daily_feed_client");
+      } catch (error) {
+        console.error("Could not regenerate daily brief:", error);
+        setDailyBriefStatus(error?.message || "The daily brief could not be regenerated right now.", "is-error");
+      } finally {
+        renderDailyBriefSubscription(currentProfileData);
       }
     }
 
@@ -2031,6 +2525,12 @@
     document.getElementById("notes-link")?.addEventListener("click", async () => {
       await logUsageEvent("opened_archive");
     });
+    document.getElementById("daily-brief-enable")?.addEventListener("click", enableDailyBriefSubscription);
+    document.getElementById("daily-brief-copy-btn")?.addEventListener("click", copyDailyBriefFeedLink);
+    document.getElementById("daily-brief-overcast-btn")?.addEventListener("click", openDailyBriefInOvercast);
+    document.getElementById("daily-brief-share-btn")?.addEventListener("click", shareDailyBriefFeedLink);
+    document.getElementById("daily-brief-regenerate-btn")?.addEventListener("click", regenerateDailyBrief);
+    renderDailyBriefSubscription();
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
@@ -2055,6 +2555,7 @@
         updateReflectionArchiveLabels(data.reflection_style || "complete");
         renderTeachingContextToggle(true, false);
         renderReflectionContextCard(data);
+        renderDailyBriefSubscription(data);
 
         // inbox folder link removed — direct upload is now the primary ingest path
         if (data.notes_folder_id) {

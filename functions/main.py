@@ -34,10 +34,13 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+from xml.sax.saxutils import escape as xml_escape
 
 import firebase_admin
 from firebase_admin import auth as fb_auth
 from firebase_admin import firestore
+from firebase_admin import storage
 from firebase_functions import https_fn, options, scheduler_fn
 from flask import Flask, jsonify, redirect, request
 from flask_cors import CORS
@@ -47,7 +50,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
-from audio_generation import synthesize_reflection_bytes, synthesize_reflection_mp3
+from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection_bytes, synthesize_reflection_mp3
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 
@@ -55,12 +58,18 @@ from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_
 
 _firebase_app = None
 _firestore_client = None
+DEFAULT_STORAGE_BUCKET = os.environ.get(
+    "FIREBASE_STORAGE_BUCKET",
+    "gcf-v2-uploads-714155490867.us-central1.cloudfunctions.appspot.com",
+)
 
 
 def _get_db():
     global _firebase_app, _firestore_client
     if _firebase_app is None:
-        _firebase_app = firebase_admin.initialize_app()
+        _firebase_app = firebase_admin.initialize_app(options={
+            "storageBucket": DEFAULT_STORAGE_BUCKET
+        })
     if _firestore_client is None:
         _firestore_client = firestore.client()
     return _firestore_client
@@ -118,6 +127,12 @@ NARRATION_VOICES = {
 }
 GOOGLE_TASKS_WEB_URL = "https://tasks.google.com/tasks/"
 HUGGING_FACE_API_KEY = os.environ.get("HUGGING_FACE_API_KEY", "")
+DEFAULT_DAILY_FEED_TIMEZONE = "America/Denver"
+DEFAULT_DAILY_FEED_PUBLISH_HOUR = 4
+DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT = 4
+DEFAULT_DAILY_FEED_STANDARD_LOOKBACK_DAYS = 7
+DAILY_FEED_AUDIO_PREFIX = "daily-feed"
+DAILY_FEED_ROUTE_BASE = f"{API_BASE}/feed"
 FOUNDER_METRICS_EMAILS = {
     email.strip().lower()
     for email in (os.environ.get("FOUNDER_METRICS_EMAILS", "eitanfire@gmail.com")).split(",")
@@ -1037,6 +1052,10 @@ def _user_is_founder(uid: str) -> bool:
     return email in FOUNDER_METRICS_EMAILS
 
 
+def _email_is_founder(email: str | None) -> bool:
+    return _safe_string(email).lower() in FOUNDER_METRICS_EMAILS
+
+
 def _user_is_excluded_from_founder_metrics(user_data: dict) -> bool:
     email = str((user_data or {}).get("email") or "").strip().lower()
     return email in FOUNDER_METRICS_EXCLUDED_EMAILS
@@ -1591,6 +1610,560 @@ def _coerce_bool(raw, default: bool = True) -> bool:
     return str(raw).strip().lower() not in {"0", "false", "off", "no", ""}
 
 
+def _safe_timezone_name(raw: str | None) -> str:
+    candidate = _safe_string(raw) or DEFAULT_DAILY_FEED_TIMEZONE
+    try:
+        ZoneInfo(candidate)
+        return candidate
+    except Exception:
+        return DEFAULT_DAILY_FEED_TIMEZONE
+
+
+def _daily_feed_local_now(user_data: dict, now_utc: datetime | None = None) -> datetime:
+    base = now_utc if now_utc is not None else datetime.now(timezone.utc)
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=timezone.utc)
+    tz_name = _safe_timezone_name(user_data.get("daily_feed_timezone"))
+    return base.astimezone(ZoneInfo(tz_name))
+
+
+def _daily_feed_date_key(user_data: dict, now_utc: datetime | None = None) -> str:
+    return _daily_feed_local_now(user_data, now_utc).date().isoformat()
+
+
+def _daily_feed_publish_hour(user_data: dict) -> int:
+    hour = _safe_int(user_data.get("daily_feed_publish_hour_local"), DEFAULT_DAILY_FEED_PUBLISH_HOUR)
+    return min(23, max(0, hour))
+
+
+def _generate_daily_feed_token() -> str:
+    return secrets.token_urlsafe(24)
+
+
+def _daily_feed_url_for_token(token: str) -> str:
+    return f"{DAILY_FEED_ROUTE_BASE}/{urllib.parse.quote(token)}.xml"
+
+
+def _daily_feed_audio_url(token: str, episode_id: str) -> str:
+    return f"{DAILY_FEED_ROUTE_BASE}/{urllib.parse.quote(token)}/{urllib.parse.quote(episode_id)}.mp3"
+
+
+def _ensure_daily_feed_config(uid: str, user_data: dict, enable: bool | None = None) -> dict:
+    user_data = dict(user_data or {})
+    updates = {}
+
+    token = _safe_string(user_data.get("daily_feed_token"))
+    if not token:
+        token = _generate_daily_feed_token()
+        updates["daily_feed_token"] = token
+
+    tz_name = _safe_timezone_name(user_data.get("daily_feed_timezone"))
+    if _safe_string(user_data.get("daily_feed_timezone")) != tz_name:
+        updates["daily_feed_timezone"] = tz_name
+
+    publish_hour = user_data.get("daily_feed_publish_hour_local")
+    if publish_hour is None or _safe_int(publish_hour, -1) not in range(24):
+        updates["daily_feed_publish_hour_local"] = DEFAULT_DAILY_FEED_PUBLISH_HOUR
+
+    if enable is True and not _coerce_bool(user_data.get("daily_feed_enabled"), False):
+        updates["daily_feed_enabled"] = True
+    elif enable is False and _coerce_bool(user_data.get("daily_feed_enabled"), False):
+        updates["daily_feed_enabled"] = False
+
+    if updates:
+        _get_db().collection("users").document(uid).set(updates, merge=True)
+        user_data.update(updates)
+
+    return user_data
+
+
+def _daily_feed_episode_ref(uid: str, episode_id: str):
+    return _get_db().collection("users").document(uid).collection("daily_feed_episodes").document(episode_id)
+
+
+def _load_latest_daily_feed_episode(uid: str) -> dict | None:
+    docs = list(
+        _get_db()
+        .collection("users")
+        .document(uid)
+        .collection("daily_feed_episodes")
+        .order_by("published_at", direction=firestore.Query.DESCENDING)
+        .limit(1)
+        .stream()
+    )
+    if not docs:
+        return None
+    snap = docs[0]
+    payload = snap.to_dict() or {}
+    payload["id"] = snap.id
+    return payload
+
+
+def _build_daily_feed_status(uid: str, user_data: dict, now_utc: datetime | None = None) -> dict:
+    enabled = _coerce_bool((user_data or {}).get("daily_feed_enabled"), False)
+    timezone_name = _safe_timezone_name((user_data or {}).get("daily_feed_timezone"))
+    publish_hour = _daily_feed_publish_hour(user_data or {})
+    local_now = _daily_feed_local_now(user_data or {}, now_utc)
+    today_key = _daily_feed_date_key(user_data or {}, now_utc)
+    publish_at_local = local_now.replace(hour=publish_hour, minute=0, second=0, microsecond=0)
+
+    latest = _load_latest_daily_feed_episode(uid)
+    latest_episode = None
+    latest_date_key = ""
+    if latest:
+        latest_date_key = _safe_string(latest.get("date_key"))
+        latest_episode = {
+            "id": _safe_string(latest.get("id") or latest.get("date_key")),
+            "title": _safe_string(latest.get("title")),
+            "description": _safe_string(latest.get("description")),
+            "episode_type": _safe_string(latest.get("episode_type")),
+            "date_key": latest_date_key,
+            "published_at": _serialize_firestore_value(latest.get("published_at")),
+        }
+
+    state = "disabled"
+    if enabled:
+        if latest_episode and latest_date_key == today_key:
+            state = "ready"
+        elif local_now < publish_at_local:
+            state = "scheduled"
+        elif local_now < publish_at_local + timedelta(minutes=90):
+            state = "preparing"
+        else:
+            state = "missing"
+
+    return {
+        "enabled": enabled,
+        "state": state,
+        "timezone": timezone_name,
+        "publish_hour_local": publish_hour,
+        "today_key": today_key,
+        "scheduled_for_local": publish_at_local.isoformat(),
+        "latest_episode": latest_episode,
+        "last_generated_at": _serialize_firestore_value((user_data or {}).get("daily_feed_last_generated_at")),
+        "last_attempted_at": _serialize_firestore_value((user_data or {}).get("daily_feed_last_attempted_at")),
+        "last_error": _safe_string((user_data or {}).get("daily_feed_last_error")),
+        "last_error_at": _serialize_firestore_value((user_data or {}).get("daily_feed_last_error_at")),
+    }
+
+
+def _daily_feed_audio_storage_path(uid: str, episode_id: str) -> str:
+    return f"{DAILY_FEED_AUDIO_PREFIX}/{uid}/{episode_id}.mp3"
+
+
+def _get_storage_bucket():
+    _get_db()
+    return storage.bucket()
+
+
+def _upload_daily_feed_audio(uid: str, episode_id: str, audio_bytes: bytes) -> str:
+    path = _daily_feed_audio_storage_path(uid, episode_id)
+    blob = _get_storage_bucket().blob(path)
+    blob.upload_from_string(audio_bytes, content_type="audio/mpeg")
+    return path
+
+
+def _download_daily_feed_audio(storage_path: str) -> bytes:
+    blob = _get_storage_bucket().blob(storage_path)
+    return blob.download_as_bytes()
+
+
+def _estimate_audio_duration_seconds(text: str) -> int:
+    words = len(re.findall(r"\b\S+\b", text or ""))
+    if words <= 0:
+        return 0
+    return max(10, int(round(words / 2.5)))
+
+
+def _load_recent_feed_notes(uid: str, limit: int = DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT) -> list[dict]:
+    notes_ref = _get_db().collection("users").document(uid).collection("notes")
+    docs = []
+    seen_ids: set[str] = set()
+    for field_name in ("created_at", "date"):
+        try:
+            field_docs = list(
+                notes_ref.order_by(field_name, direction=firestore.Query.DESCENDING).limit(limit).stream()
+            )
+        except Exception:
+            continue
+        for doc in field_docs:
+            if not doc.exists or doc.id in seen_ids:
+                continue
+            seen_ids.add(doc.id)
+            payload = doc.to_dict() or {}
+            payload["_id"] = doc.id
+            docs.append(payload)
+    docs.sort(key=lambda item: _sort_key_with_fallback(item, "created_at", "date"), reverse=True)
+    return docs[:limit]
+
+
+def _daily_feed_has_recent_reflection(notes: list[dict], now_local: datetime) -> bool:
+    cutoff = now_local.date() - timedelta(days=DEFAULT_DAILY_FEED_STANDARD_LOOKBACK_DAYS)
+    for note in notes:
+        note_dt = _coerce_datetime(note.get("created_at") or note.get("date"))
+        if note_dt and note_dt.date() >= cutoff:
+            return True
+    return False
+
+
+def _build_feed_note_brief(note: dict) -> str:
+    pieces = []
+    title = _safe_string(note.get("title"))
+    if title:
+        pieces.append(f"Title: {title}")
+    date_text = _safe_string(note.get("date"))
+    if date_text:
+        pieces.append(f"Date: {date_text}")
+    insight = _safe_string(note.get("insight"))
+    if insight:
+        pieces.append(f"Insight: {insight}")
+    summary = _safe_string(note.get("summary"))
+    if summary:
+        pieces.append(f"Summary: {summary}")
+    themes = _safe_string_list(note.get("themes"), limit=5)
+    if themes:
+        pieces.append("Themes: " + ", ".join(themes))
+    replies = int(note.get("participant_response_count") or 0)
+    if replies:
+        pieces.append(f"Replies: {replies}")
+    response_summary = _safe_string(note.get("participant_response_summary") or note.get("participant_response_excerpt"))
+    if response_summary:
+        pieces.append(f"Teacher follow-up: {response_summary}")
+    voices = _safe_string_list(note.get("voice_labels"), limit=3)
+    if voices:
+        pieces.append("Voices: " + ", ".join(voices))
+    return "\n".join(pieces)
+
+
+def _daily_feed_continuity_anchor(notes: list[dict]) -> str:
+    for note in notes:
+        for key in ("insight", "summary", "title"):
+            text = _safe_string(note.get(key))
+            if text:
+                return text[:220]
+    return ""
+
+
+def _daily_feed_present_day_anchor(local_now: datetime) -> str:
+    return f"Today is {local_now.strftime('%A, %B')} {_ordinal_day(local_now.day)}."
+
+
+def _build_daily_feed_prompt(
+    user_data: dict,
+    notes: list[dict],
+    episode_type: str,
+    local_now: datetime,
+) -> str:
+    preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
+    spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
+    style = _normalize_reflection_style(user_data.get("reflection_style"))
+    subjects = _safe_string(user_data.get("subjects"))
+    grades = ", ".join(_safe_string_list(user_data.get("grade_levels"), limit=6))
+    context_parts = []
+    if subjects:
+        context_parts.append(f"subjects: {subjects}")
+    if grades:
+        context_parts.append(f"grades: {grades}")
+    school_name = _safe_string(user_data.get("school_name"))
+    if school_name:
+        context_parts.append(f"school: {school_name}")
+    context_line = "; ".join(context_parts) or "teacher context not specified"
+    notes_block = "\n\n---\n\n".join(_build_feed_note_brief(note) for note in notes[:DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT]) or "No recent reflections available."
+    day_anchor = _daily_feed_present_day_anchor(local_now)
+    continuity_anchor = _daily_feed_continuity_anchor(notes)
+
+    segment_requirements = (
+        '"opening": "15 to 25 seconds, name the day and orient the listener",\n'
+        '"practical_briefing": "60 to 120 seconds, name what matters most and why",\n'
+        '"calendar_today": "20 to 45 seconds, leave empty string for Phase 1 unless true calendar context exists",\n'
+        '"reflective_grounding": "60 to 120 seconds, connect today to a real pattern across time",\n'
+        '"meditative_close": "20 to 45 seconds, brief closing line that can later seed a meditative-only feed"'
+    )
+
+    return f"""You are writing a private daily audio briefing for {preferred_name}.
+
+This is for spoken audio. The tone should be warm, grounded, specific, and restrained.
+
+Episode type: {episode_type}
+Reflection style: {style}
+Person context: display name {preferred_name}; spoken name "{spoken_name}"; {context_line}
+Present-day anchor available: {day_anchor}
+Continuity anchor candidate: {continuity_anchor or "none"}
+
+Recent reflection context:
+{notes_block}
+
+Return strict JSON only with this schema:
+{{
+  "title": "Natural date plus concise theme, e.g. June 22 — Protect the morning",
+  "description": "One sentence describing what shaped today's briefing.",
+  "time_anchor": "The present-day anchor actually used.",
+  "continuity_anchor": "The cross-time continuity anchor actually used.",
+  "segments": {{
+    {segment_requirements}
+  }}
+}}
+
+Rules:
+- Return JSON only.
+- Write for the ear, not the page.
+- Use the spoken name "{spoken_name}" only if natural.
+- Keep each segment within its soft duration budget.
+- Do not produce generic encouragement.
+- The opening must contain a real present-day anchor.
+- The reflective grounding must contain a real continuity anchor drawn from reflection history.
+- For Phase 1, set calendar_today to an empty string unless true calendar context is provided.
+- Keep meditative_close concise; it is the seed of a future optional meditative-only feed.
+- If there is too little specific material, be sparse rather than repetitive.
+"""
+
+
+def _build_deterministic_daily_feed_result(
+    user_data: dict,
+    notes: list[dict],
+    local_now: datetime,
+    episode_type: str = "fallback",
+) -> dict:
+    latest_note = notes[0] if notes else {}
+    preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
+    latest_title = _safe_string(latest_note.get("title")) or "recent teaching reflection"
+    latest_summary = _safe_string(latest_note.get("summary"))
+    latest_insight = _safe_string(latest_note.get("insight"))
+    continuity_anchor = _daily_feed_continuity_anchor(notes) or latest_title
+    time_anchor = _daily_feed_present_day_anchor(local_now)
+
+    summary_line = latest_summary[:260].strip()
+    insight_line = latest_insight[:220].strip()
+    if summary_line and not re.search(r"[.!?]$", summary_line):
+        summary_line += "."
+    if insight_line and not re.search(r"[.!?]$", insight_line):
+        insight_line += "."
+
+    description_seed = latest_title if latest_title else "your recent reflections"
+    description = f"Grounded in {description_seed} and the thread you have been carrying forward."
+
+    opening = f"{time_anchor} {preferred_name}, here is your Memnon briefing for the day."
+
+    practical_parts = []
+    if summary_line:
+        practical_parts.append(f"One thread worth holding onto from your recent reflection is this: {summary_line}")
+    if insight_line:
+        practical_parts.append(f"The clearest underlying tension is this: {insight_line}")
+    if not practical_parts:
+        practical_parts.append(f"Your recent reflections suggest that {preferred_name} is carrying an important thread that deserves steady attention today.")
+    practical_briefing = " ".join(practical_parts)
+
+    reflective_parts = [
+        f"In {latest_title}, you named a pattern that still matters today."
+    ]
+    if continuity_anchor:
+        reflective_parts.append(f"That pattern can be named simply: {continuity_anchor}")
+    response_summary = _safe_string(latest_note.get("participant_response_summary") or latest_note.get("participant_response_excerpt"))
+    if response_summary:
+        reflective_parts.append(f"You also answered back to the reflection in this way: {response_summary[:220].strip()}")
+    reflective_grounding = " ".join(reflective_parts)
+
+    meditative_close = "Carry one clear intention into the day: stay close to what feels true, and let one next step be enough."
+
+    return {
+        "title": f"{_format_natural_date(local_now.date().isoformat())} — {latest_title[:64]}",
+        "description": description[:500],
+        "time_anchor": time_anchor,
+        "continuity_anchor": continuity_anchor[:240],
+        "segments": {
+            "opening": opening,
+            "practical_briefing": practical_briefing,
+            "calendar_today": "",
+            "reflective_grounding": reflective_grounding,
+            "meditative_close": meditative_close,
+        },
+    }
+
+
+def _assemble_daily_feed_script(segments: dict) -> tuple[str, list[str]]:
+    ordered_ids = ["opening", "practical_briefing", "calendar_today", "reflective_grounding", "meditative_close"]
+    parts = []
+    used = []
+    for segment_id in ordered_ids:
+        text = _safe_string((segments or {}).get(segment_id))
+        if not text:
+            continue
+        parts.append(text)
+        used.append(segment_id)
+    return "\n\n".join(parts).strip(), used
+
+
+def _daily_feed_section_text(segments: dict, segment_ids: list[str]) -> str:
+    parts = []
+    for segment_id in segment_ids:
+        text = _safe_string((segments or {}).get(segment_id))
+        if text:
+            parts.append(text)
+    return "\n\n".join(parts).strip()
+
+
+def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | None = None, force: bool = False) -> dict:
+    now_utc = now_utc if now_utc is not None else datetime.now(timezone.utc)
+    local_now = _daily_feed_local_now(user_data, now_utc)
+    episode_id = _daily_feed_date_key(user_data, now_utc)
+    existing = _daily_feed_episode_ref(uid, episode_id).get()
+    if existing.exists and not force:
+        payload = existing.to_dict() or {}
+        payload["id"] = existing.id
+        return payload
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+
+    notes = _load_recent_feed_notes(uid)
+    if not notes:
+        raise RuntimeError("No reflections available to generate a daily feed episode")
+
+    episode_type = "standard" if _daily_feed_has_recent_reflection(notes, local_now) else "fallback"
+
+    def _save_episode_from_result(result: dict, selected_type: str) -> dict:
+        time_anchor = _safe_string(result.get("time_anchor"))
+        continuity_anchor = _safe_string(result.get("continuity_anchor"))
+        if not time_anchor:
+            time_anchor = _daily_feed_present_day_anchor(local_now)
+        if not continuity_anchor:
+            continuity_anchor = _daily_feed_continuity_anchor(notes)
+        if selected_type == "fallback" and (not time_anchor or not continuity_anchor):
+            raise RuntimeError("Fallback episode missing required anchors")
+        segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
+        script_text, segments_used = _assemble_daily_feed_script(segments)
+        if not script_text:
+            raise RuntimeError("Daily feed script is empty")
+        title = _safe_string(result.get("title")) or f"{_format_natural_date(episode_id)} — Daily Memnon briefing"
+        description = _safe_string(result.get("description")) or "A grounded daily briefing from Memnon."
+        voice = _normalize_narration_voice(user_data.get("narration_voice"))
+        professional_text = _daily_feed_section_text(segments, ["opening", "practical_briefing", "calendar_today"])
+        reflective_text = _daily_feed_section_text(segments, ["reflective_grounding", "meditative_close"])
+        audio_mix_meta = {
+            "professional_music_track": "",
+            "reflective_music_track": "",
+            "used_music_beds": False,
+            "mix_fallback_reason": "",
+        }
+        try:
+            audio_bytes, mixed_meta = synthesize_daily_brief_bytes(
+                professional_text=professional_text,
+                reflective_text=reflective_text,
+                voice=voice,
+            )
+            audio_mix_meta.update(mixed_meta or {})
+        except Exception as exc:
+            print(f"[{uid}] Daily brief music mix unavailable, falling back to spoken audio only: {exc}")
+            audio_mix_meta["mix_fallback_reason"] = str(exc)[:240]
+            audio_bytes = synthesize_reflection_bytes(script_text, voice=voice)
+        storage_path = _upload_daily_feed_audio(uid, episode_id, audio_bytes)
+        duration_seconds = _estimate_audio_duration_seconds(script_text)
+        episode_payload = {
+            "date_key": episode_id,
+            "published_at": firestore.SERVER_TIMESTAMP,
+            "episode_type": selected_type,
+            "title": title[:120],
+            "description": description[:500],
+            "audio_storage_path": storage_path,
+            "audio_size_bytes": len(audio_bytes),
+            "duration_seconds": duration_seconds,
+            "segments_used": segments_used,
+            "context_sources_used": ["reflection_history"],
+            "script_text": script_text,
+            "script_segments": {key: _safe_string(value) for key, value in (segments or {}).items() if _safe_string(value)},
+            "audio_mix_meta": audio_mix_meta,
+            "script_meta": {
+                "has_time_anchor": bool(time_anchor),
+                "has_continuity_anchor": bool(continuity_anchor),
+                "time_anchor": time_anchor[:240],
+                "continuity_anchor": continuity_anchor[:240],
+            },
+        }
+        _daily_feed_episode_ref(uid, episode_id).set(episode_payload, merge=True)
+        _get_db().collection("users").document(uid).set({
+            "daily_feed_last_generated_for": episode_id,
+            "daily_feed_last_generated_at": firestore.SERVER_TIMESTAMP,
+            "daily_feed_last_published_episode_id": episode_id,
+            "daily_feed_last_error": firestore.DELETE_FIELD,
+            "daily_feed_last_error_at": firestore.DELETE_FIELD,
+        }, merge=True)
+        _log_usage_event(uid, "generated_daily_feed_episode", {
+            "episode_type": selected_type,
+            "date_key": episode_id,
+            "segments_used": segments_used,
+            "forced": force,
+        })
+        saved = _daily_feed_episode_ref(uid, episode_id).get().to_dict() or episode_payload
+        saved["id"] = episode_id
+        return saved
+
+    def _generate_deterministic_fallback() -> dict:
+        result = _build_deterministic_daily_feed_result(user_data, notes, local_now, episode_type="fallback")
+        return _save_episode_from_result(result, "fallback")
+
+    def _generate_for_type(selected_type: str) -> dict:
+        if selected_type == "fallback":
+            return _generate_deterministic_fallback()
+        prompt = _build_daily_feed_prompt(user_data, notes, selected_type, local_now)
+        result = _summarize(
+            prompt,
+            api_key,
+            json_mode=True,
+            timeout_seconds=120,
+            max_output_tokens=700,
+        )
+        return _save_episode_from_result(result, selected_type)
+
+    try:
+        return _generate_for_type(episode_type)
+    except Exception as exc:
+        print(f"[{uid}] Daily feed {episode_type} generation failed: {exc}")
+        if episode_type != "fallback":
+            fallback_result = _generate_for_type("fallback")
+            _log_usage_event(uid, "generated_daily_feed_fallback_after_failure", {
+                "date_key": episode_id,
+                "original_episode_type": episode_type,
+            })
+            return fallback_result
+        raise
+
+
+def _render_daily_feed_rss(user_data: dict, token: str, episodes: list[dict]) -> str:
+    preferred_name = _safe_string(user_data.get("preferred_name")) or "Memnon listener"
+    show_title = xml_escape(f"Memnon Daily — {preferred_name}")
+    show_description = xml_escape("A private daily grounded briefing generated by Memnon.")
+    feed_link = xml_escape(_daily_feed_url_for_token(token))
+    items = []
+    for episode in episodes:
+        episode_id = _safe_string(episode.get("id") or episode.get("date_key"))
+        if not episode_id:
+            continue
+        title = xml_escape(_safe_string(episode.get("title")) or episode_id)
+        description = xml_escape(_safe_string(episode.get("description")) or "Daily briefing")
+        enclosure_url = xml_escape(_daily_feed_audio_url(token, episode_id))
+        pub_dt = _coerce_datetime(episode.get("published_at")) or _coerce_datetime(episode.get("date_key")) or datetime.utcnow()
+        pub_rfc2822 = pub_dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        length = _safe_int(episode.get("audio_size_bytes"), 0)
+        guid = xml_escape(f"{token}:{episode_id}")
+        items.append(
+            f"<item><title>{title}</title><description>{description}</description>"
+            f"<enclosure url=\"{enclosure_url}\" length=\"{length}\" type=\"audio/mpeg\" />"
+            f"<guid isPermaLink=\"false\">{guid}</guid><pubDate>{pub_rfc2822}</pubDate></item>"
+        )
+    item_block = "".join(items)
+    return (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        "<rss version=\"2.0\"><channel>"
+        f"<title>{show_title}</title>"
+        f"<description>{show_description}</description>"
+        f"<link>{feed_link}</link>"
+        f"<lastBuildDate>{datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')}</lastBuildDate>"
+        f"{item_block}"
+        "</channel></rss>"
+    )
+
+
 def _is_teacher_profession(user_data: dict) -> bool:
     profession = (user_data.get("profession") or "").lower().strip()
     return (
@@ -1721,12 +2294,23 @@ def _transcribe(audio_bytes: bytes, filename: str, api_key: str) -> str:
         return json.loads(resp.read())["text"].strip()
 
 
-def _summarize(prompt: str, api_key: str) -> dict:
-    payload = json.dumps({
+def _summarize(
+    prompt: str,
+    api_key: str,
+    json_mode: bool = False,
+    timeout_seconds: int = 60,
+    max_output_tokens: int | None = None,
+) -> dict:
+    body = {
         "model": "gpt-4o-mini",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.2,
-    }).encode()
+    }
+    if max_output_tokens is not None:
+        body["max_tokens"] = max(64, int(max_output_tokens))
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
+    payload = json.dumps(body).encode()
     req = urllib.request.Request(
         "https://api.openai.com/v1/chat/completions",
         data=payload,
@@ -1735,7 +2319,7 @@ def _summarize(prompt: str, api_key: str) -> dict:
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
         raw = json.loads(resp.read())["choices"][0]["message"]["content"].strip()
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
@@ -3467,6 +4051,145 @@ def create_research_note():
     return jsonify({"ok": True, "id": note_ref.id})
 
 
+@flask_app.route("/daily-feed/setup", methods=["POST"])
+def setup_daily_feed():
+    """Enable or inspect the caller's private daily feed configuration."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    enable = None
+    if "enabled" in data:
+        enable = _coerce_bool(data.get("enabled"), False)
+    doc = _get_db().collection("users").document(uid).get()
+    if not doc.exists:
+        return jsonify({"error": "user not found"}), 404
+    user_data = _ensure_daily_feed_config(uid, doc.to_dict() or {}, enable=enable)
+    token = _safe_string(user_data.get("daily_feed_token"))
+
+    if enable is True:
+        _log_usage_event(uid, "enabled_daily_feed", {"publish_hour": _daily_feed_publish_hour(user_data)})
+
+    return jsonify({
+        "ok": True,
+        "enabled": _coerce_bool(user_data.get("daily_feed_enabled"), False),
+        "feed_url": _daily_feed_url_for_token(token),
+        "daily_feed_timezone": _safe_timezone_name(user_data.get("daily_feed_timezone")),
+        "daily_feed_publish_hour_local": _daily_feed_publish_hour(user_data),
+        "daily_feed_status": _build_daily_feed_status(uid, user_data),
+        "daily_feed_can_regenerate": _email_is_founder(user_data.get("email")),
+    })
+
+
+@flask_app.route("/daily-feed/generate-today", methods=["POST"])
+def generate_daily_feed_today():
+    """Generate today's daily feed episode for the signed-in user."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+    if not _user_is_founder(uid):
+        return jsonify({"error": "forbidden"}), 403
+
+    doc = _get_db().collection("users").document(uid).get()
+    if not doc.exists:
+        return jsonify({"error": "user not found"}), 404
+    user_data = _ensure_daily_feed_config(uid, doc.to_dict() or {}, enable=True)
+    _get_db().collection("users").document(uid).set({
+        "daily_feed_last_attempted_at": firestore.SERVER_TIMESTAMP,
+    }, merge=True)
+
+    try:
+        episode = _build_daily_feed_episode(uid, user_data, force=True)
+    except Exception as exc:
+        print(f"[{uid}] Could not generate daily feed episode: {exc}")
+        _get_db().collection("users").document(uid).set({
+            "daily_feed_last_error": str(exc)[:500],
+            "daily_feed_last_error_at": firestore.SERVER_TIMESTAMP,
+        }, merge=True)
+        return jsonify({"error": str(exc)}), 502
+
+    token = _safe_string(user_data.get("daily_feed_token"))
+    refreshed = _get_db().collection("users").document(uid).get()
+    refreshed_data = refreshed.to_dict() if refreshed.exists else user_data
+    return jsonify({
+        "ok": True,
+        "feed_url": _daily_feed_url_for_token(token),
+        "daily_feed_status": _build_daily_feed_status(uid, refreshed_data),
+        "episode": {
+            "id": episode.get("id") or episode.get("date_key"),
+            "title": episode.get("title", ""),
+            "description": episode.get("description", ""),
+            "episode_type": episode.get("episode_type", ""),
+            "duration_seconds": episode.get("duration_seconds", 0),
+            "audio_url": _daily_feed_audio_url(token, _safe_string(episode.get("id") or episode.get("date_key"))),
+        },
+    })
+
+
+@flask_app.route("/feed/<token>.xml")
+def daily_feed_rss(token: str):
+    """Return the private RSS feed for a user's latest Memnon audio."""
+    token = _safe_string(token)
+    if not token:
+        return ("not found", 404)
+
+    matches = list(_get_db().collection("users").where("daily_feed_token", "==", token).limit(1).stream())
+    if not matches:
+        return ("not found", 404)
+    user_doc = matches[0]
+    user_data = user_doc.to_dict() or {}
+
+    latest_episode = _load_latest_daily_feed_episode(user_doc.id)
+    episodes = [latest_episode] if latest_episode else []
+
+    xml_body = _render_daily_feed_rss(user_data, token, episodes)
+    return (
+        xml_body,
+        200,
+        {
+            "Content-Type": "application/rss+xml; charset=utf-8",
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@flask_app.route("/feed/<token>/<episode_id>.mp3")
+def daily_feed_audio(token: str, episode_id: str):
+    """Stream only the latest private daily feed episode for a token."""
+    token = _safe_string(token)
+    episode_id = _safe_string(episode_id)
+    if not token or not episode_id:
+        return ("not found", 404)
+
+    matches = list(_get_db().collection("users").where("daily_feed_token", "==", token).limit(1).stream())
+    if not matches:
+        return ("not found", 404)
+    user_doc = matches[0]
+    latest_episode = _load_latest_daily_feed_episode(user_doc.id)
+    if not latest_episode or _safe_string(latest_episode.get("id")) != episode_id:
+        return ("not found", 404)
+    storage_path = _safe_string(latest_episode.get("audio_storage_path"))
+    if not storage_path:
+        return ("not found", 404)
+
+    try:
+        audio_bytes = _download_daily_feed_audio(storage_path)
+    except Exception as exc:
+        print(f"[{user_doc.id}] Could not read daily feed audio {episode_id}: {exc}")
+        return ("unavailable", 502)
+
+    _log_usage_event(user_doc.id, "fetched_daily_feed_audio", {"episode_id": episode_id})
+    return (
+        audio_bytes,
+        200,
+        {
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
 @flask_app.route("/me")
 def get_me():
     """Return user config (no tokens) for the signed-in user."""
@@ -3478,6 +4201,10 @@ def get_me():
     data.pop("google_drive_token", None)   # never send tokens to frontend
     data["google_tasks_connected"] = _user_tasks_connected(data)
     data["research_recommendations"] = (_load_research_signals().get("recommendations") or {})
+    if data.get("daily_feed_token"):
+        data["daily_feed_url"] = _daily_feed_url_for_token(_safe_string(data.get("daily_feed_token")))
+    data["daily_feed_status"] = _build_daily_feed_status(uid, data)
+    data["daily_feed_can_regenerate"] = _email_is_founder(data.get("email"))
     return jsonify(data)
 
 
@@ -3540,3 +4267,38 @@ def worker(event: scheduler_fn.ScheduledEvent) -> None:
                 _sweep_user(uid, user_data)
             except Exception as exc:
                 print(f"Sweep error [{uid}]: {exc}")
+
+
+@scheduler_fn.on_schedule(
+    schedule="every 15 minutes",
+    region="us-central1",
+    memory=options.MemoryOption.MB_512,
+    timeout_sec=540,
+    secrets=["OPENAI_API_KEY", "GOOGLE_CLIENT_SECRETS", "HUGGING_FACE_API_KEY"],
+)
+def daily_feed_worker(event: scheduler_fn.ScheduledEvent) -> None:
+    now_utc = datetime.now(timezone.utc)
+    users = _get_db().collection("users").where("daily_feed_enabled", "==", True).stream()
+    for doc in users:
+        uid = doc.id
+        user_data = _ensure_daily_feed_config(uid, doc.to_dict() or {})
+        try:
+            local_now = _daily_feed_local_now(user_data, now_utc)
+            publish_hour = _daily_feed_publish_hour(user_data)
+            if local_now.hour < publish_hour:
+                continue
+
+            date_key = _daily_feed_date_key(user_data, now_utc)
+            if _safe_string(user_data.get("daily_feed_last_generated_for")) == date_key:
+                continue
+
+            _get_db().collection("users").document(uid).set({
+                "daily_feed_last_attempted_at": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
+            _build_daily_feed_episode(uid, user_data, now_utc=now_utc)
+        except Exception as exc:
+            print(f"Daily feed error [{uid}]: {exc}")
+            _get_db().collection("users").document(uid).set({
+                "daily_feed_last_error": str(exc)[:500],
+                "daily_feed_last_error_at": firestore.SERVER_TIMESTAMP,
+            }, merge=True)

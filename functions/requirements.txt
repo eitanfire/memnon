@@ -8,3 +8,4 @@ google-auth-httplib2>=0.2.0
 edge-tts>=6.1.0
 huggingface_hub>=0.33.0
 numpy>=1.26.0
+imageio-ffmpeg>=0.5.1
