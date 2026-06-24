@@ -53,7 +53,7 @@ from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection_bytes, synthesize_reflection_mp3
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
-from weather_context import clear_weather_cache_fields
+from weather_context import clear_weather_cache_fields, load_weather_context
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
 
@@ -1854,6 +1854,7 @@ def _build_daily_feed_prompt(
     notes: list[dict],
     episode_type: str,
     local_now: datetime,
+    weather_context: dict | None = None,
 ) -> str:
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
     spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
@@ -1872,6 +1873,15 @@ def _build_daily_feed_prompt(
     notes_block = "\n\n---\n\n".join(_build_feed_note_brief(note) for note in notes[:DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT]) or "No recent reflections available."
     day_anchor = _daily_feed_present_day_anchor(local_now)
     continuity_anchor = _daily_feed_continuity_anchor(notes)
+    weather_block = ""
+    if weather_context:
+        weather_block = (
+            "--- WEATHER CONTEXT ---\n"
+            f"Day type: {_safe_string(weather_context.get('day_type'))}\n"
+            f"Temperature: {_safe_string(weather_context.get('temperature_summary'))}\n"
+            f"Precipitation: {_safe_string(weather_context.get('precipitation_summary'))}\n"
+            f"Orientation cue: {_safe_string(weather_context.get('orientation_cue'))}\n\n"
+        )
 
     segment_requirements = (
         '"opening": "15 to 25 seconds, name the day and orient the listener",\n'
@@ -1891,7 +1901,7 @@ Person context: display name {preferred_name}; spoken name "{spoken_name}"; {con
 Present-day anchor available: {day_anchor}
 Continuity anchor candidate: {continuity_anchor or "none"}
 
-Recent reflection context:
+{weather_block}Recent reflection context:
 {notes_block}
 
 Return strict JSON only with this schema:
@@ -1914,6 +1924,9 @@ Rules:
 - The opening must contain a real present-day anchor.
 - The reflective grounding must contain a real continuity anchor drawn from reflection history.
 - For Phase 1, set calendar_today to an empty string unless true calendar context is provided.
+- Use weather only when it genuinely sharpens the practical orientation of the day.
+- Fold weather into practical_briefing when useful; do not create a standalone weather segment.
+- Do not use weather in reflective_grounding or meditative_close.
 - Keep meditative_close concise; it is the seed of a future optional meditative-only feed.
 - If there is too little specific material, be sparse rather than repetitive.
 """
@@ -1924,6 +1937,7 @@ def _build_deterministic_daily_feed_result(
     notes: list[dict],
     local_now: datetime,
     episode_type: str = "fallback",
+    weather_context: dict | None = None,
 ) -> dict:
     latest_note = notes[0] if notes else {}
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
@@ -1950,6 +1964,9 @@ def _build_deterministic_daily_feed_result(
         practical_parts.append(f"One thread worth holding onto from your recent reflection is this: {summary_line}")
     if insight_line:
         practical_parts.append(f"The clearest underlying tension is this: {insight_line}")
+    orientation_cue = _safe_string((weather_context or {}).get("orientation_cue"))
+    if orientation_cue:
+        practical_parts.append(orientation_cue)
     if not practical_parts:
         practical_parts.append(f"Your recent reflections suggest that {preferred_name} is carrying an important thread that deserves steady attention today.")
     practical_briefing = " ".join(practical_parts)
@@ -2021,6 +2038,15 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
     if not notes:
         raise RuntimeError("No reflections available to generate a daily feed episode")
 
+    weather_context = None
+    try:
+        weather_context, weather_cache_updates = load_weather_context(user_data)
+        if weather_cache_updates:
+            _get_db().collection("users").document(uid).set(weather_cache_updates, merge=True)
+            user_data = {**user_data, **weather_cache_updates}
+    except Exception as exc:
+        print(f"[{uid}] Weather enrichment unavailable: {exc}")
+
     episode_type = "standard" if _daily_feed_has_recent_reflection(notes, local_now) else "fallback"
 
     def _save_episode_from_result(result: dict, selected_type: str) -> dict:
@@ -2070,7 +2096,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "audio_size_bytes": len(audio_bytes),
             "duration_seconds": duration_seconds,
             "segments_used": segments_used,
-            "context_sources_used": ["reflection_history"],
+            "context_sources_used": ["reflection_history"] + (["weather"] if weather_context else []),
             "script_text": script_text,
             "script_segments": {key: _safe_string(value) for key, value in (segments or {}).items() if _safe_string(value)},
             "audio_mix_meta": audio_mix_meta,
@@ -2100,13 +2126,25 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         return saved
 
     def _generate_deterministic_fallback() -> dict:
-        result = _build_deterministic_daily_feed_result(user_data, notes, local_now, episode_type="fallback")
+        result = _build_deterministic_daily_feed_result(
+            user_data,
+            notes,
+            local_now,
+            episode_type="fallback",
+            weather_context=weather_context,
+        )
         return _save_episode_from_result(result, "fallback")
 
     def _generate_for_type(selected_type: str) -> dict:
         if selected_type == "fallback":
             return _generate_deterministic_fallback()
-        prompt = _build_daily_feed_prompt(user_data, notes, selected_type, local_now)
+        prompt = _build_daily_feed_prompt(
+            user_data,
+            notes,
+            selected_type,
+            local_now,
+            weather_context=weather_context,
+        )
         result = _summarize(
             prompt,
             api_key,
