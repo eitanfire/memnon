@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -7,7 +8,16 @@ from typing import Any
 def build_orchestration_config(config: dict[str, Any]) -> dict[str, Any]:
     runtime_dir = Path(config["runtime_dir"])
     existing = dict(config.get("orchestration", {}))
-    base_dir = Path(existing.get("runtime_dir", runtime_dir / "orchestration"))
+    raw_base_dir = existing.get("runtime_dir")
+    if raw_base_dir:
+        expanded = Path(os.path.expandvars(os.path.expanduser(raw_base_dir)))
+        if expanded.is_absolute():
+            base_dir = expanded
+        else:
+            config_dir = Path(config.get("_config_dir", "."))
+            base_dir = config_dir / expanded
+    else:
+        base_dir = runtime_dir / "orchestration"
 
     return {
         "enabled": bool(existing.get("enabled", False)),

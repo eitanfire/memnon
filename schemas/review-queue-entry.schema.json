@@ -18,7 +18,7 @@
     "created_at": { "type": "string" },
     "workflow_jobs": {
       "type": "array",
-      "items": { "type": "object" }
+      "items": { "$ref": "./workflow-job.schema.json" }
     },
     "artifacts_generated": {
       "type": "array",

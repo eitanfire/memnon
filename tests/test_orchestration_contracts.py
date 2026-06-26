@@ -28,6 +28,26 @@ class OrchestrationContractsTests(unittest.TestCase):
             "/tmp/memnon-runtime/orchestration/review-queue",
         )
 
+    def test_build_orchestration_config_resolves_relative_runtime_dir_from_config_dir(self):
+        config = {
+            "_config_dir": "/tmp/memnon-config",
+            "runtime_dir": "/tmp/memnon-runtime",
+            "orchestration": {"runtime_dir": "./custom-orchestration"},
+            "ai": {"enabled": False, "backend": "mock"},
+            "transcription": {"backend": "mock"},
+        }
+
+        orchestration = build_orchestration_config(config)
+
+        self.assertEqual(
+            orchestration["runtime_dir"],
+            "/tmp/memnon-config/custom-orchestration",
+        )
+        self.assertEqual(
+            orchestration["review_queue_dir"],
+            "/tmp/memnon-config/custom-orchestration/review-queue",
+        )
+
     def test_write_metadata_persists_orchestration_required_fields(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -67,6 +87,32 @@ class OrchestrationContractsTests(unittest.TestCase):
             self.assertEqual(payload["entry_id"], "abc123")
             self.assertEqual(payload["transcript_path"], str(transcript))
             self.assertEqual(payload["source_event_id"], "abc123")
+
+    def test_review_queue_schema_reuses_workflow_job_shape(self):
+        review_queue_schema = json.loads(
+            Path("schemas/review-queue-entry.schema.json").read_text(encoding="utf-8")
+        )
+        workflow_job_schema = json.loads(
+            Path("schemas/workflow-job.schema.json").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            review_queue_schema["properties"]["workflow_jobs"]["items"],
+            {"$ref": "./workflow-job.schema.json"},
+        )
+
+        job = WorkflowJob(
+            workflow_type="professional_note_bundle",
+            confidence=0.9,
+            reason="matched workflow",
+            status="queued",
+            destination="/tmp/out",
+        ).to_dict()
+
+        self.assertEqual(
+            sorted(job.keys()),
+            sorted(workflow_job_schema["properties"].keys()),
+        )
 
 
 if __name__ == "__main__":

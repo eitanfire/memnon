@@ -75,3 +75,61 @@ Result:
 ## Outcome
 
 Task 1 requirements were implemented with the requested TDD flow and focused `unittest` verification.
+
+## Fix Pass: Reviewer Findings
+
+### Scope
+
+Addressed both reviewer findings within the original Task 1 file scope:
+
+- `src/orchestration/config.py`
+- `schemas/review-queue-entry.schema.json`
+- `tests/test_orchestration_contracts.py`
+
+### Review Findings Interpreted
+
+1. `build_orchestration_config()` must treat `orchestration.runtime_dir` like other config-relative paths and anchor non-absolute values to `_config_dir`.
+2. The review queue schema must constrain `workflow_jobs` to the concrete workflow-job contract instead of arbitrary object payloads.
+
+### TDD Record
+
+#### Red
+
+Added focused test coverage for both findings, then ran:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_orchestration_contracts.py' -v
+```
+
+Observed expected failures:
+
+- `test_build_orchestration_config_resolves_relative_runtime_dir_from_config_dir`
+  - actual: `custom-orchestration`
+  - expected: `/tmp/memnon-config/custom-orchestration`
+- `test_review_queue_schema_reuses_workflow_job_shape`
+  - actual schema item: `{"type": "object"}`
+  - expected schema item: `{"$ref": "./workflow-job.schema.json"}`
+
+This confirmed both review findings reproduced before implementation.
+
+#### Green
+
+Applied the minimal fixes:
+
+- Updated `build_orchestration_config()` to expand `orchestration.runtime_dir` and anchor non-absolute values to `_config_dir`.
+- Tightened `schemas/review-queue-entry.schema.json` so `workflow_jobs.items` uses `"$ref": "./workflow-job.schema.json"`.
+
+One intermediate rerun exposed the same macOS `/tmp` to `/private/tmp` normalization issue seen in the initial pass, this time on the config-relative path branch. Removed that canonicalization and reran the focused suite.
+
+### Verification
+
+Fresh verification command:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_orchestration_contracts.py' -v
+```
+
+Result:
+
+- `Ran 4 tests in 0.003s`
+- `OK`
