@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BoulderJsRecapPacket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event.json",
+    "talk.json",
+    "abstract.txt",
+    "thoughts.txt",
+    "source-links.json"
+  ],
+  "properties": {
+    "event.json": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "url",
+        "date",
+        "time",
+        "location",
+        "description"
+      ],
+      "properties": {
+        "number": { "type": ["integer", "null"] },
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "location": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "talk.json": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "url",
+        "speaker",
+        "speakerName",
+        "speakerUrl",
+        "abstract",
+        "labels"
+      ],
+      "properties": {
+        "number": { "type": ["integer", "null"] },
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "speaker": { "type": "string" },
+        "speakerName": { "type": "string" },
+        "speakerUrl": { "type": "string" },
+        "abstract": { "type": "string" },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "abstract.txt": {
+      "type": "string"
+    },
+    "thoughts.txt": {
+      "type": "string"
+    },
+    "source-links.json": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
