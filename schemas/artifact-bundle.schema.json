@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ArtifactBundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workflow_type",
+    "output_path",
+    "files"
+  ],
+  "properties": {
+    "workflow_type": {
+      "type": "string",
+      "enum": [
+        "reflect_note_bundle",
+        "professional_note_bundle",
+        "research_note",
+        "boulderjs_recap_packet",
+        "follow_up_bundle"
+      ]
+    },
+    "output_path": { "type": "string" },
+    "files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorkflowJob",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workflow_type",
+    "confidence",
+    "reason",
+    "status",
+    "destination"
+  ],
+  "properties": {
+    "workflow_type": {
+      "type": "string",
+      "enum": [
+        "reflect_note_bundle",
+        "professional_note_bundle",
+        "research_note",
+        "boulderjs_recap_packet",
+        "follow_up_bundle"
+      ]
+    },
+    "confidence": { "type": "number" },
+    "reason": { "type": "string" },
+    "status": { "type": "string" },
+    "destination": { "type": "string" },
+    "needs_review": { "type": "boolean" },
+    "review_priority": { "type": "string" },
+    "forced_by_rule": { "type": "boolean" }
+  }
+}

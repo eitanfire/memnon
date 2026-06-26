@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SourceEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_event_id",
+    "lane",
+    "workflow",
+    "routing_reason",
+    "title",
+    "transcript",
+    "transcript_path",
+    "transcript_preview",
+    "note_path",
+    "archived_audio_path",
+    "metadata_path",
+    "processed_at",
+    "summary",
+    "action_items",
+    "suggested_tags"
+  ],
+  "properties": {
+    "source_event_id": { "type": "string" },
+    "lane": { "type": "string" },
+    "workflow": { "type": "string" },
+    "routing_reason": { "type": "string" },
+    "title": { "type": "string" },
+    "transcript": { "type": "string" },
+    "transcript_path": { "type": "string" },
+    "transcript_preview": { "type": "string" },
+    "note_path": { "type": "string" },
+    "archived_audio_path": { "type": "string" },
+    "metadata_path": { "type": "string" },
+    "processed_at": { "type": "string" },
+    "summary": { "type": "string" },
+    "action_items": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "suggested_tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "source_project": { "type": "string" },
+    "source_context": { "type": "string" },
+    "source_links": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
