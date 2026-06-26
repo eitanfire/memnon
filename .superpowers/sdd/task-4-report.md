@@ -84,3 +84,67 @@ Exit status: `0`
 
 - None within Task 4 scope.
 - The new module is intentionally local-only and does not yet include BoulderJS packet output, per the brief.
+
+## Fix Pass 1
+
+### Reviewer Findings Addressed
+
+1. Moved manifest and review outputs to per-event directories with canonical filenames:
+   - `manifests/<source_event_id>/event_manifest.json`
+   - `review-queue/<source_event_id>/review_queue_entry.json`
+2. Preserved append-only review history on reruns by also writing:
+   - `review-queue/<source_event_id>/history/<timestamp>.json`
+
+### TDD Record
+
+#### Red
+
+Extended `tests/test_orchestration_destinations.py` so it now verifies:
+
+- canonical per-event manifest path naming
+- canonical per-event review queue path naming
+- canonical review path stability across two writes
+- append-only review history creation across two writes
+- latest history payload matches the canonical review payload
+
+Verification command:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_orchestration_destinations.py' -v
+```
+
+Observed failure:
+
+```text
+AssertionError: .../manifests/evt-1.json != .../manifests/evt-1/event_manifest.json
+```
+
+This confirmed the existing implementation still used the flat manifest path and did not yet satisfy the reviewer contract.
+
+#### Green
+
+Updated `src/orchestration/destinations.py` to:
+
+- route event manifests into a per-event directory with canonical filename
+- route review queue entries into a per-event directory with canonical filename
+- emit a timestamped history JSON entry on every review write before updating the canonical review entry
+
+Re-ran the same focused unittest command.
+
+Observed result:
+
+```text
+Ran 1 test in 0.006s
+
+OK
+```
+
+### Fix Pass Verification
+
+Command run:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_orchestration_destinations.py' -v
+```
+
+Exit status: `0`

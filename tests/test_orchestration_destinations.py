@@ -62,14 +62,36 @@ class OrchestrationDestinationsTests(unittest.TestCase):
             manifest_path = write_event_manifest(
                 event, analysis, [], ["professional_note_bundle"], {}, jobs, bundles, config
             )
-            review_path = write_review_queue_entry(event, jobs, bundles, config)
+            first_review_path = write_review_queue_entry(event, jobs, bundles, config)
+            second_review_path = write_review_queue_entry(event, jobs, bundles, config)
 
+            manifest_dir = Path(config["manifests_dir"]) / event.source_event_id
+            review_dir = Path(config["review_queue_dir"]) / event.source_event_id
+            history_files = sorted((review_dir / "history").glob("*.json"))
+
+            self.assertEqual(
+                manifest_path,
+                str(manifest_dir / "event_manifest.json"),
+            )
+            self.assertEqual(
+                first_review_path,
+                str(review_dir / "review_queue_entry.json"),
+            )
+            self.assertEqual(
+                second_review_path,
+                str(review_dir / "review_queue_entry.json"),
+            )
             self.assertTrue(Path(manifest_path).exists())
-            self.assertTrue(Path(review_path).exists())
+            self.assertTrue(Path(first_review_path).exists())
             self.assertTrue(any(path.endswith("email.md") for bundle in bundles for path in bundle.files))
-            payload = json.loads(Path(review_path).read_text(encoding="utf-8"))
+            self.assertEqual(len(history_files), 2)
+            payload = json.loads(Path(first_review_path).read_text(encoding="utf-8"))
             self.assertTrue(payload["external_drafts_pending"])
             self.assertIn("research_note", {job["workflow_type"] for job in payload["workflow_jobs"]})
+            self.assertEqual(
+                payload,
+                json.loads(history_files[-1].read_text(encoding="utf-8")),
+            )
 
 
 if __name__ == "__main__":

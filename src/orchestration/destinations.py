@@ -20,6 +20,14 @@ def _write_json(path: Path, payload: dict[str, Any]) -> str:
     return str(path)
 
 
+def _event_dir(root: str, source_event_id: str) -> Path:
+    return Path(root) / source_event_id
+
+
+def _history_filename() -> str:
+    return datetime.now().astimezone().strftime("%Y%m%dT%H%M%S%f%z") + ".json"
+
+
 def write_artifact_bundle(
     job: WorkflowJob,
     event: SourceEvent,
@@ -96,8 +104,9 @@ def write_event_manifest(
     bundles: list[ArtifactBundle],
     config: dict[str, Any],
 ) -> str:
+    manifest_dir = _event_dir(config["manifests_dir"], event.source_event_id)
     return _write_json(
-        Path(config["manifests_dir"]) / f"{event.source_event_id}.json",
+        manifest_dir / "event_manifest.json",
         {
             "source_event": event.to_dict(),
             "analysis": analysis.to_dict(),
@@ -130,4 +139,7 @@ def write_review_queue_entry(
         forced_by_rule_jobs=[job.workflow_type for job in jobs if job.forced_by_rule],
         notes=[],
     )
-    return _write_json(Path(config["review_queue_dir"]) / f"{event.source_event_id}.json", payload.to_dict())
+    review_dir = _event_dir(config["review_queue_dir"], event.source_event_id)
+    payload_dict = payload.to_dict()
+    _write_json(review_dir / "history" / _history_filename(), payload_dict)
+    return _write_json(review_dir / "review_queue_entry.json", payload_dict)
