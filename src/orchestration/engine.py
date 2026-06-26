@@ -33,7 +33,7 @@ def orchestrate_from_metadata(metadata_path: Path, config: dict[str, Any]) -> di
     analysis = analyze_source_event(event, config)
     suppressors = apply_suppressors(event, analysis)
     hard_rules = apply_hard_rules(event, analysis)
-    llm_output = _build_workflow_hints(analysis)
+    llm_output = analysis.llm_hints or _build_workflow_hints(analysis)
     jobs = select_workflow_jobs(event, analysis, llm_output)
 
     bundles = []
