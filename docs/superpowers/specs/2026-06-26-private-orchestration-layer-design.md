@@ -226,6 +226,21 @@ Writes to a structured research store. This may be JSON, JSONL, or a format that
 
 Writes to the `boulderjs-social-agent` draft input/output path or to an adapter directory that the social agent can consume deterministically.
 
+Version one should define the adapter contract explicitly instead of leaving it implicit. The orchestration layer should write one packet directory per event, containing at minimum:
+
+- `event.json`
+- `talk.json`
+- `abstract.txt`
+- `thoughts.txt`
+- `source-links.json`
+
+The social-agent executor can then either:
+
+- call the social agent CLI directly with those files, or
+- transform the packet into the exact CLI arguments the social agent already accepts
+
+The important constraint is that the orchestration layer should not rely on hand-built prompts or fragile string concatenation at integration time. The packet must be deterministic and file-based.
+
 ### Follow-Up Bundle
 
 Writes to an `outbox/` directory. External messages are drafted automatically but not sent automatically.
@@ -237,6 +252,18 @@ Writes to a `manifests/` directory, one manifest per source event.
 ### Review Queue Entry
 
 Writes to a `review-queue/` directory or equivalent queue store used to inspect what was generated and what needs human approval.
+
+Version one should use a JSON format with one file per source event. The minimum schema should include:
+
+- `source_event_id`
+- `created_at`
+- `workflow_jobs`
+- `artifacts_generated`
+- `needs_review`
+- `review_priority`
+- `external_drafts_pending`
+- `forced_by_rule_jobs`
+- `notes`
 
 ## Automation Policy
 
@@ -260,7 +287,14 @@ Generation is reversible. Sending is not. That boundary should be enforced in co
 
 ## Analysis Layer
 
-The source-event analysis layer should extract enough structure to support routing and artifact generation. The exact extraction method can combine rules and LLM output, but the analyzed event should expose fields like:
+The source-event analysis layer should extract enough structure to support routing and artifact generation. This layer should itself be a mix of:
+
+- rule-based extraction for obvious, deterministic signals
+- LLM enrichment for semantic interpretation, summarization, and weak-signal classification
+
+Analysis should happen before routing so suppressors and mandatory hard rules can operate on structured signals rather than only raw transcript text.
+
+The analyzed event should expose fields like:
 
 - `event_type`
 - `named_people`
@@ -300,6 +334,8 @@ This should summarize:
 - what requires review
 - any high-priority disagreement between rules and LLM
 - any external-facing drafts waiting for human approval
+
+In v1 this should be implemented as a JSON file, append-only at the event level, with one review entry per source event.
 
 This infrastructure is mandatory even when no major workflow fires, because it gives the system an audit trail and keeps low-signal recordings inspectable.
 
