@@ -1045,6 +1045,16 @@ def write_metadata(
     return destination
 
 
+def maybe_run_orchestration(metadata_path: Path, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    from src.orchestration.config import build_orchestration_config
+    from src.orchestration.engine import orchestrate_from_metadata
+
+    orchestration = build_orchestration_config(config)
+    if not orchestration["enabled"]:
+        return None
+    return orchestrate_from_metadata(metadata_path, config)
+
+
 # ---------------------------------------------------------------------------
 # Wisdom corpus and reflect synthesis
 # ---------------------------------------------------------------------------
@@ -2310,6 +2320,7 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
             routing_reason=routing_reason,
             entry_id=entry_id,
         )
+        maybe_run_orchestration(metadata_path, config)
         return ProcessResult(
             status="done",
             lane=lane,
