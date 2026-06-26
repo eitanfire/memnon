@@ -1,6 +1,16 @@
 from __future__ import annotations
 
-from .models import AnalysisResult, SourceEvent, WorkflowJob
+from typing import cast
+
+from .models import AnalysisResult, SourceEvent, WorkflowJob, WorkflowType
+
+V1_WORKFLOW_TYPES: tuple[WorkflowType, ...] = (
+    "reflect_note_bundle",
+    "professional_note_bundle",
+    "research_note",
+    "boulderjs_recap_packet",
+    "follow_up_bundle",
+)
 
 
 def apply_suppressors(event: SourceEvent, analysis: AnalysisResult) -> list[str]:
@@ -31,7 +41,7 @@ def select_workflow_jobs(
     llm_output: dict[str, dict[str, object]],
 ) -> list[WorkflowJob]:
     suppressed = set(apply_suppressors(event, analysis))
-    forced = set(apply_hard_rules(event, analysis))
+    forced = set(apply_hard_rules(event, analysis)) - suppressed
     jobs: list[WorkflowJob] = []
 
     for workflow_type in sorted(forced):
@@ -53,6 +63,8 @@ def select_workflow_jobs(
         )
 
     for workflow_type, payload in llm_output.items():
+        if workflow_type not in V1_WORKFLOW_TYPES:
+            continue
         if workflow_type in suppressed or workflow_type in forced:
             continue
         confidence = float(payload.get("confidence", 0.0))
@@ -60,7 +72,7 @@ def select_workflow_jobs(
             continue
         jobs.append(
             WorkflowJob(
-                workflow_type=workflow_type,  # type: ignore[arg-type]
+                workflow_type=cast(WorkflowType, workflow_type),
                 confidence=confidence,
                 reason=str(payload.get("reason", "")),
                 status="ready",

@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from src.orchestration.models import AnalysisResult, SourceEvent
 from src.orchestration.policies import select_workflow_jobs
@@ -63,6 +64,41 @@ class OrchestrationPolicyTests(unittest.TestCase):
             {"follow_up_bundle": {"confidence": 0.9, "reason": "hallucinated"}},
         )
         self.assertNotIn("follow_up_bundle", {job.workflow_type for job in jobs})
+
+    def test_out_of_scope_llm_workflow_keys_are_rejected(self):
+        event = self.build_event()
+        analysis = AnalysisResult(
+            event_type="professional_note",
+            named_people=["Kyle"],
+            named_orgs=["Credible"],
+            commitments=["follow up with James"],
+        )
+
+        jobs = select_workflow_jobs(
+            event,
+            analysis,
+            {
+                "follow_up_bundle": {"confidence": 0.9, "reason": "explicit ask"},
+                "unknown_bundle": {"confidence": 0.95, "reason": "out of scope"},
+            },
+        )
+
+        self.assertEqual(
+            {job.workflow_type for job in jobs},
+            {"professional_note_bundle", "follow_up_bundle"},
+        )
+
+    def test_suppressors_take_precedence_over_hard_rules(self):
+        event = self.build_event()
+        analysis = AnalysisResult(event_type="boulderjs_demo")
+
+        with patch(
+            "src.orchestration.policies.apply_suppressors",
+            return_value=["boulderjs_recap_packet"],
+        ):
+            jobs = select_workflow_jobs(event, analysis, {})
+
+        self.assertNotIn("boulderjs_recap_packet", {job.workflow_type for job in jobs})
 
 
 if __name__ == "__main__":
