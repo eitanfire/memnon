@@ -10,9 +10,10 @@ from src.orchestration.models import AnalysisResult, SourceEvent, WorkflowJob
 class BoulderJsPacketTests(unittest.TestCase):
     def test_packet_writer_creates_deterministic_files_and_optional_cli_command(self):
         with tempfile.TemporaryDirectory() as tmp:
+            repo_dir = str(Path(tmp) / "social-agent")
             config = {
                 "boulderjs_dir": str(Path(tmp) / "boulderjs"),
-                "social_agent_repo_dir": "/Users/eitan/.openclaw/workspace/boulderjs-social-agent",
+                "social_agent_repo_dir": repo_dir,
                 "run_social_agent_cli": True,
                 "default_boulderjs_event_number": 30,
                 "default_boulderjs_talk_number": 41,
@@ -47,14 +48,76 @@ class BoulderJsPacketTests(unittest.TestCase):
             bundle = write_boulderjs_recap_packet(job, event, analysis, config)
             packet_dir = Path(bundle.output_path)
 
-            self.assertTrue((packet_dir / "event.json").exists())
-            self.assertTrue((packet_dir / "talk.json").exists())
-            self.assertTrue((packet_dir / "abstract.txt").exists())
-            self.assertTrue((packet_dir / "thoughts.txt").exists())
-            self.assertTrue((packet_dir / "source-links.json").exists())
+            self.assertEqual(
+                json.loads((packet_dir / "event.json").read_text(encoding="utf-8")),
+                {
+                    "number": 30,
+                    "title": "Credible BoulderJS recap",
+                    "url": "",
+                    "date": "",
+                    "time": "",
+                    "location": "galvanize",
+                    "description": "summary",
+                },
+            )
+            self.assertEqual(
+                json.loads((packet_dir / "talk.json").read_text(encoding="utf-8")),
+                {
+                    "number": 41,
+                    "title": "Credible BoulderJS recap",
+                    "url": "https://github.com/boulder-js/talks/issues/41",
+                    "speaker": "Kyle Nesbit",
+                    "speakerName": "Kyle Nesbit",
+                    "speakerUrl": "",
+                    "abstract": "go from messy data to trusted answers",
+                    "labels": ["Talk: Feature 🎦"],
+                },
+            )
+            self.assertEqual(
+                (packet_dir / "abstract.txt").read_text(encoding="utf-8"),
+                "go from messy data to trusted answers\n",
+            )
+            self.assertEqual(
+                (packet_dir / "thoughts.txt").read_text(encoding="utf-8"),
+                "context engineering for messy business data\n",
+            )
+            self.assertEqual(
+                json.loads((packet_dir / "source-links.json").read_text(encoding="utf-8")),
+                ["https://github.com/boulder-js/talks/issues/41"],
+            )
 
             command = build_social_agent_command(packet_dir, config)
-            self.assertEqual(command[:4], ["npm", "run", "draft", "--"])
+            self.assertEqual(
+                command,
+                [
+                    "npm",
+                    "--prefix",
+                    repo_dir,
+                    "run",
+                    "draft",
+                    "--",
+                    "--event=30",
+                    "--talk=41",
+                    "--post-type=recap",
+                    f"--talk-abstract-file={packet_dir / 'abstract.txt'}",
+                    f"--thought-file={packet_dir / 'thoughts.txt'}",
+                ],
+            )
+
+    def test_social_agent_command_returns_none_without_repo_dir(self):
+        packet_dir = Path("/tmp/boulderjs/evt-1")
+
+        self.assertIsNone(
+            build_social_agent_command(
+                packet_dir,
+                {
+                    "run_social_agent_cli": True,
+                    "social_agent_repo_dir": "",
+                    "default_boulderjs_event_number": 30,
+                    "default_boulderjs_talk_number": 41,
+                },
+            )
+        )
 
     def test_boulderjs_packet_schema_matches_adapter_contract(self):
         schema = json.loads(

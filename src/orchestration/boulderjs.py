@@ -69,6 +69,10 @@ def build_social_agent_command(packet_dir: Path, config: dict[str, Any]) -> list
     if not config.get("run_social_agent_cli"):
         return None
 
+    repo_dir = config.get("social_agent_repo_dir")
+    if not repo_dir:
+        return None
+
     event_number = config.get("default_boulderjs_event_number")
     talk_number = config.get("default_boulderjs_talk_number")
     if not event_number or not talk_number:
@@ -76,6 +80,8 @@ def build_social_agent_command(packet_dir: Path, config: dict[str, Any]) -> list
 
     return [
         "npm",
+        "--prefix",
+        str(repo_dir),
         "run",
         "draft",
         "--",

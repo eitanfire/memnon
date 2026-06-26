@@ -109,3 +109,55 @@ Result:
 ## Concerns
 
 None at the adapter layer.
+
+---
+
+## Fix Pass: Reviewer Findings Addressed
+
+### Findings Implemented
+
+1. `build_social_agent_command()` now incorporates `social_agent_repo_dir` directly into the returned command via:
+   - `npm --prefix <repo> run draft -- ...`
+2. The focused Task 5 test now verifies deterministic packet contents and the full command contract instead of only file existence and a partial argv prefix.
+
+### Fix-Pass TDD Record
+
+1. Updated `tests/test_orchestration_boulderjs.py` first to:
+   - assert exact JSON contents for `event.json`
+   - assert exact JSON contents for `talk.json`
+   - assert exact text contents for `abstract.txt`
+   - assert exact text contents for `thoughts.txt`
+   - assert exact JSON contents for `source-links.json`
+   - assert the full command list including `--prefix <repo>` and file arguments
+   - assert `build_social_agent_command()` returns `None` when `social_agent_repo_dir` is missing/empty
+2. Ran:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_orchestration_boulderjs.py' -v
+```
+
+3. Verified red state:
+   - packet/command test failed because the adapter returned `npm run draft -- ...` without `--prefix <repo>`
+   - missing-repo test failed because the adapter still returned a command instead of `None`
+4. Updated `src/orchestration/boulderjs.py` minimally to:
+   - return `None` when `social_agent_repo_dir` is missing/empty
+   - prepend `--prefix <repo>` to the returned npm command
+5. Re-ran the same unittest command and verified green state.
+
+### Fix-Pass Verification
+
+Command:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_orchestration_boulderjs.py' -v
+```
+
+Result after fix:
+
+- 3 tests run
+- 0 failures
+- exit code 0
+
+### Fix-Pass Concerns
+
+None.
