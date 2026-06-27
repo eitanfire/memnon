@@ -28,7 +28,7 @@ def build_orchestration_config(config: dict[str, Any]) -> dict[str, Any]:
         "research_dir": str(base_dir / "research"),
         "note_bundles_dir": str(base_dir / "note-bundles"),
         "boulderjs_dir": str(base_dir / "boulderjs"),
-        "enable_llm_enrichment": bool(existing.get("enable_llm_enrichment", True)),
+        "enable_llm_enrichment": bool(existing.get("enable_llm_enrichment", False)),
         "social_agent_repo_dir": existing.get("social_agent_repo_dir", ""),
         "run_social_agent_cli": bool(existing.get("run_social_agent_cli", False)),
         "default_boulderjs_event_number": existing.get("default_boulderjs_event_number"),

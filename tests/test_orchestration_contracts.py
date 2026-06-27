@@ -27,6 +27,7 @@ class OrchestrationContractsTests(unittest.TestCase):
             orchestration["review_queue_dir"],
             "/tmp/memnon-runtime/orchestration/review-queue",
         )
+        self.assertFalse(orchestration["enable_llm_enrichment"])
 
     def test_build_orchestration_config_resolves_relative_runtime_dir_from_config_dir(self):
         config = {

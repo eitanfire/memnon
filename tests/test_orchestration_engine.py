@@ -64,6 +64,35 @@ class OrchestrationEngineTests(unittest.TestCase):
             self.assertTrue(Path(result["review_queue_path"]).exists())
             self.assertGreaterEqual(len(result["artifact_bundles"]), 3)
 
+    def test_orchestrate_from_metadata_is_stable_for_same_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            metadata_path = self.write_metadata_fixture(
+                root,
+                "At BoulderJS, Kyle from Credible asked me to follow up with James next week. "
+                "The demo showed how to go from messy data to trusted answers.",
+            )
+            config = self.orchestration_config(root)
+
+            first = orchestrate_from_metadata(metadata_path, config)
+            manifest_path = Path(first["manifest_path"])
+            review_path = Path(first["review_queue_path"])
+            history_dir = review_path.parent / "history"
+
+            manifest_first = manifest_path.read_text(encoding="utf-8")
+            review_first = review_path.read_text(encoding="utf-8")
+            history_first = sorted(path.name for path in history_dir.glob("*.json"))
+
+            second = orchestrate_from_metadata(metadata_path, config)
+            manifest_second = Path(second["manifest_path"]).read_text(encoding="utf-8")
+            review_second = Path(second["review_queue_path"]).read_text(encoding="utf-8")
+            history_second = sorted(path.name for path in history_dir.glob("*.json"))
+
+            self.assertEqual(manifest_first, manifest_second)
+            self.assertEqual(review_first, review_second)
+            self.assertEqual(history_first, history_second)
+            self.assertEqual(len(history_second), 1)
+
     def test_orchestrate_from_metadata_preserves_analysis_llm_hints_when_present(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

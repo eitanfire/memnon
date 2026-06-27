@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import hashlib
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,8 +24,9 @@ def _event_dir(root: str, source_event_id: str) -> Path:
     return Path(root) / source_event_id
 
 
-def _history_filename() -> str:
-    return datetime.now().astimezone().strftime("%Y%m%dT%H%M%S%f%z") + ".json"
+def _stable_history_filename(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:16] + ".json"
 
 
 def write_artifact_bundle(
@@ -115,7 +116,7 @@ def write_event_manifest(
             "llm_output": llm_output,
             "workflow_jobs": [job.to_dict() for job in jobs],
             "artifact_bundles": [bundle.to_dict() for bundle in bundles],
-            "generated_at": datetime.now().astimezone().replace(microsecond=0).isoformat(),
+            "generated_at": event.processed_at,
         },
     )
 
@@ -128,7 +129,7 @@ def write_review_queue_entry(
 ) -> str:
     payload = ReviewQueueEntry(
         source_event_id=event.source_event_id,
-        created_at=datetime.now().astimezone().replace(microsecond=0).isoformat(),
+        created_at=event.processed_at,
         workflow_jobs=[job.to_dict() for job in jobs],
         artifacts_generated=[bundle.output_path for bundle in bundles],
         needs_review=any(job.needs_review for job in jobs),
@@ -141,5 +142,5 @@ def write_review_queue_entry(
     )
     review_dir = _event_dir(config["review_queue_dir"], event.source_event_id)
     payload_dict = payload.to_dict()
-    _write_json(review_dir / "history" / _history_filename(), payload_dict)
+    _write_json(review_dir / "history" / _stable_history_filename(payload_dict), payload_dict)
     return _write_json(review_dir / "review_queue_entry.json", payload_dict)

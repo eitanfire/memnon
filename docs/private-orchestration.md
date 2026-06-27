@@ -8,7 +8,7 @@ Add this block to `config.json`:
 "orchestration": {
   "enabled": true,
   "runtime_dir": "./runtime/orchestration",
-  "enable_llm_enrichment": true,
+  "enable_llm_enrichment": false,
   "default_boulderjs_event_number": 30,
   "default_boulderjs_talk_number": 41,
   "social_agent_repo_dir": "/absolute/path/to/boulderjs-social-agent",
@@ -26,6 +26,7 @@ Add this block to `config.json`:
 - `runtime/orchestration/boulderjs/`: deterministic recap packets and optional CLI handoff inputs
 
 Every processed source event writes both `event_manifest.json` and `review_queue_entry`, even when no major workflow fires.
+V1 ships with deterministic extraction only, so `enable_llm_enrichment` should stay `false` unless you are explicitly wiring a future enrichment path.
 
 ## Re-Run One Event
 

@@ -84,10 +84,11 @@ class OrchestrationDestinationsTests(unittest.TestCase):
             self.assertTrue(Path(manifest_path).exists())
             self.assertTrue(Path(first_review_path).exists())
             self.assertTrue(any(path.endswith("email.md") for bundle in bundles for path in bundle.files))
-            self.assertEqual(len(history_files), 2)
+            self.assertEqual(len(history_files), 1)
             payload = json.loads(Path(first_review_path).read_text(encoding="utf-8"))
             self.assertTrue(payload["external_drafts_pending"])
             self.assertIn("research_note", {job["workflow_type"] for job in payload["workflow_jobs"]})
+            self.assertEqual(payload["created_at"], event.processed_at)
             self.assertEqual(
                 payload,
                 json.loads(history_files[-1].read_text(encoding="utf-8")),

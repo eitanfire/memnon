@@ -79,7 +79,7 @@
   "orchestration": {
     "enabled": false,
     "runtime_dir": "./runtime/orchestration",
-    "enable_llm_enrichment": true,
+    "enable_llm_enrichment": false,
     "default_boulderjs_event_number": 30,
     "default_boulderjs_talk_number": 41,
     "social_agent_repo_dir": "/Users/your-username/path/to/boulderjs-social-agent",
