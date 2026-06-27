@@ -25,6 +25,7 @@ const isStaticLocalhost =
 const API_ORIGIN = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "";
 const API_CAPTURES_PATH = "/api/workflows/captures";
 const AUTH_START_URL = "https://api-4hth6oktaa-uc.a.run.app/auth/start";
+const PENDING_CAPTURE_KEY = "memnon_workflows_pending_capture_v1";
 
 let currentUser = null;
 let initialRouteHandled = false;
@@ -63,6 +64,29 @@ function currentReturnUrl() {
   return url.toString();
 }
 
+function buildAuthStartUrl() {
+  const authUrl = new URL(AUTH_START_URL);
+  authUrl.searchParams.set("return_to", currentReturnUrl());
+  return authUrl.toString();
+}
+
+function readPendingCapture() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_CAPTURE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingCapture(payload) {
+  sessionStorage.setItem(PENDING_CAPTURE_KEY, JSON.stringify(payload));
+}
+
+function clearPendingCapture() {
+  sessionStorage.removeItem(PENDING_CAPTURE_KEY);
+}
+
 function syncAuthPrompt() {
   const prompt = document.getElementById("workflows-auth-prompt");
   const link = document.getElementById("workflows-signin");
@@ -70,9 +94,7 @@ function syncAuthPrompt() {
     return;
   }
 
-  const authUrl = new URL(AUTH_START_URL);
-  authUrl.searchParams.set("return_to", currentReturnUrl());
-  link.href = authUrl.toString();
+  link.href = buildAuthStartUrl();
   prompt.hidden = Boolean(currentUser);
 }
 
@@ -82,7 +104,7 @@ function syncSubmitState() {
   if (!submit) {
     return;
   }
-  submit.disabled = submitInFlight || !currentUser || !input || !input.value.trim();
+  submit.disabled = submitInFlight || !input || !input.value.trim();
   syncAuthPrompt();
 }
 
@@ -230,25 +252,14 @@ async function loadCapture(captureId) {
   renderPayload(payload);
 }
 
-async function handleSubmit(event) {
-  event.preventDefault();
-  if (!currentUser) {
-    setStatus("Sign in required to save captures.");
-    return;
-  }
-
-  const text = document.getElementById("capture-text").value.trim();
-  const contextHint = document.getElementById("capture-context").value.trim();
-  if (!text) {
-    return;
-  }
-
+async function submitCapture(text, contextHint) {
   submitInFlight = true;
   syncSubmitState();
   setStatus("Turning this into a next step...");
 
   try {
     const payload = await createCapture(text, contextHint);
+    clearPendingCapture();
     const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
     history.pushState({}, "", nextPath);
     setStatus("");
@@ -259,6 +270,55 @@ async function handleSubmit(event) {
     submitInFlight = false;
     syncSubmitState();
   }
+}
+
+function restorePendingCaptureToForm() {
+  const pending = readPendingCapture();
+  if (!pending) {
+    return null;
+  }
+
+  const input = document.getElementById("capture-text");
+  const context = document.getElementById("capture-context");
+  if (input && !input.value.trim() && pending.text) {
+    input.value = pending.text;
+  }
+  if (context && !context.value.trim() && pending.contextHint) {
+    context.value = pending.contextHint;
+  }
+  return pending;
+}
+
+async function maybeResumePendingCapture() {
+  const pending = readPendingCapture();
+  if (!currentUser || !pending?.shouldResume || !pending.text) {
+    return false;
+  }
+  await submitCapture(pending.text, pending.contextHint || "");
+  return true;
+}
+
+async function handleSubmit(event) {
+  event.preventDefault();
+  const text = document.getElementById("capture-text").value.trim();
+  const contextHint = document.getElementById("capture-context").value.trim();
+  if (!text) {
+    return;
+  }
+
+  if (!currentUser) {
+    writePendingCapture({
+      text,
+      contextHint,
+      shouldResume: true,
+      savedAt: Date.now(),
+    });
+    setStatus("Sign in to continue.");
+    window.location.href = buildAuthStartUrl();
+    return;
+  }
+
+  await submitCapture(text, contextHint);
 }
 
 function applySignedOutState() {
@@ -305,12 +365,27 @@ async function handleCurrentRoute() {
 
 export function mountWorkflowsApp() {
   const input = document.getElementById("capture-text");
+  const context = document.getElementById("capture-context");
   const showPaste = document.getElementById("show-paste");
   const form = document.getElementById("capture-form");
+  const signInLink = document.getElementById("workflows-signin");
 
   input?.addEventListener("input", syncSubmitState);
+  context?.addEventListener("input", syncSubmitState);
   showPaste?.addEventListener("click", () => input?.focus());
   form?.addEventListener("submit", handleSubmit);
+  signInLink?.addEventListener("click", () => {
+    const text = input?.value.trim();
+    const contextHint = context?.value.trim() || "";
+    if (text) {
+      writePendingCapture({
+        text,
+        contextHint,
+        shouldResume: false,
+        savedAt: Date.now(),
+      });
+    }
+  });
   window.addEventListener("popstate", () => {
     handleCurrentRoute();
   });
@@ -334,15 +409,20 @@ export function mountWorkflowsApp() {
 
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
+    restorePendingCaptureToForm();
     syncSubmitState();
     if (initialRouteHandled && !user) {
       applySignedOutState();
       return;
     }
     initialRouteHandled = true;
+    if (await maybeResumePendingCapture()) {
+      return;
+    }
     await handleCurrentRoute();
   });
 
+  restorePendingCaptureToForm();
   syncSubmitState();
 }
 

@@ -43,6 +43,13 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn("/auth/start", js)
         self.assertIn("return_to", js)
 
+    def test_signed_out_continue_can_resume_after_auth(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+
+        self.assertIn("sessionStorage", js)
+        self.assertIn("memnon_workflows_pending_capture_v1", js)
+        self.assertIn("Sign in to continue.", js)
+
 
 if __name__ == "__main__":
     unittest.main()
