@@ -54,6 +54,10 @@ from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 from weather_context import clear_weather_cache_fields, load_weather_context
+from workflows.ai import generate_professional_note, load_openai_api_key
+from workflows.blueprint import create_workflows_blueprint
+from workflows.repository import FirestoreWorkflowRepository
+from workflows.service import WorkflowService
 
 # ── lazy init — do NOT call at module level (hangs CLI analysis) ──────────────
 
@@ -87,6 +91,15 @@ CORS(flask_app, origins=[
     "http://localhost:8000",
     "http://localhost:8080",
 ])
+
+
+def _workflow_service():
+    return WorkflowService(
+        repository=FirestoreWorkflowRepository(_get_db()),
+        note_generator=generate_professional_note,
+        now_provider=lambda: datetime.now(timezone.utc).isoformat(),
+        api_key_provider=load_openai_api_key,
+    )
 
 
 # ── constants ─────────────────────────────────────────────────────────────────
@@ -821,6 +834,15 @@ def _verify_firebase_token(req) -> str | None:
         return fb_auth.verify_id_token(header[7:])["uid"]
     except Exception:
         return None
+
+
+flask_app.register_blueprint(
+    create_workflows_blueprint(
+        verify_token=_verify_firebase_token,
+        service_provider=_workflow_service,
+    ),
+    url_prefix="/workflows",
+)
 
 
 def _safe_frontend_return_url(candidate: str | None) -> str:
