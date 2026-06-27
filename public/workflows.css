@@ -74,3 +74,50 @@ body.workflows-page {
   display: grid;
   gap: 14px;
 }
+
+.workflows-artifact-card {
+  display: grid;
+  gap: 12px;
+}
+
+.workflows-artifact-card h2,
+.workflows-artifact-card h3,
+.workflows-artifact-card p {
+  margin: 0;
+}
+
+.workflows-interpretation {
+  color: #5d6470;
+}
+
+.workflows-body {
+  display: grid;
+  gap: 10px;
+  color: #111827;
+}
+
+.workflows-source-panel {
+  border: 1px solid #d6d3d1;
+  border-radius: 12px;
+  background: #fffdfa;
+  padding: 12px 14px;
+}
+
+.workflows-source-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.workflows-source-panel pre {
+  margin: 12px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  color: #374151;
+}
+
+.workflows-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}

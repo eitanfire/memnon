@@ -26,6 +26,14 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn('id="result-view"', html)
         self.assertIn('type="module" src="/workflows.js"', html)
 
+    def test_workflows_js_contains_capture_and_result_api_paths(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        html = Path("public/workflows.html").read_text(encoding="utf-8")
+
+        self.assertIn("/api/workflows/captures", js)
+        self.assertIn("getIdToken", js)
+        self.assertIn("View source text", html)
+
 
 if __name__ == "__main__":
     unittest.main()
