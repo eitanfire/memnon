@@ -86,12 +86,55 @@ class SourceEventAnalysisTests(unittest.TestCase):
             self.assertEqual(analysis.event_type, "boulderjs_demo")
             self.assertIn("Kyle", analysis.named_people)
             self.assertIn("James", analysis.named_people)
-            self.assertIn("Credible", analysis.named_orgs)
+            self.assertEqual(analysis.named_orgs, ["BoulderJS", "Credible"])
             self.assertTrue(
                 any("follow up" in item.lower() for item in analysis.commitments)
             )
             self.assertTrue(
                 any("trusted answers" in item.lower() for item in analysis.publishable_angles)
+            )
+
+    def test_analyze_source_event_orders_orgs_and_marks_llm_enrichment_unsupported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            transcript_path = root / "transcript.txt"
+            transcript_path.write_text(
+                "Credible and BoulderJS and Claude were all mentioned in the meeting.",
+                encoding="utf-8",
+            )
+            metadata_path = root / "metadata.json"
+            metadata_path.write_text(
+                json.dumps(
+                    {
+                        "source_event_id": "evt-2",
+                        "lane": "batch",
+                        "workflow": "professional",
+                        "routing_reason": "voice_label",
+                        "title": "Org ordering",
+                        "transcript_path": str(transcript_path),
+                        "transcript_preview": "Credible and BoulderJS...",
+                        "note_path": str(root / "note.md"),
+                        "archived_audio_path": str(root / "audio.m4a"),
+                        "metadata_path": str(metadata_path),
+                        "processed_at": "2026-06-26T10:00:00-06:00",
+                        "summary": "summary",
+                        "action_items": [],
+                        "suggested_tags": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            event = load_source_event(metadata_path)
+            analysis = analyze_source_event(
+                event,
+                {"orchestration": {"enable_llm_enrichment": True}},
+            )
+
+            self.assertEqual(analysis.named_orgs, ["BoulderJS", "Credible", "Claude"])
+            self.assertEqual(
+                analysis.llm_reasoning,
+                "LLM enrichment is unsupported in v1; deterministic extraction used.",
             )
 
 

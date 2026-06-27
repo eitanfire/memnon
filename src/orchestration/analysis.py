@@ -6,7 +6,7 @@ from typing import Any
 from .models import AnalysisResult, SourceEvent
 
 PEOPLE_PATTERN = re.compile(r"\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\b")
-KNOWN_ORGS = {"BoulderJS", "Credible", "Galvanize", "Claude", "Cursor", "OpenAI"}
+KNOWN_ORGS = ("BoulderJS", "Credible", "Galvanize", "Claude", "Cursor", "OpenAI")
 
 
 def analyze_source_event(event: SourceEvent, config: dict[str, Any]) -> AnalysisResult:
@@ -87,4 +87,5 @@ def enrich_analysis_with_llm(
 ) -> AnalysisResult:
     del event
     del config
+    analysis.llm_reasoning = "LLM enrichment is unsupported in v1; deterministic extraction used."
     return analysis
