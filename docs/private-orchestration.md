@@ -40,7 +40,7 @@ ls runtime/orchestration/manifests/
 ls runtime/orchestration/review-queue/
 ls runtime/orchestration/boulderjs/
 cat runtime/orchestration/manifests/<event_id>/event_manifest.json
-cat runtime/orchestration/review-queue/<event_id>.json
+cat runtime/orchestration/review-queue/<event_id>/review_queue_entry.json
 ```
 
 ## Safety Boundary

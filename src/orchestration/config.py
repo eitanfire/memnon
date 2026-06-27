@@ -31,4 +31,6 @@ def build_orchestration_config(config: dict[str, Any]) -> dict[str, Any]:
         "enable_llm_enrichment": bool(existing.get("enable_llm_enrichment", True)),
         "social_agent_repo_dir": existing.get("social_agent_repo_dir", ""),
         "run_social_agent_cli": bool(existing.get("run_social_agent_cli", False)),
+        "default_boulderjs_event_number": existing.get("default_boulderjs_event_number"),
+        "default_boulderjs_talk_number": existing.get("default_boulderjs_talk_number"),
     }

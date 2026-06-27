@@ -97,6 +97,43 @@ class OrchestrationEngineTests(unittest.TestCase):
             self.assertEqual(manifest["llm_output"], llm_hints)
             self.assertIn("follow_up_bundle", workflow_types)
 
+    def test_orchestrate_from_metadata_preserves_boulderjs_numbers_in_generated_packet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            metadata_path = self.write_metadata_fixture(
+                root,
+                "Kyle and James from Credible presented at BoulderJS about messy data and trusted answers.",
+            )
+            config = self.orchestration_config(root)
+            config["orchestration"]["default_boulderjs_event_number"] = 30
+            config["orchestration"]["default_boulderjs_talk_number"] = 41
+            analysis = AnalysisResult(
+                event_type="boulderjs_demo",
+                named_people=["Kyle Nesbit"],
+                named_orgs=["Credible", "BoulderJS"],
+                publishable_angles=["context engineering for messy business data"],
+                product_feedback=["go from messy data to trusted answers"],
+            )
+
+            with patch("src.orchestration.engine.analyze_source_event", return_value=analysis):
+                result = orchestrate_from_metadata(metadata_path, config)
+
+            boulderjs_bundle = next(
+                bundle
+                for bundle in result["artifact_bundles"]
+                if bundle["workflow_type"] == "boulderjs_recap_packet"
+            )
+            packet_dir = Path(boulderjs_bundle["output_path"])
+
+            self.assertEqual(
+                json.loads((packet_dir / "event.json").read_text(encoding="utf-8"))["number"],
+                30,
+            )
+            self.assertEqual(
+                json.loads((packet_dir / "talk.json").read_text(encoding="utf-8"))["number"],
+                41,
+            )
+
     def test_orchestration_cli_help_succeeds_when_run_as_script_from_repo_root(self):
         result = subprocess.run(
             [sys.executable, "src/orchestration/cli.py", "--help"],
