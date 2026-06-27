@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -57,11 +58,16 @@ def write_boulderjs_recap_packet(
         _write_json(packet_dir / "source-links.json", event.source_links),
     ]
 
+    notes = ["optional social-agent CLI handoff"]
+    command = build_social_agent_command(packet_dir, config)
+    if command:
+        notes.append(f"draft command: {shlex.join(command)}")
+
     return ArtifactBundle(
         workflow_type=job.workflow_type,
         output_path=str(packet_dir),
         files=files,
-        notes=["optional social-agent CLI handoff"],
+        notes=notes,
     )
 
 

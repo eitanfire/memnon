@@ -9,6 +9,8 @@ Add this block to `config.json`:
   "enabled": true,
   "runtime_dir": "./runtime/orchestration",
   "enable_llm_enrichment": true,
+  "default_boulderjs_event_number": 30,
+  "default_boulderjs_talk_number": 41,
   "social_agent_repo_dir": "/absolute/path/to/boulderjs-social-agent",
   "run_social_agent_cli": false
 }
@@ -51,4 +53,4 @@ This layer generates files. It does not send emails, post on LinkedIn, or messag
 
 The BoulderJS handoff is file-based and deterministic: the layer writes recap files to disk first, and those files are the handoff contract. If `run_social_agent_cli` is `false`, the layer stops after writing `event.json`, `talk.json`, `abstract.txt`, `thoughts.txt`, and `source-links.json`.
 
-If `run_social_agent_cli` is `true`, the layer may call the `boulderjs-social-agent` draft CLI, but only after the required event/talk identifiers are configured and the file set is present.
+If `run_social_agent_cli` is `true`, and the BoulderJS event/talk numbers plus `social_agent_repo_dir` are configured, the layer records the prepared `boulderjs-social-agent` draft command in the packet bundle notes as part of the downstream handoff. It does not execute the CLI automatically.

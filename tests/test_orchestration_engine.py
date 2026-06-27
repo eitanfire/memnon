@@ -107,6 +107,8 @@ class OrchestrationEngineTests(unittest.TestCase):
             config = self.orchestration_config(root)
             config["orchestration"]["default_boulderjs_event_number"] = 30
             config["orchestration"]["default_boulderjs_talk_number"] = 41
+            config["orchestration"]["social_agent_repo_dir"] = "/tmp/social-agent"
+            config["orchestration"]["run_social_agent_cli"] = True
             analysis = AnalysisResult(
                 event_type="boulderjs_demo",
                 named_people=["Kyle Nesbit"],
@@ -132,6 +134,10 @@ class OrchestrationEngineTests(unittest.TestCase):
             self.assertEqual(
                 json.loads((packet_dir / "talk.json").read_text(encoding="utf-8"))["number"],
                 41,
+            )
+            self.assertIn(
+                "npm --prefix /tmp/social-agent run draft -- --event=30 --talk=41 --post-type=recap",
+                " ".join(boulderjs_bundle["notes"]),
             )
 
     def test_orchestration_cli_help_succeeds_when_run_as_script_from_repo_root(self):
