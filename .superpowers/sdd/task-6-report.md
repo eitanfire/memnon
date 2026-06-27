@@ -55,3 +55,31 @@ GREEN evidence:
 
 Concerns:
 - No full baseline run, per Task 6 instruction to keep verification focused.
+
+## Fix Pass: Direct `cli.py` Script Execution
+
+Status: DONE
+
+Problem:
+- `python3 src/orchestration/cli.py --help` failed from the repo root with `ModuleNotFoundError: No module named 'src'`.
+
+Implemented:
+- Extended `tests/test_orchestration_engine.py` with `test_orchestration_cli_help_succeeds_when_run_as_script_from_repo_root`.
+- The new test executes `python3 src/orchestration/cli.py --help` in a subprocess from the repository root and asserts exit code `0` plus `usage:` output.
+- Updated `src/orchestration/cli.py` to detect direct script execution via `__package__ in {None, ""}`.
+- In script mode, `cli.py` now prepends the repository root to `sys.path` before importing application modules.
+- Switched the engine import in `cli.py` to absolute package form so the same file works in both `python3 -m src.orchestration.cli` and `python3 src/orchestration/cli.py` modes.
+
+RED evidence:
+- Command: `python3 -m unittest discover -s tests -p 'test_orchestration_engine.py' -v`
+- Result: failed with 3 tests run, 1 failure.
+- Expected failure: subprocess return code was `1` and stderr ended with `ModuleNotFoundError: No module named 'src'`.
+
+GREEN evidence:
+- Command: `python3 -m unittest discover -s tests -p 'test_orchestration_engine.py' -v`
+- Result: passed with 3 tests run, 0 failures.
+- Command: `python3 src/orchestration/cli.py --help`
+- Result: exited `0` and printed argparse usage text.
+
+Concerns:
+- No full baseline run, per Task 6 instruction to keep verification focused.

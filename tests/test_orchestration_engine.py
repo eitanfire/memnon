@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +11,9 @@ from src.orchestration.engine import orchestrate_from_metadata
 
 
 class OrchestrationEngineTests(unittest.TestCase):
+    def repo_root(self) -> Path:
+        return Path(__file__).resolve().parents[1]
+
     def write_metadata_fixture(self, root: Path, transcript: str) -> Path:
         transcript_path = root / "transcript.txt"
         transcript_path.write_text(transcript, encoding="utf-8")
@@ -91,6 +96,18 @@ class OrchestrationEngineTests(unittest.TestCase):
 
             self.assertEqual(manifest["llm_output"], llm_hints)
             self.assertIn("follow_up_bundle", workflow_types)
+
+    def test_orchestration_cli_help_succeeds_when_run_as_script_from_repo_root(self):
+        result = subprocess.run(
+            [sys.executable, "src/orchestration/cli.py", "--help"],
+            cwd=self.repo_root(),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("usage:", result.stdout.lower())
 
 
 if __name__ == "__main__":

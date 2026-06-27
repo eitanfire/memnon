@@ -3,10 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
+
+if __package__ in {None, ""}:
+    repo_root = Path(__file__).resolve().parents[2]
+    repo_root_str = str(repo_root)
+    if repo_root_str not in sys.path:
+        sys.path.insert(0, repo_root_str)
 
 from src.voice_pipeline import load_config
-
-from .engine import orchestrate_from_metadata
+from src.orchestration.engine import orchestrate_from_metadata
 
 
 def run_orchestration_cli(argv: list[str] | None = None) -> int:
