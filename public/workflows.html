@@ -10,61 +10,75 @@
   </head>
   <body class="workflows-page">
     <main id="workflows-app" class="workflows-shell">
-      <section class="card workflows-card">
-        <header class="workflows-header">
-          <p class="workflows-kicker">Memnon Workflows</p>
-          <h1>Capture a thought. Turn it into a useful next step.</h1>
-          <p class="workflows-subhead">Start with pasted text for the first slice.</p>
-        </header>
+      <header class="workflows-header">
+        <h1>Capture a thought</h1>
+        <p class="workflows-subhead">Speak, drop a file, or paste something messy.</p>
+        <p class="workflows-subhead-secondary">Turn it into something useful.</p>
+      </header>
 
-        <form id="capture-form" class="workflows-form">
-          <div class="workflows-input-row">
-            <button type="button" class="btn btn-outline" disabled>Record now</button>
-            <button type="button" class="btn btn-outline" disabled>Upload a file</button>
-            <button type="button" id="show-paste" class="btn btn-primary">Paste text</button>
+      <form id="capture-form" class="workflows-card">
+        <section id="capture-surface" class="workflows-capture-surface">
+          <button id="record-trigger" type="button" class="workflows-record-trigger">
+            <span class="workflows-record-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="4" width="6" height="11" rx="3"></rect>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
+                <path d="M12 17v3"></path>
+                <path d="M9 20h6"></path>
+              </svg>
+            </span>
+            <span class="workflows-record-label">Record now</span>
+          </button>
+
+          <div class="workflows-mode-row" aria-label="Other capture options">
+            <button type="button" id="upload-trigger" class="workflows-mode-link">Upload a file</button>
+            <span class="workflows-mode-divider" aria-hidden="true">·</span>
+            <button type="button" id="show-paste" class="workflows-mode-link">Paste text</button>
           </div>
 
-          <label class="workflows-label" for="capture-text">Paste text</label>
-          <textarea
-            id="capture-text"
-            name="capture-text"
-            rows="10"
-            placeholder="Paste a product thought, professional reflection, or note you want to shape."
-          ></textarea>
+          <div id="paste-panel" class="workflows-paste-panel" hidden>
+            <label class="workflows-visually-hidden" for="capture-text">Paste text</label>
+            <textarea
+              id="capture-text"
+              name="capture-text"
+              rows="5"
+              placeholder="Paste a product thought, professional reflection, or note you want to shape."
+            ></textarea>
+          </div>
+        </section>
 
-          <label class="workflows-label" for="capture-context">Anything this should keep in mind?</label>
+        <div class="workflows-footer-row">
+          <label class="workflows-visually-hidden" for="capture-context">Anything this should keep in mind?</label>
           <input
             id="capture-context"
             name="capture-context"
             type="text"
-            placeholder="Example: this is about a product idea or a professional follow-up."
+            placeholder="Anything this should keep in mind? (optional)"
           />
+          <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
+        </div>
 
-          <div class="workflows-actions">
-            <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
-            <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
-          </div>
+        <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
 
-          <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
-            <a
-              id="workflows-signin"
-              class="btn btn-outline"
-              href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
-            >
-              Sign in with Google
-            </a>
-            <p class="workflows-auth-copy">Sign in required to save captures.</p>
-          </div>
-        </form>
+        <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
+          <p class="workflows-auth-copy">Sign in required to save captures.</p>
+          <a
+            id="workflows-signin"
+            class="workflows-auth-link"
+            href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
+          >
+            Sign in with Google
+          </a>
+        </div>
+      </form>
 
-        <section id="result-view" class="workflows-result" hidden>
-          <article id="primary-artifact-card" class="card workflows-artifact-card" hidden></article>
-          <article id="saved-note-card" class="card workflows-artifact-card" hidden></article>
-          <details id="source-text-panel" class="workflows-source-panel" hidden>
-            <summary>View source text</summary>
-            <pre id="source-text-content"></pre>
-          </details>
-        </section>
+      <section id="result-view" class="workflows-result" hidden>
+        <article id="primary-artifact-card" class="card workflows-artifact-card" hidden></article>
+        <article id="saved-note-card" class="card workflows-artifact-card" hidden></article>
+        <details id="source-text-panel" class="workflows-source-panel" hidden>
+          <summary>View source text</summary>
+          <pre id="source-text-content"></pre>
+        </details>
       </section>
     </main>
 

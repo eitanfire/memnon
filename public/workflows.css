@@ -1,92 +1,182 @@
 body.workflows-page {
-  background: #f5f2ea;
+  background: #f6f3ee;
+  color: #181512;
 }
 
 .workflows-shell {
-  max-width: 900px;
+  max-width: 620px;
   margin: 0 auto;
-  padding: 40px 20px 72px;
+  padding: 16px 20px 72px;
+}
+
+.workflows-header h1 {
+  margin: 0 0 6px;
+  font-size: clamp(2rem, 4vw, 2.4rem);
+  line-height: 1.08;
+}
+
+.workflows-subhead {
+  margin: 0;
+  color: #5d5750;
+  font-size: 1.1rem;
+}
+
+.workflows-subhead-secondary {
+  margin: 2px 0 0;
+  color: #81766f;
+  font-size: 1.1rem;
 }
 
 .workflows-card {
   display: grid;
-  gap: 24px;
+  gap: 0;
+  margin-top: 26px;
+  background: #fffdfb;
+  border: 1px solid #ddd4ca;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(56, 41, 27, 0.04);
 }
 
-.workflows-kicker {
-  margin: 0 0 6px;
-  color: #7c6953;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.workflows-header h1 {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 1.05;
-}
-
-.workflows-subhead {
-  max-width: 60ch;
-  color: #5d6470;
-}
-
-.workflows-form {
+.workflows-capture-surface {
   display: grid;
+  justify-items: center;
+  gap: 18px;
+  min-height: 220px;
+  padding: 38px 24px 28px;
+  border-bottom: 1px solid #e7dfd5;
+}
+
+.workflows-record-trigger {
+  display: grid;
+  justify-items: center;
   gap: 14px;
-}
-
-.workflows-input-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.workflows-label {
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.workflows-form textarea,
-.workflows-form input {
-  width: 100%;
-  border: 1px solid #d6d3d1;
-  border-radius: 12px;
-  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
   font: inherit;
-  background: #fffdfa;
+  cursor: pointer;
 }
 
-.workflows-actions {
+.workflows-record-badge {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  background: #d73d3a;
+  color: #fff;
+}
+
+.workflows-record-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+.workflows-record-label {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.workflows-mode-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+}
+
+.workflows-mode-link {
+  border: 1px solid #d2c8be;
+  border-radius: 10px;
+  padding: 8px 16px;
+  background: #fff;
+  color: #181512;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workflows-mode-divider {
+  color: #9b8f87;
+  font-size: 1rem;
+}
+
+.workflows-paste-panel {
+  width: min(100%, 460px);
+}
+
+.workflows-paste-panel textarea,
+.workflows-footer-row input {
+  width: 100%;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  padding: 13px 14px;
+  font: inherit;
+  background: #fffdfa;
+  color: #181512;
+}
+
+.workflows-paste-panel textarea {
+  resize: vertical;
+  min-height: 116px;
+}
+
+.workflows-footer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 12px;
+}
+
+.workflows-footer-row .btn {
+  min-width: 112px;
+}
+
+.workflows-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .workflows-status {
-  color: #6b7280;
+  min-height: 1.2rem;
+  padding: 0 14px 10px;
+  color: #7a6f67;
   font-size: 0.92rem;
 }
 
 .workflows-auth-prompt {
-  display: grid;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid #d6d3d1;
-  border-radius: 12px;
-  background: #fffcf7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 14px;
+  color: #7a6f67;
+  font-size: 0.92rem;
 }
 
 .workflows-auth-copy {
   margin: 0;
-  color: #5d6470;
+}
+
+.workflows-auth-link {
+  color: #5c4037;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.workflows-auth-link:hover {
+  text-decoration: underline;
 }
 
 .workflows-result {
   display: grid;
   gap: 14px;
+  margin-top: 24px;
 }
 
 .workflows-artifact-card {
@@ -134,4 +224,23 @@ body.workflows-page {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .workflows-shell {
+    padding-inline: 14px;
+  }
+
+  .workflows-footer-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workflows-footer-row .btn {
+    width: 100%;
+  }
+
+  .workflows-auth-prompt {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

@@ -87,6 +87,18 @@ function clearPendingCapture() {
   sessionStorage.removeItem(PENDING_CAPTURE_KEY);
 }
 
+function setPastePanelVisible(visible, options = {}) {
+  const panel = document.getElementById("paste-panel");
+  const input = document.getElementById("capture-text");
+  if (!panel) {
+    return;
+  }
+  panel.hidden = !visible;
+  if (visible && options.focus && input) {
+    input.focus();
+  }
+}
+
 function syncAuthPrompt() {
   const prompt = document.getElementById("workflows-auth-prompt");
   const link = document.getElementById("workflows-signin");
@@ -281,6 +293,7 @@ function restorePendingCaptureToForm() {
   const input = document.getElementById("capture-text");
   const context = document.getElementById("capture-context");
   if (input && !input.value.trim() && pending.text) {
+    setPastePanelVisible(true);
     input.value = pending.text;
   }
   if (context && !context.value.trim() && pending.contextHint) {
@@ -367,12 +380,23 @@ export function mountWorkflowsApp() {
   const input = document.getElementById("capture-text");
   const context = document.getElementById("capture-context");
   const showPaste = document.getElementById("show-paste");
+  const recordTrigger = document.getElementById("record-trigger");
+  const uploadTrigger = document.getElementById("upload-trigger");
   const form = document.getElementById("capture-form");
   const signInLink = document.getElementById("workflows-signin");
 
   input?.addEventListener("input", syncSubmitState);
   context?.addEventListener("input", syncSubmitState);
-  showPaste?.addEventListener("click", () => input?.focus());
+  showPaste?.addEventListener("click", () => {
+    setPastePanelVisible(true, { focus: true });
+    setStatus("");
+  });
+  recordTrigger?.addEventListener("click", () => {
+    setStatus("Recording is not available in this slice yet.");
+  });
+  uploadTrigger?.addEventListener("click", () => {
+    setStatus("File upload is not available in this slice yet.");
+  });
   form?.addEventListener("submit", handleSubmit);
   signInLink?.addEventListener("click", () => {
     const text = input?.value.trim();
