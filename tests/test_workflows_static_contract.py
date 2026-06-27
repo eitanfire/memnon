@@ -34,6 +34,15 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn("getIdToken", js)
         self.assertIn("View source text", html)
 
+    def test_workflows_shell_exposes_signed_out_sign_in_path(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        html = Path("public/workflows.html").read_text(encoding="utf-8")
+
+        self.assertIn("Sign in with Google", html)
+        self.assertIn("Sign in required to save captures.", html)
+        self.assertIn("/auth/start", js)
+        self.assertIn("return_to", js)
+
 
 if __name__ == "__main__":
     unittest.main()

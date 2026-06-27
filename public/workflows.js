@@ -18,11 +18,13 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const params = new URLSearchParams(window.location.search);
 const callbackToken = params.get("token");
+const authError = params.get("error");
 const isStaticLocalhost =
   window.location.hostname === "localhost" &&
   (window.location.port === "8000" || window.location.port === "8080");
 const API_ORIGIN = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "";
 const API_CAPTURES_PATH = "/api/workflows/captures";
+const AUTH_START_URL = "https://api-4hth6oktaa-uc.a.run.app/auth/start";
 
 let currentUser = null;
 let initialRouteHandled = false;
@@ -54,6 +56,26 @@ function setStatus(message) {
   }
 }
 
+function currentReturnUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("token");
+  url.searchParams.delete("error");
+  return url.toString();
+}
+
+function syncAuthPrompt() {
+  const prompt = document.getElementById("workflows-auth-prompt");
+  const link = document.getElementById("workflows-signin");
+  if (!prompt || !link) {
+    return;
+  }
+
+  const authUrl = new URL(AUTH_START_URL);
+  authUrl.searchParams.set("return_to", currentReturnUrl());
+  link.href = authUrl.toString();
+  prompt.hidden = Boolean(currentUser);
+}
+
 function syncSubmitState() {
   const input = document.getElementById("capture-text");
   const submit = document.getElementById("capture-submit");
@@ -61,6 +83,7 @@ function syncSubmitState() {
     return;
   }
   submit.disabled = submitInFlight || !currentUser || !input || !input.value.trim();
+  syncAuthPrompt();
 }
 
 async function getToken() {
@@ -242,6 +265,7 @@ function applySignedOutState() {
   resetResultCards();
   showCaptureScreen();
   setStatus("Sign in required to save captures.");
+  syncAuthPrompt();
   syncSubmitState();
 }
 
@@ -292,6 +316,7 @@ export function mountWorkflowsApp() {
   });
 
   if (callbackToken) {
+    setStatus("Completing sign-in...");
     signInWithCustomToken(auth, callbackToken)
       .then(() => {
         const cleanUrl = new URL(window.location.href);
@@ -301,6 +326,10 @@ export function mountWorkflowsApp() {
       .catch(() => {
         setStatus("Could not complete sign-in.");
       });
+  }
+
+  if (authError) {
+    setStatus("Google sign-in did not complete. Please try again.");
   }
 
   onAuthStateChanged(auth, async (user) => {

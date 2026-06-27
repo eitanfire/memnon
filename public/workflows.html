@@ -14,10 +14,7 @@
         <header class="workflows-header">
           <p class="workflows-kicker">Memnon Workflows</p>
           <h1>Capture a thought. Turn it into a useful next step.</h1>
-          <p class="workflows-subhead">
-            Start with pasted text for the first slice. Recording and upload stay visually present,
-            but they do not pretend to be complete yet.
-          </p>
+          <p class="workflows-subhead">Start with pasted text for the first slice.</p>
         </header>
 
         <form id="capture-form" class="workflows-form">
@@ -46,6 +43,17 @@
           <div class="workflows-actions">
             <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
             <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
+          </div>
+
+          <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
+            <a
+              id="workflows-signin"
+              class="btn btn-outline"
+              href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
+            >
+              Sign in with Google
+            </a>
+            <p class="workflows-auth-copy">Sign in required to save captures.</p>
           </div>
         </form>
 
