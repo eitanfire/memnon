@@ -31,6 +31,18 @@ Every processed source event writes both `event_manifest.json` and `review_queue
 python3 src/orchestration/cli.py --config /absolute/path/to/config.json --metadata /absolute/path/to/runtime/metadata/example.json
 ```
 
+## Inspect Outputs
+
+After a rerun, validate the generated files in the runtime directory:
+
+```bash
+ls runtime/orchestration/manifests/
+ls runtime/orchestration/review-queue/
+ls runtime/orchestration/boulderjs/
+cat runtime/orchestration/manifests/<event_id>/event_manifest.json
+cat runtime/orchestration/review-queue/<event_id>.json
+```
+
 ## Safety Boundary
 
 This layer generates files. It does not send emails, post on LinkedIn, or message people directly. The no-auto-send channel set includes Slack, Discord, and text messages.

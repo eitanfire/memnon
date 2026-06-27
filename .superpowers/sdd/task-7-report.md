@@ -62,3 +62,12 @@ Updated the operator guide to state that every processed source event emits both
 
 - `python3 -m unittest discover -s tests -p 'test_orchestration_*.py' -v` passed with 17 tests run, 0 failures, and 0 errors.
 - `python3 src/orchestration/cli.py --help` exited 0 and showed `--config` and `--metadata`.
+
+## Final Fix Note
+
+Added a concise "Inspect Outputs" section to the operator guide so reruns can be validated by checking the manifest, review queue, and BoulderJS output files under `runtime/orchestration/`.
+
+## Final Verification
+
+- `python3 -m unittest discover -s tests -p 'test_orchestration_*.py' -v` passed.
+- `python3 src/orchestration/cli.py --help` exited 0.
