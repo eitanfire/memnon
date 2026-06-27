@@ -2,9 +2,9 @@
 
 ## Goal
 
-Create a private, post-capture orchestration layer that sits on top of Memnon and related personal tools. Given one processed recording, the layer should automatically determine which downstream workflows should run, generate the relevant artifacts, and route them to the correct destinations without automatically sending external messages.
+Create a private, post-capture orchestration layer that sits on top of Memnon and related personal tools. Given one processed recording, the layer should determine the smallest useful set of downstream actions, generate the relevant artifacts, and route them to the correct destinations without automatically sending external messages.
 
-This layer is not a new lane. It is an operator system for fanning a single source event out into multiple workflow jobs across Memnon, BoulderJS social drafting, research capture, and personal outreach.
+This layer is not a new lane. It is an operator system for turning a single source event into the right internal workflow jobs across Memnon, BoulderJS social drafting, research capture, and personal outreach.
 
 ## Why This Exists
 
@@ -16,7 +16,7 @@ Memnon already handles capture, transcription, summarization, note writing, lane
 - draft BoulderJS social posts
 - prepare follow-up messages
 
-Trying to express those as more lanes would overload the lane abstraction. Lanes shape a primary note. They do not describe multi-destination orchestration. The missing abstraction is a system that treats each recording as a source event that can trigger several distinct workflow jobs.
+Trying to express those as more lanes would overload the lane abstraction. Lanes shape a primary note. They do not describe multi-destination orchestration. The missing abstraction is a system that treats each recording as a source event and decides which useful downstream jobs, if any, should run.
 
 ## Product Boundary
 
@@ -35,6 +35,15 @@ The private orchestration layer is responsible for:
 - deciding which workflows should fire
 - generating workflow-specific artifacts
 - writing audit manifests and review queue entries
+
+The private orchestration layer may remain internally rich. The user-facing workflows product should not expose that richness directly. Internal terms such as `source_event`, `workflow_job`, `artifact_bundle`, `event_manifest`, and `review_queue_entry` are implementation terms, not UI terms.
+
+The user-facing workflows product should stay expressed in simpler concepts:
+
+- capture
+- useful next step
+- review when needed
+- source text when needed
 
 This should start as a private companion project or private module, not as a public Memnon core feature. It may read Memnon outputs, call Memnon-adjacent tooling, and invoke other local repos such as `boulderjs-social-agent`, but it should not force the public Memnon repo to absorb private operator logic.
 
@@ -65,13 +74,14 @@ The orchestration pipeline is:
 1. analyze source event
 2. apply suppressor rules
 3. apply mandatory hard rules
-4. run LLM classification on remaining candidate workflows
-5. create workflow jobs
-6. generate artifact bundles
-7. write `event_manifest.json`
-8. write `review_queue_entry`
+4. classify remaining candidate workflows
+5. decide the smallest useful output set
+6. create workflow jobs
+7. generate artifact bundles
+8. write `event_manifest.json`
+9. write `review_queue_entry`
 
-This ordering is intentional. Suppressors prevent obviously wrong jobs. Hard rules force known-safe routing. The LLM fills semantic gaps and assigns confidence where fixed rules are not enough.
+This ordering is intentional. Suppressors prevent obviously wrong jobs. Hard rules force known-safe routing. Classification fills semantic gaps where fixed rules are not enough. The important product rule is that the engine should produce the smallest useful set of outputs rather than everything it can infer.
 
 ## Workflow Ontology
 
@@ -108,17 +118,25 @@ The system should use a stable workflow vocabulary grouped into families.
 - `review_queue_entry`
 - `event_manifest`
 
-Version one should implement only a subset of these; the full ontology still matters now because it gives the classifier and routing layer a stable language.
+Version one should implement only a subset of these; the full ontology still matters because it gives the routing layer a stable internal language. These identifiers are for engine stability, not for UI exposure.
 
 ## Version One Scope
 
-Version one should implement these five workflows:
+Version one should implement these five workflows internally:
 
 1. `reflect_note_bundle`
 2. `professional_note_bundle`
 3. `research_note`
 4. `boulderjs_recap_packet`
 5. `follow_up_bundle`
+
+Conceptually, those map to simpler user-facing categories:
+
+- reflection note
+- professional note
+- research note
+- event recap
+- follow-up draft
 
 And these two mandatory infrastructure outputs for every source event:
 
@@ -133,7 +151,7 @@ Routing precedence must be explicit.
 
 ### 1. Suppressor Rules
 
-Suppressors block workflows even if the LLM is moderately confident.
+Suppressors block workflows even if the classifier is moderately confident.
 
 Examples:
 
@@ -152,24 +170,47 @@ Examples:
 - a recording containing BoulderJS context, presenter framing, demo/Q&A structure, or clear meetup recap signals should fire `boulderjs_recap_packet`
 - a recording captured intentionally into the Memnon professional path should fire `professional_note_bundle`
 
-### 3. LLM Classification
+### 3. Classification
 
-The LLM only evaluates workflows not already suppressed or mandated. It should return:
+The classifier only evaluates workflows not already suppressed or mandated. It should return:
 
 - candidate workflow types
-- confidence scores
 - short reasoning
 - extracted structured hints if useful, such as likely people, promises, or content angles
 
-### 4. Threshold Policy
+It may use confidence internally, but confidence should not define the product behavior directly and should not surface in the UI.
 
-- confidence `>= 0.80`: auto-generate
-- confidence `0.50 - 0.79`: auto-generate and mark `needs_review`
-- confidence `< 0.50`: do not generate unless a mandatory hard rule already fired
+### 4. Routing Outcomes
 
-### 5. Rule/LLM Disagreement
+The engine should resolve to one of four behavioral outcomes:
 
-If a mandatory hard rule fires but the LLM is low confidence, the workflow still runs and is marked:
+#### Clear, low-risk read
+
+- skip any user-facing routing step
+- generate one primary output
+
+#### Clear read with several distinct useful next steps
+
+- generate one primary output
+- optionally generate one or two supporting outputs when they clearly reduce load further
+- never surface more than three visible outputs in v1
+
+#### No clear read
+
+- save as note
+- surface likely themes
+- do not generate several artifacts just because possibilities exist
+
+#### Two likely directions
+
+- ask one short clarifying question
+- resolve directly to one output after the choice
+
+The engine may still use internal thresholds or confidence ranges to choose among these states, but the user-facing product should behave according to the outcome state rather than a visible confidence model.
+
+### 5. Rule/Classifier Disagreement
+
+If a mandatory hard rule fires but the classifier is low confidence, the workflow still runs and is marked:
 
 - `forced_by_rule: true`
 - `review_priority: high`
@@ -180,10 +221,12 @@ This keeps the system auditable and tunable. Hard rules win, but disagreement is
 
 One source event can produce many workflow jobs.
 
+That does not mean the user-facing product should always show many outputs. The engine can reason across several jobs while still surfacing only the smallest useful set.
+
 Each workflow job has:
 
 - a workflow type
-- a confidence score
+- an optional internal confidence signal
 - a reason
 - a status
 - a destination
@@ -204,7 +247,7 @@ Examples:
 - `research_note`
   - output path: one research-note record or file
 
-This preserves the “one owner, one output path” rule without forcing every workflow into a single-file output.
+This preserves the “one owner, one output path” rule without forcing every workflow into a single-file output. The backend can stay rich as long as that richness does not leak into frontend complexity.
 
 ## Destinations
 
@@ -265,6 +308,8 @@ Version one should use a JSON format with one file per source event. The minimum
 - `forced_by_rule_jobs`
 - `notes`
 
+This queue is an internal trust and audit mechanism. In the product, only items that require human judgment before an external action should become visible in the review queue.
+
 ## Automation Policy
 
 The system should auto-generate artifacts but not auto-send external communications by default.
@@ -290,7 +335,7 @@ Generation is reversible. Sending is not. That boundary should be enforced in co
 The source-event analysis layer should extract enough structure to support routing and artifact generation. This layer should itself be a mix of:
 
 - rule-based extraction for obvious, deterministic signals
-- LLM enrichment for semantic interpretation, summarization, and weak-signal classification
+- classifier enrichment for semantic interpretation, summarization, and weak-signal classification
 
 Analysis should happen before routing so suppressors and mandatory hard rules can operate on structured signals rather than only raw transcript text.
 
@@ -321,7 +366,7 @@ This should include:
 - analysis result
 - applied suppressors
 - applied hard rules
-- LLM classification output
+- classification output
 - created workflow jobs
 - artifact bundle paths
 - generation timestamps
@@ -332,7 +377,7 @@ This should summarize:
 
 - what was generated
 - what requires review
-- any high-priority disagreement between rules and LLM
+- any high-priority disagreement between rules and the classifier
 - any external-facing drafts waiting for human approval
 
 In v1 this should be implemented as a JSON file, append-only at the event level, with one review entry per source event.
@@ -371,9 +416,10 @@ The goal is a usable private operator layer, not a polished product platform.
 
 Version one succeeds if:
 
-- one recording can produce multiple useful outputs automatically
+- one recording can produce the smallest useful set of outputs automatically
 - routing decisions are inspectable after the fact
-- low-confidence cases are surfaced for review rather than silently dropped
+- no-clear-read cases are saved cleanly rather than over-generated
+- two-likely-direction cases can be resolved with one short clarification
 - external follow-up drafts are created without being auto-sent
 - BoulderJS/event recordings can automatically feed social, research, and follow-up workflows
 - the system adds leverage without forcing the public Memnon repo to absorb private operator complexity
@@ -387,8 +433,8 @@ That means the first implementation should:
 - ingest Memnon metadata and note/transcript context
 - create a normalized source-event object
 - apply rule-based suppressors and mandatory routes
-- call an LLM only for unresolved workflow decisions
-- generate five v1 workflow bundles
+- call a classifier only for unresolved workflow decisions
+- generate the smallest useful set of v1 workflow outputs
 - write manifests and review queue entries
 
 If this proves useful, you can then decide whether parts belong back in public Memnon or should remain permanently private.
