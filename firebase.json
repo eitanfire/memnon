@@ -16,6 +16,10 @@
         }
       },
       {
+        "source": "workflows{,/**}",
+        "destination": "/workflows.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

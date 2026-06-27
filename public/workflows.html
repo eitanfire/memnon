@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memnon Workflows</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/workflows.css" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  </head>
+  <body class="workflows-page">
+    <main id="workflows-app" class="workflows-shell">
+      <section class="card workflows-card">
+        <header class="workflows-header">
+          <p class="workflows-kicker">Memnon Workflows</p>
+          <h1>Capture a thought. Turn it into a useful next step.</h1>
+          <p class="workflows-subhead">
+            Start with pasted text for the first slice. Recording and upload stay visually present,
+            but they do not pretend to be complete yet.
+          </p>
+        </header>
+
+        <form id="capture-form" class="workflows-form">
+          <div class="workflows-input-row">
+            <button type="button" class="btn btn-outline" disabled>Record now</button>
+            <button type="button" class="btn btn-outline" disabled>Upload a file</button>
+            <button type="button" id="show-paste" class="btn btn-primary">Paste text</button>
+          </div>
+
+          <label class="workflows-label" for="capture-text">Paste text</label>
+          <textarea
+            id="capture-text"
+            name="capture-text"
+            rows="10"
+            placeholder="Paste a product thought, professional reflection, or note you want to shape."
+          ></textarea>
+
+          <label class="workflows-label" for="capture-context">Anything this should keep in mind?</label>
+          <input
+            id="capture-context"
+            name="capture-context"
+            type="text"
+            placeholder="Example: this is about a product idea or a professional follow-up."
+          />
+
+          <div class="workflows-actions">
+            <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
+            <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
+          </div>
+        </form>
+
+        <section id="result-view" class="workflows-result" hidden></section>
+      </section>
+    </main>
+
+    <script type="module" src="/workflows.js"></script>
+  </body>
+</html>
