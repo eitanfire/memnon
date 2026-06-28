@@ -27,6 +27,39 @@ body.workflows-page {
   font-size: 1.1rem;
 }
 
+.workflows-debug-marker,
+.workflows-debug-state {
+  margin-top: 12px;
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, monospace;
+}
+
+.workflows-debug-marker {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  background: #fff4d6;
+  color: #6b4f00;
+  border: 1px solid #ead59b;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.workflows-debug-state {
+  padding: 10px 12px;
+  background: #fffdfa;
+  border: 1px solid #ddd4ca;
+  color: #4c453e;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.workflows-shell [hidden] {
+  display: none !important;
+}
+
 .workflows-card {
   display: grid;
   gap: 0;
@@ -150,6 +183,14 @@ body.workflows-page {
   font-size: 0.92rem;
 }
 
+.workflows-status.is-error {
+  color: #9b2c2c;
+}
+
+.workflows-status.is-working {
+  color: #5c4037;
+}
+
 .workflows-auth-prompt {
   display: flex;
   align-items: center;
@@ -182,6 +223,7 @@ body.workflows-page {
 .workflows-artifact-card {
   display: grid;
   gap: 12px;
+  padding: 20px 22px;
 }
 
 .workflows-artifact-card h2,
@@ -190,14 +232,129 @@ body.workflows-page {
   margin: 0;
 }
 
+.workflows-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workflows-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #efe7db;
+  color: #5f483c;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.workflows-status-pill.is-saved {
+  background: #ece7dd;
+  color: #5d5750;
+}
+
+.workflows-status-pill.is-ready {
+  background: #ece7ff;
+  color: #514099;
+}
+
+.workflows-status-pill.is-working {
+  background: #f0ebe4;
+  color: #6a5748;
+}
+
+.workflows-status-pill.is-attention {
+  background: #fdeceb;
+  color: #8a2f2f;
+}
+
 .workflows-interpretation {
   color: #5d6470;
 }
 
+.workflows-metadata-line {
+  color: #7a6f67;
+  font-size: 0.92rem;
+}
+
+.workflows-framing {
+  color: #4f463f;
+}
+
 .workflows-body {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   color: #111827;
+}
+
+.workflows-source-excerpt,
+.workflows-section-block {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #faf6f1;
+  border: 1px solid #ece2d6;
+}
+
+.workflows-source-label,
+.workflows-section-block h3 {
+  color: #5d5750;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.workflows-theme-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflows-theme-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f3ede5;
+  color: #5d5750;
+  font-size: 0.88rem;
+}
+
+.workflows-loading-card {
+  gap: 16px;
+}
+
+.workflows-loading-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.workflows-loading-lines span {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #efe7db 0%, #f8f4ee 50%, #efe7db 100%);
+  background-size: 200% 100%;
+  animation: workflows-pulse 1.6s ease-in-out infinite;
+}
+
+.workflows-loading-lines span:last-child {
+  width: 72%;
+}
+
+@keyframes workflows-pulse {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .workflows-source-panel {

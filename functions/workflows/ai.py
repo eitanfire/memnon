@@ -11,12 +11,18 @@ def generate_professional_note(source_text: str, context_hint: str, profile: dic
 Return strict JSON with:
 - title
 - framing_line
-- body
-- task_list
+- key_point
+- next_step
 
 Rules:
 - one note only
-- no more than two task list items
+- title should be specific enough to feel worth revisiting
+- framing_line should explain what kind of saved object this is in content-aware language
+- key_point should be one grounded, concrete takeaway
+- next_step should be one concrete action when the source supports it
+- if the source does not support a concrete next step, return an empty string for next_step
+- if the source looks like pasted document material, synthesize what the material is for or why it matters; do not merely describe the sections it contains
+- for document-like source text, infer the organizing next action; do not copy a stray sentence verbatim unless it is explicitly marked as an action or next step
 - practical, direct language
 - do not mention workflows, confidence, or routing
 

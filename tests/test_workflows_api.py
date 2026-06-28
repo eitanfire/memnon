@@ -42,10 +42,10 @@ class WorkflowApiTests(unittest.TestCase):
 
         def fake_ai(source_text, context_hint, profile, api_key):
             return {
-                "title": "Teacher workflow note",
-                "framing_line": "Pulled from your product reflection.",
-                "body": "Start by clarifying the single change that reduces user friction first.",
-                "task_list": [],
+                "title": "Product direction conversation with Jordan",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "next_step": "Revise the result card before the next demo.",
             }
 
         service = WorkflowService(
@@ -65,7 +65,11 @@ class WorkflowApiTests(unittest.TestCase):
         create_response = client.post(
             "/workflows/captures",
             json={
-                "text": "I want to turn this messy product reflection into one useful professional note for the next build step.",
+                "text": (
+                    "Met with Jordan today about the product direction. She thinks the system feels too generic "
+                    "because it is trying to do too much at once instead of making one strong call. "
+                    "Action: revise the result card before the next demo."
+                ),
                 "context_hint": "product review",
             },
         )
@@ -78,6 +82,45 @@ class WorkflowApiTests(unittest.TestCase):
         fetched = fetch_response.get_json()
         self.assertEqual(fetched["capture_id"], capture_id)
         self.assertEqual(fetched["result"]["route_kind"], "direct_professional_note")
+        self.assertEqual(
+            fetched["result"]["primary_artifact"]["status"],
+            "Saved and shaped",
+        )
+        self.assertEqual(
+            fetched["result"]["primary_artifact"]["metadata_line"],
+            "Pasted note · Jun 27, 2026 · Product review",
+        )
+        self.assertEqual(
+            [section["label"] for section in fetched["result"]["primary_artifact"]["sections"]],
+            ["Key point", "Next step"],
+        )
+
+    def test_fetch_missing_capture_returns_not_found(self):
+        repo = FakeRepository()
+
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "key_point": "Unused",
+                "next_step": "Unused",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.get("/workflows/captures/missing-capture")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json(), {"error": "not found"})
 
 
 if __name__ == "__main__":

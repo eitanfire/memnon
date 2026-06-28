@@ -4,6 +4,15 @@ import {
   onAuthStateChanged,
   signInWithCustomToken,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  WORKFLOWS_DEBUG_BUILD,
+  canonicalizeAuthReturnUrl,
+  getCaptureValidationError,
+  isLocalStaticHost,
+  shouldBlockUnexpectedNavigation,
+  shouldBypassRemoteAuth,
+  shouldShowLocalDebugUi,
+} from "/workflows_url_helpers.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAfnbEJrqWZPgxh_k61dl2D-DAEO4AbMoY",
@@ -19,17 +28,101 @@ const auth = getAuth(app);
 const params = new URLSearchParams(window.location.search);
 const callbackToken = params.get("token");
 const authError = params.get("error");
-const isStaticLocalhost =
-  window.location.hostname === "localhost" &&
-  (window.location.port === "8000" || window.location.port === "8080");
-const API_ORIGIN = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "";
+const isStaticLocalhost = isLocalStaticHost(
+  window.location.hostname,
+  window.location.port,
+);
+const showLocalDebugUi = shouldShowLocalDebugUi(
+  window.location.search,
+  window.location.hostname,
+  window.location.port,
+);
+const bypassRemoteAuth = shouldBypassRemoteAuth(
+  window.location.hostname,
+  window.location.port,
+);
+const LOCAL_API_ORIGIN = "http://127.0.0.1:5051";
+const API_ORIGIN = isStaticLocalhost ? LOCAL_API_ORIGIN : "";
 const API_CAPTURES_PATH = "/api/workflows/captures";
 const AUTH_START_URL = "https://api-4hth6oktaa-uc.a.run.app/auth/start";
 const PENDING_CAPTURE_KEY = "memnon_workflows_pending_capture_v1";
+const LOCAL_DEV_ID_TOKEN = "local-dev-token";
+const SCRIPT_LOADED_AT = new Date().toISOString();
+const SOURCE_EXCERPT_LABEL = "From your note";
+const KEY_POINT_LABEL = "Key point";
+const NEXT_STEP_LABEL = "Next step";
 
 let currentUser = null;
 let initialRouteHandled = false;
 let submitInFlight = false;
+
+function buildDebugPayload(event, extra = {}) {
+  return {
+    event,
+    build: WORKFLOWS_DEBUG_BUILD,
+    loadedAt: SCRIPT_LOADED_AT,
+    href: window.location.href,
+    hostname: window.location.hostname,
+    port: window.location.port,
+    usingLocalDevBypass: bypassRemoteAuth,
+    apiOrigin: API_ORIGIN || "(same-origin)",
+    currentUserPresent: Boolean(currentUser),
+    ...extra,
+  };
+}
+
+function renderDebugState(event, extra = {}) {
+  if (!showLocalDebugUi) {
+    return;
+  }
+  const marker = document.getElementById("workflows-build-marker");
+  const panel = document.getElementById("workflows-debug-state");
+  if (marker) {
+    marker.hidden = false;
+    marker.textContent = `workflows local dev build: ${WORKFLOWS_DEBUG_BUILD}`;
+  }
+  if (panel) {
+    panel.hidden = false;
+    panel.textContent = JSON.stringify(buildDebugPayload(event, extra), null, 2);
+  }
+}
+
+function logDebug(event, extra = {}) {
+  const payload = buildDebugPayload(event, extra);
+  console.log(`[workflows] ${event}`, payload);
+  renderDebugState(event, extra);
+}
+
+function safeNavigate(targetUrl, reason) {
+  const resolvedUrl = new URL(targetUrl, window.location.href).toString();
+  logDebug("navigation_attempt", {
+    reason,
+    targetUrl: resolvedUrl,
+  });
+  if (shouldBlockUnexpectedNavigation(window.location.href, resolvedUrl)) {
+    const message = `Blocked unexpected navigation: ${resolvedUrl}`;
+    console.error("[workflows] blocked navigation", buildDebugPayload("blocked_navigation", {
+      reason,
+      targetUrl: resolvedUrl,
+    }));
+    setStatusTone("Blocked unexpected navigation in local debug mode.", "error");
+    renderDebugState("blocked_navigation", {
+      reason,
+      targetUrl: resolvedUrl,
+      blockedMessage: message,
+    });
+    throw new Error(message);
+  }
+  window.location.assign(resolvedUrl);
+}
+
+console.log("workflows.js loaded", {
+  build: WORKFLOWS_DEBUG_BUILD,
+  loadedAt: SCRIPT_LOADED_AT,
+  href: window.location.href,
+  usingLocalDevBypass: bypassRemoteAuth,
+  apiOrigin: API_ORIGIN || "(same-origin)",
+});
 
 function parseWorkflowsRoute(pathname) {
   const normalized =
@@ -54,6 +147,21 @@ function setStatus(message) {
   const status = document.getElementById("workflows-status");
   if (status) {
     status.textContent = message || "";
+    status.classList.remove("is-error", "is-working");
+  }
+}
+
+function setStatusTone(message, tone = "neutral") {
+  setStatus(message);
+  const status = document.getElementById("workflows-status");
+  if (!status || !message) {
+    return;
+  }
+  if (tone === "error") {
+    status.classList.add("is-error");
+  }
+  if (tone === "working") {
+    status.classList.add("is-working");
   }
 }
 
@@ -61,7 +169,7 @@ function currentReturnUrl() {
   const url = new URL(window.location.href);
   url.searchParams.delete("token");
   url.searchParams.delete("error");
-  return url.toString();
+  return canonicalizeAuthReturnUrl(url.toString());
 }
 
 function buildAuthStartUrl() {
@@ -107,21 +215,42 @@ function syncAuthPrompt() {
   }
 
   link.href = buildAuthStartUrl();
+  if (bypassRemoteAuth) {
+    prompt.hidden = true;
+    prompt.style.display = "none";
+    prompt.setAttribute("aria-hidden", "true");
+    link.tabIndex = -1;
+    return;
+  }
+  prompt.style.display = "";
+  prompt.removeAttribute("aria-hidden");
+  link.removeAttribute("tabindex");
   prompt.hidden = Boolean(currentUser);
 }
 
 function syncSubmitState() {
   const input = document.getElementById("capture-text");
   const submit = document.getElementById("capture-submit");
+  const form = document.getElementById("capture-form");
   if (!submit) {
     return;
   }
   submit.disabled = submitInFlight || !input || !input.value.trim();
+  submit.textContent = submitInFlight ? "Working..." : "Continue";
+  if (form) {
+    form.setAttribute("aria-busy", submitInFlight ? "true" : "false");
+  }
   syncAuthPrompt();
 }
 
 async function getToken() {
   const user = auth.currentUser;
+  if (!user && bypassRemoteAuth) {
+    logDebug("local_dev_token_selected", {
+      tokenMode: "local-dev-token",
+    });
+    return LOCAL_DEV_ID_TOKEN;
+  }
   if (!user) {
     throw new Error("Sign in required");
   }
@@ -136,6 +265,11 @@ async function apiFetch(path, init = {}) {
     headers.set("Content-Type", "application/json");
   }
 
+  logDebug("api_fetch", {
+    method: init.method || "GET",
+    target: `${API_ORIGIN}${path}`,
+  });
+
   const response = await fetch(`${API_ORIGIN}${path}`, {
     ...init,
     headers,
@@ -149,19 +283,245 @@ async function apiFetch(path, init = {}) {
 }
 
 function resetResultCards() {
-  document.getElementById("primary-artifact-card").hidden = true;
-  document.getElementById("saved-note-card").hidden = true;
-  document.getElementById("source-text-panel").hidden = true;
+  for (const cardId of ["loading-card", "primary-artifact-card", "saved-note-card"]) {
+    const card = document.getElementById(cardId);
+    if (!card) {
+      continue;
+    }
+    card.hidden = true;
+    card.innerHTML = "";
+  }
+  const sourcePanel = document.getElementById("source-text-panel");
+  if (sourcePanel) {
+    sourcePanel.hidden = true;
+    sourcePanel.open = false;
+  }
+  const sourceText = document.getElementById("source-text-content");
+  if (sourceText) {
+    sourceText.textContent = "";
+  }
+}
+
+function resetCaptureForm() {
+  const input = document.getElementById("capture-text");
+  const context = document.getElementById("capture-context");
+  if (input) {
+    input.value = "";
+  }
+  if (context) {
+    context.value = "";
+  }
+  setPastePanelVisible(false);
+  clearPendingCapture();
+}
+
+function setScreenVisibility(showCapture) {
+  const captureForm = document.getElementById("capture-form");
+  const resultView = document.getElementById("result-view");
+  if (!captureForm || !resultView) {
+    return;
+  }
+
+  captureForm.hidden = !showCapture;
+  captureForm.style.display = showCapture ? "" : "none";
+  captureForm.inert = !showCapture;
+  captureForm.setAttribute("aria-hidden", showCapture ? "false" : "true");
+
+  resultView.hidden = showCapture;
+  resultView.style.display = showCapture ? "none" : "grid";
+  resultView.inert = showCapture;
+  resultView.setAttribute("aria-hidden", showCapture ? "true" : "false");
 }
 
 function showCaptureScreen() {
-  document.getElementById("capture-form").hidden = false;
-  document.getElementById("result-view").hidden = true;
+  setScreenVisibility(true);
 }
 
 function showResultScreen() {
-  document.getElementById("capture-form").hidden = true;
-  document.getElementById("result-view").hidden = false;
+  setScreenVisibility(false);
+}
+
+function renderCardActions(actions) {
+  if (!actions?.length) {
+    return "";
+  }
+  return `
+    <div class="workflows-inline-actions">
+      ${actions.map((action) => action.html).join("")}
+    </div>
+  `;
+}
+
+function renderThemes(themes) {
+  if (!themes?.length) {
+    return "";
+  }
+  return `
+    <div class="workflows-theme-list">
+      ${themes.map((theme) => `<span class="workflows-theme-chip">${escapeHtml(theme)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function formatLocalCaptureDate(timestamp) {
+  if (!timestamp) {
+    return "";
+  }
+  const calendarMatch = String(timestamp).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (calendarMatch) {
+    const [, year, month, day] = calendarMatch;
+    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12)).toLocaleDateString(
+      undefined,
+      {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      },
+    );
+  }
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function describeSourceType(inputType) {
+  if (inputType === "text") {
+    return "Pasted note";
+  }
+  if (inputType === "voice") {
+    return "Voice note";
+  }
+  return "Saved note";
+}
+
+function buildMetadataLine(sourceEvent) {
+  const parts = [];
+  const sourceType = describeSourceType(sourceEvent?.input_type);
+  if (sourceType) {
+    parts.push(sourceType);
+  }
+  const captureDate = formatLocalCaptureDate(sourceEvent?.created_at);
+  if (captureDate) {
+    parts.push(captureDate);
+  }
+  if (sourceEvent?.context_hint) {
+    parts.push(
+      sourceEvent.context_hint[0].toUpperCase() + sourceEvent.context_hint.slice(1),
+    );
+  }
+  return parts.join(" · ");
+}
+
+function renderSourceExcerpt(text) {
+  if (!text) {
+    return "";
+  }
+  return `
+    <div class="workflows-source-excerpt">
+      <p class="workflows-source-label">${escapeHtml(SOURCE_EXCERPT_LABEL)}</p>
+      <p>${escapeHtml(text)}</p>
+    </div>
+  `;
+}
+
+function renderSections(sections) {
+  if (!sections?.length) {
+    return "";
+  }
+  return sections
+    .filter((section) => section?.label && section?.text)
+    .map(
+      (section) => {
+        const normalizedLabel =
+          section.label === "Key point"
+            ? KEY_POINT_LABEL
+            : section.label === "Next step"
+              ? NEXT_STEP_LABEL
+              : section.label;
+        return `
+        <section class="workflows-section-block">
+          <h3>${escapeHtml(normalizedLabel)}</h3>
+          <p>${escapeHtml(section.text)}</p>
+        </section>
+      `;
+      },
+    )
+    .join("");
+}
+
+function renderResultCard(card, options) {
+  const {
+    statusLabel,
+    statusTone,
+    kicker,
+    title,
+    metadataLine = "",
+    interpretationLine = "",
+    framingLine = "",
+    bodyHtml = "",
+    actions = [],
+  } = options;
+
+  card.hidden = false;
+  card.innerHTML = `
+    <div class="workflows-card-header">
+      <span class="workflows-status-pill ${statusTone ? `is-${statusTone}` : ""}">${escapeHtml(statusLabel)}</span>
+      ${kicker ? `<p class="workflows-kicker">${escapeHtml(kicker)}</p>` : ""}
+    </div>
+    <h2>${escapeHtml(title)}</h2>
+    ${metadataLine ? `<p class="workflows-metadata-line">${escapeHtml(metadataLine)}</p>` : ""}
+    ${interpretationLine ? `<p class="workflows-interpretation">${escapeHtml(interpretationLine)}</p>` : ""}
+    ${framingLine ? `<p class="workflows-framing">${escapeHtml(framingLine)}</p>` : ""}
+    ${bodyHtml ? `<div class="workflows-body">${bodyHtml}</div>` : ""}
+    ${renderCardActions(actions)}
+  `;
+}
+
+function renderLoadingState() {
+  resetResultCards();
+  showResultScreen();
+  const card = document.getElementById("loading-card");
+  renderResultCard(card, {
+    statusLabel: "Working",
+    statusTone: "working",
+    kicker: "Next step",
+    title: "Shaping this into a next step...",
+    framingLine: "This usually takes a moment.",
+    bodyHtml: `
+      <div class="workflows-loading-lines">
+        <span></span>
+        <span></span>
+      </div>
+    `,
+  });
+}
+
+function renderLoadError() {
+  resetResultCards();
+  showResultScreen();
+  const card = document.getElementById("saved-note-card");
+  renderResultCard(card, {
+    statusLabel: "Try again",
+    statusTone: "attention",
+    kicker: "Result",
+    title: "Could not load this note",
+    framingLine: "Try again in a moment or start a fresh capture.",
+    actions: [
+      { html: '<button type="button" class="btn btn-primary" id="retry-load-capture">Try again</button>' },
+      { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
+    ],
+  });
+  document.getElementById("retry-load-capture")?.addEventListener("click", () => {
+    handleCurrentRoute();
+  });
+  wireReturnToCapture();
 }
 
 function renderSavedNote(payload) {
@@ -171,20 +531,33 @@ function renderSavedNote(payload) {
   const card = document.getElementById("saved-note-card");
   const sourcePanel = document.getElementById("source-text-panel");
   const sourceText = document.getElementById("source-text-content");
-  const themes = payload.result.likely_themes?.length
-    ? payload.result.likely_themes.map(escapeHtml).join(", ")
-    : "None yet";
-
-  card.hidden = false;
-  card.innerHTML = `
-    <p class="workflows-kicker">Saved note</p>
-    <h2>${escapeHtml(payload.result.interpretation_line)}</h2>
-    <p>This capture did not justify a visible draft yet.</p>
-    <p><strong>Likely themes:</strong> ${themes}</p>
-    <div class="workflows-inline-actions">
-      <button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>
-    </div>
-  `;
+  const savedArtifact = payload.result.saved_note_artifact || {};
+  const themes = payload.result.likely_themes || [];
+  const defaultFramingLine =
+    savedArtifact.state === "weak_signal"
+      ? "This is a small note worth preserving."
+      : "This seems worth keeping, but it may need a little direction before it becomes something stronger.";
+  const savedStatusLabel =
+    savedArtifact.state === "needs_direction" ? "Needs light direction" : "Saved for later";
+  const savedKicker =
+    savedArtifact.state === "needs_direction" ? "Worth keeping" : "Kept as a saved note";
+  renderResultCard(card, {
+    statusLabel: savedArtifact.status || savedStatusLabel,
+    statusTone: "saved",
+    kicker: savedKicker,
+    title: savedArtifact.title || "Saved note",
+    metadataLine: buildMetadataLine(payload.source_event) || savedArtifact.metadata_line,
+    interpretationLine: payload.result.interpretation_line,
+    framingLine: savedArtifact.framing_line || defaultFramingLine,
+    bodyHtml: `
+      ${renderSourceExcerpt(savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "")}
+      ${renderSections(savedArtifact.sections || [])}
+      ${renderThemes(themes)}
+    `,
+    actions: [
+      { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
+    ],
+  });
 
   sourcePanel.hidden = false;
   sourceText.textContent = payload.source_event.source_text;
@@ -199,31 +572,32 @@ function renderPrimaryArtifact(payload) {
   const sourcePanel = document.getElementById("source-text-panel");
   const sourceText = document.getElementById("source-text-content");
   const artifact = payload.result.primary_artifact;
-  const bodyParagraphs = String(artifact.body || "")
-    .split(/\n{2,}/)
-    .filter(Boolean)
-    .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
-    .join("");
-
-  card.hidden = false;
-  card.innerHTML = `
-    <p class="workflows-kicker">Result</p>
-    <p class="workflows-interpretation">${escapeHtml(payload.result.interpretation_line)}</p>
-    <h2>${escapeHtml(artifact.title)}</h2>
-    <p>${escapeHtml(artifact.framing_line)}</p>
-    <div class="workflows-body">${bodyParagraphs}</div>
-    <div class="workflows-inline-actions">
-      <button type="button" class="btn btn-primary" id="copy-artifact-body">Copy note</button>
-      <button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>
-    </div>
+  const bodyHtml = `
+    ${renderSourceExcerpt(artifact.source_excerpt)}
+    ${renderSections(artifact.sections || [])}
   `;
+
+  renderResultCard(card, {
+    statusLabel: artifact.status || "Saved and shaped",
+    statusTone: "ready",
+    kicker: "Saved result",
+    title: artifact.title,
+    metadataLine: buildMetadataLine(payload.source_event) || artifact.metadata_line,
+    interpretationLine: payload.result.interpretation_line,
+    framingLine: artifact.framing_line,
+    bodyHtml,
+    actions: [
+      { html: '<button type="button" class="btn btn-primary" id="copy-artifact-body">Copy note</button>' },
+      { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
+    ],
+  });
 
   sourcePanel.hidden = false;
   sourceText.textContent = payload.source_event.source_text;
 
   document.getElementById("copy-artifact-body")?.addEventListener("click", async () => {
-    await navigator.clipboard.writeText(artifact.body || "");
-    setStatus("Copied note.");
+    await navigator.clipboard.writeText(artifact.copy_text || artifact.body || "");
+    setStatusTone("Copied note.");
   });
   wireReturnToCapture();
 }
@@ -232,6 +606,7 @@ function wireReturnToCapture() {
   document.getElementById("start-another-capture")?.addEventListener("click", () => {
     history.pushState({}, "", "/workflows");
     resetResultCards();
+    resetCaptureForm();
     showCaptureScreen();
     setStatus("");
     document.getElementById("capture-text")?.focus();
@@ -240,6 +615,7 @@ function wireReturnToCapture() {
 }
 
 function renderPayload(payload) {
+  setStatus("");
   if (payload.result.route_kind === "saved_note" || !payload.result.primary_artifact) {
     renderSavedNote(payload);
     return;
@@ -258,7 +634,7 @@ async function createCapture(text, contextHint) {
 }
 
 async function loadCapture(captureId) {
-  setStatus("Loading saved result...");
+  setStatusTone("Loading saved result...", "working");
   const payload = await apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}`);
   setStatus("");
   renderPayload(payload);
@@ -267,7 +643,8 @@ async function loadCapture(captureId) {
 async function submitCapture(text, contextHint) {
   submitInFlight = true;
   syncSubmitState();
-  setStatus("Turning this into a next step...");
+  renderLoadingState();
+  setStatusTone("Shaping this into a next step...", "working");
 
   try {
     const payload = await createCapture(text, contextHint);
@@ -277,7 +654,17 @@ async function submitCapture(text, contextHint) {
     setStatus("");
     renderPayload(payload);
   } catch (error) {
-    setStatus(error.message || "Could not save this capture.");
+    console.error("[workflows] capture submission failed", error);
+    logDebug("capture_submit_failed", {
+      errorMessage: error?.message || "unknown error",
+    });
+    showCaptureScreen();
+    resetResultCards();
+    const message =
+      error?.message === "text too short"
+        ? "Add at least a short phrase before continuing."
+        : "Something went wrong. Try again.";
+    setStatusTone(message, "error");
   } finally {
     submitInFlight = false;
     syncSubmitState();
@@ -304,6 +691,15 @@ function restorePendingCaptureToForm() {
 
 async function maybeResumePendingCapture() {
   const pending = readPendingCapture();
+  if (bypassRemoteAuth && pending?.shouldResume && pending.text) {
+    logDebug("resume_pending_capture_local", {
+      textLength: pending.text.length,
+      hasContextHint: Boolean(pending.contextHint),
+    });
+    clearPendingCapture();
+    await submitCapture(pending.text, pending.contextHint || "");
+    return true;
+  }
   if (!currentUser || !pending?.shouldResume || !pending.text) {
     return false;
   }
@@ -319,15 +715,31 @@ async function handleSubmit(event) {
     return;
   }
 
-  if (!currentUser) {
+  const validationError = getCaptureValidationError(text);
+  if (validationError) {
+    logDebug("capture_validation_failed", {
+      textLength: text.length,
+      validationError,
+    });
+    setStatusTone(validationError, "error");
+    return;
+  }
+
+  logDebug("continue_clicked", {
+    textLength: text.length,
+    hasContextHint: Boolean(contextHint),
+    nextAction: !currentUser && !bypassRemoteAuth ? "remote_auth_start" : "submit_capture",
+  });
+
+  if (!currentUser && !bypassRemoteAuth) {
     writePendingCapture({
       text,
       contextHint,
       shouldResume: true,
       savedAt: Date.now(),
     });
-    setStatus("Sign in to continue.");
-    window.location.href = buildAuthStartUrl();
+    setStatusTone("Sign in to continue.");
+    safeNavigate(buildAuthStartUrl(), "continue_requires_remote_auth");
     return;
   }
 
@@ -337,14 +749,14 @@ async function handleSubmit(event) {
 function applySignedOutState() {
   resetResultCards();
   showCaptureScreen();
-  setStatus("Sign in required to save captures.");
+  setStatusTone("Sign in required to save captures.");
   syncAuthPrompt();
   syncSubmitState();
 }
 
 async function handleCurrentRoute() {
   const route = parseWorkflowsRoute(window.location.pathname);
-  if (!currentUser) {
+  if (!currentUser && !bypassRemoteAuth) {
     applySignedOutState();
     return;
   }
@@ -353,19 +765,8 @@ async function handleCurrentRoute() {
     try {
       await loadCapture(route.captureId);
     } catch (error) {
-      showResultScreen();
-      resetResultCards();
-      const card = document.getElementById("saved-note-card");
-      card.hidden = false;
-      card.innerHTML = `
-        <p class="workflows-kicker">Result</p>
-        <h2>Could not load this capture</h2>
-        <p>${escapeHtml(error.message || "Please try again.")}</p>
-        <div class="workflows-inline-actions">
-          <button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>
-        </div>
-      `;
-      wireReturnToCapture();
+      console.error("[workflows] capture load failed", error);
+      renderLoadError();
       setStatus("");
     }
     return;
@@ -392,24 +793,29 @@ export function mountWorkflowsApp() {
     setStatus("");
   });
   recordTrigger?.addEventListener("click", () => {
-    setStatus("Recording is not available in this slice yet.");
+    setStatus("Voice capture is not available in this slice yet.");
   });
   uploadTrigger?.addEventListener("click", () => {
     setStatus("File upload is not available in this slice yet.");
   });
   form?.addEventListener("submit", handleSubmit);
-  signInLink?.addEventListener("click", () => {
-    const text = input?.value.trim();
-    const contextHint = context?.value.trim() || "";
-    if (text) {
-      writePendingCapture({
-        text,
-        contextHint,
-        shouldResume: false,
-        savedAt: Date.now(),
+  if (!bypassRemoteAuth) {
+    signInLink?.addEventListener("click", () => {
+      const text = input?.value.trim();
+      const contextHint = context?.value.trim() || "";
+      if (text) {
+        writePendingCapture({
+          text,
+          contextHint,
+          shouldResume: false,
+          savedAt: Date.now(),
+        });
+      }
+      logDebug("sign_in_link_clicked", {
+        signInHref: signInLink.href,
       });
-    }
-  });
+    });
+  }
   window.addEventListener("popstate", () => {
     handleCurrentRoute();
   });
@@ -448,6 +854,10 @@ export function mountWorkflowsApp() {
 
   restorePendingCaptureToForm();
   syncSubmitState();
+  renderDebugState("mount", {
+    callbackTokenPresent: Boolean(callbackToken),
+    authErrorPresent: Boolean(authError),
+  });
 }
 
 mountWorkflowsApp();

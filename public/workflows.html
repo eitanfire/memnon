@@ -14,6 +14,8 @@
         <h1>Capture a thought</h1>
         <p class="workflows-subhead">Speak, drop a file, or paste something messy.</p>
         <p class="workflows-subhead-secondary">Turn it into something useful.</p>
+        <div id="workflows-build-marker" class="workflows-debug-marker" hidden></div>
+        <pre id="workflows-debug-state" class="workflows-debug-state" hidden></pre>
       </header>
 
       <form id="capture-form" class="workflows-card">
@@ -73,6 +75,7 @@
       </form>
 
       <section id="result-view" class="workflows-result" hidden>
+        <article id="loading-card" class="card workflows-artifact-card workflows-loading-card" hidden></article>
         <article id="primary-artifact-card" class="card workflows-artifact-card" hidden></article>
         <article id="saved-note-card" class="card workflows-artifact-card" hidden></article>
         <details id="source-text-panel" class="workflows-source-panel" hidden>
