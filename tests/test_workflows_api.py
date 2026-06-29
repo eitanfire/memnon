@@ -419,6 +419,41 @@ class WorkflowApiTests(unittest.TestCase):
             [active_context["title"]],
         )
 
+    def test_list_active_contexts_filters_archived_before_limit(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "key_point": "Unused",
+                "next_step": "Unused",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        for index in range(12):
+            context = service.create_context("user-1", title=f"Archived {index}", summary="")
+            repo.contexts[("user-1", context["context_id"])]["status"] = "archived"
+        active_context_a = service.create_context("user-1", title="Workflows UI/UX", summary="")
+        active_context_b = service.create_context("user-1", title="Voice capture", summary="")
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.get("/workflows/contexts")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["title"] for item in response.get_json()["items"]],
+            [active_context_a["title"], active_context_b["title"]],
+        )
+
     def test_context_decision_endpoint_confirms_thread_for_capture(self):
         repo = FakeRepository()
         service = WorkflowService(

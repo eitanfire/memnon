@@ -1,4 +1,6 @@
 import json
+import subprocess
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -140,17 +142,99 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn("toLocaleDateString", js)
         self.assertNotIn("Just now", js)
 
-    def test_result_route_includes_quiet_manual_thread_controls(self):
-        js = Path("public/workflows.js").read_text(encoding="utf-8")
+    def test_result_route_thread_controls_follow_immediate_result_rules(self):
         css = Path("public/workflows.css").read_text(encoding="utf-8")
-
-        self.assertIn("This belongs with an ongoing thread.", js)
-        self.assertIn("Keep with a thread", js)
-        self.assertIn("Keep separate", js)
-        self.assertIn("submitThreadDecision", js)
-        self.assertIn("renderThreadChooser", js)
         self.assertIn("workflows-thread-chooser", css)
         self.assertIn("workflows-thread-option", css)
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              extractBetween("function escapeHtml", "function setStatus"),
+              extractBetween("function renderThreadChooser", "function renderRelatedThreadBlock"),
+              extractBetween("function renderRelatedThreadBlock", "function renderSections"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const immediateEligible = context.renderRelatedThreadBlock(
+              { result: { related_thread: {} }, threading: {} },
+              {
+                isImmediateResult: true,
+                activeThreads: [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
+              },
+            );
+            const reopenedNoControls = context.renderRelatedThreadBlock(
+              { result: { related_thread: {} }, threading: {} },
+              {
+                isImmediateResult: false,
+                activeThreads: [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
+              },
+            );
+            const reopenedConfirmed = context.renderRelatedThreadBlock(
+              {
+                result: { related_thread: { confirmed_title: "Workflows UI/UX" } },
+                threading: { confirmed_context_id: "ctx-1", context_decision: "confirmed" },
+              },
+              {
+                isImmediateResult: false,
+                activeThreads: [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
+              },
+            );
+            const decidedSeparate = context.renderRelatedThreadBlock(
+              { result: { related_thread: {} }, threading: { context_decision: "kept_separate" } },
+              {
+                isImmediateResult: true,
+                activeThreads: [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
+              },
+            );
+
+            const assertions = [
+              immediateEligible.includes("This belongs with an ongoing thread.")
+                && immediateEligible.includes("Keep with a thread")
+                && immediateEligible.includes("Keep separate"),
+              reopenedNoControls.trim() === "",
+              reopenedConfirmed.includes("Workflows UI/UX")
+                && reopenedConfirmed.includes("Ongoing thread")
+                && !reopenedConfirmed.includes("Keep with a thread"),
+              decidedSeparate.trim() === "",
+            ];
+
+            if (assertions.some((result) => !result)) {
+              throw new Error(JSON.stringify({
+                immediateEligible,
+                reopenedNoControls,
+                reopenedConfirmed,
+                decidedSeparate,
+              }));
+            }
+            """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
 
 
 if __name__ == "__main__":

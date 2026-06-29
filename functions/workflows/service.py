@@ -821,8 +821,10 @@ class WorkflowService:
             return self.repository.get_context(uid, context_id)
         return _context_store(self.repository).get(uid, {}).get(context_id)
 
-    def _repository_list_contexts(self, uid: str, limit: int = 12) -> list[dict]:
+    def _repository_list_contexts(self, uid: str, limit: int | None = 12) -> list[dict]:
         if hasattr(self.repository, "list_contexts"):
+            if limit is None:
+                return self.repository.list_contexts(uid, limit=1000)
             return self.repository.list_contexts(uid, limit=limit)
 
         repository_contexts = getattr(self.repository, "contexts", None)
@@ -843,6 +845,8 @@ class WorkflowService:
             ),
             reverse=True,
         )
+        if limit is None:
+            return items
         return items[:limit]
 
     def _repository_update_capture_threading(self, uid: str, capture_id: str, threading: dict, now: str) -> None:
@@ -900,7 +904,7 @@ class WorkflowService:
     def list_active_contexts(self, uid: str, limit: int = 12) -> list[dict]:
         return [
             context
-            for context in self._repository_list_contexts(uid, limit=limit)
+            for context in self._repository_list_contexts(uid, limit=None)
             if context.get("status") != "archived"
         ][:limit]
 
