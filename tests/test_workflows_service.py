@@ -144,6 +144,67 @@ class WorkflowServiceTests(unittest.TestCase):
             "Workflows UI/UX",
         )
 
+    def test_reopened_capture_with_no_thread_state_stays_quiet(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+
+        reopened = service.get_capture("user-1", capture.capture_id)
+
+        self.assertEqual(reopened.get("threading"), {})
+        self.assertNotIn("related_thread", reopened["result"])
+
+    def test_kept_separate_clears_prior_confirmed_thread_linkage(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+        context = service.create_context("user-1", title="Workflows UI/UX", summary="")
+        service.apply_context_decision(
+            "user-1",
+            capture.capture_id,
+            action="confirmed",
+            context_id=context["context_id"],
+        )
+
+        updated = service.apply_context_decision(
+            "user-1",
+            capture.capture_id,
+            action="kept_separate",
+        )
+
+        self.assertNotIn("confirmed_context_id", updated["threading"])
+        self.assertEqual(updated["threading"]["context_decision"], "kept_separate")
+        self.assertNotIn("related_thread", updated["result"])
+
     def test_service_can_record_voice_capture_metadata(self):
         repo = FakeRepository()
 

@@ -752,6 +752,12 @@ def _build_related_thread_payload(record: dict, context: dict | None) -> dict:
     }
 
 
+def _thread_state_has_visible_linkage(threading: dict) -> bool:
+    if not threading:
+        return False
+    return bool(threading.get("confirmed_context_id")) or bool(threading.get("suggestion_active"))
+
+
 class WorkflowService:
     def __init__(self, repository, note_generator, now_provider, api_key_provider):
         self.repository = repository
@@ -847,8 +853,10 @@ class WorkflowService:
         result = dict(hydrated.get("result") or {})
         threading = dict(hydrated.get("threading") or {})
         context = self._repository_get_context(uid, threading.get("confirmed_context_id"))
-        if threading or context:
+        if _thread_state_has_visible_linkage(threading) or context:
             result["related_thread"] = _build_related_thread_payload(hydrated, context)
+        else:
+            result.pop("related_thread", None)
         hydrated["result"] = result
         hydrated["threading"] = threading
         return hydrated
@@ -893,11 +901,11 @@ class WorkflowService:
                 context_decision="confirmed",
                 context_decision_at=now,
             ).to_dict()
+            threading["suggestion_active"] = False
             self._repository_touch_context_activity(uid, context["context_id"], now)
         elif action == "kept_separate":
             context = None
             threading = WorkflowThreadState(
-                confirmed_context_id=current_threading.get("confirmed_context_id"),
                 context_decision="kept_separate",
                 context_decision_at=now,
             ).to_dict()
@@ -1067,7 +1075,7 @@ class WorkflowService:
             },
             created_at=now,
             updated_at=now,
-            threading=WorkflowThreadState().to_dict(),
+            threading={},
         )
         self.repository.save_capture(uid, record)
         return record
