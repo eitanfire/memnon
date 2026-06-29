@@ -146,6 +146,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         css = Path("public/workflows.css").read_text(encoding="utf-8")
         self.assertIn("workflows-thread-chooser", css)
         self.assertIn("workflows-thread-option", css)
+        self.assertIn("workflows-thread-create-form", css)
         script = textwrap.dedent(
             """
             const fs = require("fs");
@@ -189,6 +190,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               },
               [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
             );
+            const chooserOnly = context.renderThreadChooser([{ context_id: "ctx-1", title: "Workflows UI/UX" }]);
             const reopenedNoControls = context.renderRelatedThreadSuggestion(
               { result: { related_thread: {} }, threading: {} },
               [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
@@ -216,7 +218,11 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               immediateEligible.includes("This looks related to Workflows UI/UX.")
                 && immediateEligible.includes("Continue there")
                 && immediateEligible.includes("Keep separate")
-                && immediateEligible.includes("Choose another"),
+                && immediateEligible.includes("Choose another")
+                && !immediateEligible.includes("Create new thread"),
+              chooserOnly.includes("Create new thread")
+                && chooserOnly.includes("Create")
+                && chooserOnly.includes("data-create-context"),
               reopenedNoControls.trim() === "",
               immediateNavigation === true,
               reopenedNavigation === false,

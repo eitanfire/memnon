@@ -320,7 +320,6 @@ body.workflows-page {
 .workflows-related-thread-block {
   display: grid;
   gap: 10px;
-  display: grid;
   padding: 12px 14px;
   border-radius: 12px;
   background: #f8f4ee;
@@ -345,8 +344,7 @@ body.workflows-page {
 }
 
 .workflows-thread-chooser {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
 }
 
@@ -363,6 +361,22 @@ body.workflows-page {
 
 .workflows-thread-option:hover {
   background: #f6efe5;
+}
+
+.workflows-thread-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.workflows-thread-create-form input {
+  width: 100%;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  background: #fffdfa;
+  color: #181512;
 }
 
 .workflows-source-label,

@@ -55,6 +55,7 @@ class FirestoreWorkflowRepository:
 
     def create_context(self, uid: str, *, context_id: str, title: str, summary: str, seed_capture_id: str | None, now: str):
         payload = {
+            "context_id": context_id,
             "title": title,
             "summary": summary,
             "status": "active",

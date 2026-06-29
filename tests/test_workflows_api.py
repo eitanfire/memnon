@@ -501,6 +501,103 @@ class WorkflowApiTests(unittest.TestCase):
             "Workflows UI/UX",
         )
 
+    def test_context_decision_endpoint_records_selected_different_context(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Product direction conversation with Jordan",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs a different thread choice.",
+                "next_step": "Record the alternate thread decision.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        suggested_context = service.create_context("user-1", title="Workflows UI/UX", summary="")
+        alternate_context = service.create_context("user-1", title="Voice capture", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Met with Jordan about the workflows page. "
+                "Action: record the alternate thread decision."
+            ),
+            context_hint="workflows ui/ux",
+        )
+        self.assertEqual(capture.threading["suggested_context_id"], suggested_context["context_id"])
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/context-decision",
+            json={"action": "selected_different_context", "context_id": alternate_context["context_id"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["threading"]["context_decision"], "selected_different_context")
+        self.assertEqual(
+            payload["threading"]["confirmed_context_id"],
+            alternate_context["context_id"],
+        )
+        self.assertEqual(
+            payload["result"]["related_thread"]["confirmed_title"],
+            "Voice capture",
+        )
+
+    def test_context_decision_endpoint_can_create_new_context(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Voice capture product direction",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs its own new thread.",
+                "next_step": "Create the thread from the chooser flow.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Need a dedicated thread for voice capture product direction. "
+                "Action: create the thread from the chooser flow."
+            ),
+            context_hint="",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/context-decision",
+            json={"action": "created_new_context", "new_context_title": "Voice capture"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["threading"]["context_decision"], "created_new_context")
+        self.assertTrue(payload["threading"]["confirmed_context_id"])
+        self.assertEqual(
+            payload["result"]["related_thread"]["confirmed_title"],
+            "Voice capture",
+        )
+        created_context = repo.get_context("user-1", payload["threading"]["confirmed_context_id"])
+        self.assertIsNotNone(created_context)
+        self.assertEqual(created_context["seed_capture_id"], capture.capture_id)
+
 
 if __name__ == "__main__":
     unittest.main()

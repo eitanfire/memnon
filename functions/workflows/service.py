@@ -1000,15 +1000,11 @@ class WorkflowService:
         context_id: str | None = None,
         new_context_title: str | None = None,
     ) -> dict:
-        if new_context_title is not None:
-            raise ValueError("new_context_title is not supported in Task 1")
-
         record = self.repository.get_capture(uid, capture_id)
         if record is None:
             raise KeyError(capture_id)
 
         now = self.now_provider()
-        current_threading = dict(record.get("threading") or {})
 
         if action == "confirmed":
             context = self._repository_get_context(uid, context_id)
@@ -1017,6 +1013,34 @@ class WorkflowService:
             threading = WorkflowThreadState(
                 confirmed_context_id=context["context_id"],
                 context_decision="confirmed",
+                context_decision_at=now,
+            ).to_dict()
+            threading["suggestion_active"] = False
+            self._repository_touch_context_activity(uid, context["context_id"], now)
+        elif action == "selected_different_context":
+            context = self._repository_get_context(uid, context_id)
+            if context is None:
+                raise ValueError("context_id is required for selected_different_context decisions")
+            threading = WorkflowThreadState(
+                confirmed_context_id=context["context_id"],
+                context_decision="selected_different_context",
+                context_decision_at=now,
+            ).to_dict()
+            threading["suggestion_active"] = False
+            self._repository_touch_context_activity(uid, context["context_id"], now)
+        elif action == "created_new_context":
+            title = (new_context_title or "").strip()
+            if len(title) < 2:
+                raise ValueError("new_context_title is required for created_new_context decisions")
+            context = self.create_context(
+                uid,
+                title=title,
+                summary="",
+                seed_capture_id=capture_id,
+            )
+            threading = WorkflowThreadState(
+                confirmed_context_id=context["context_id"],
+                context_decision="created_new_context",
                 context_decision_at=now,
             ).to_dict()
             threading["suggestion_active"] = False

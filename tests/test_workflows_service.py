@@ -237,6 +237,98 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertEqual(updated["threading"]["context_decision"], "kept_separate")
         self.assertNotIn("related_thread", updated["result"])
 
+    def test_selecting_another_existing_thread_records_alternate_decision(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        suggested_context = service.create_context("user-1", title="Workflows UI/UX", summary="")
+        alternate_context = service.create_context("user-1", title="Voice capture", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="workflows ui/ux",
+        )
+
+        self.assertEqual(capture.threading["suggested_context_id"], suggested_context["context_id"])
+
+        updated = service.apply_context_decision(
+            "user-1",
+            capture.capture_id,
+            action="selected_different_context",
+            context_id=alternate_context["context_id"],
+        )
+
+        self.assertEqual(updated["threading"]["confirmed_context_id"], alternate_context["context_id"])
+        self.assertEqual(updated["threading"]["context_decision"], "selected_different_context")
+        self.assertEqual(
+            updated["result"]["related_thread"]["confirmed_title"],
+            "Voice capture",
+        )
+        reopened = service.get_capture("user-1", capture.capture_id)
+        self.assertEqual(reopened["threading"]["context_decision"], "selected_different_context")
+        self.assertEqual(
+            reopened["result"]["related_thread"]["confirmed_title"],
+            "Voice capture",
+        )
+        self.assertFalse(reopened["threading"].get("suggestion_active"))
+
+    def test_creating_new_thread_from_decision_confirms_it_quietly_on_reopen(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Voice capture product direction",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result should stay attached to the new thread.",
+                "next_step": "Keep the result linked quietly on reopen.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Need a dedicated thread for voice capture product direction. Action: keep the result linked quietly on reopen.",
+            context_hint="",
+        )
+
+        updated = service.apply_context_decision(
+            "user-1",
+            capture.capture_id,
+            action="created_new_context",
+            new_context_title="Voice capture",
+        )
+
+        confirmed_context_id = updated["threading"]["confirmed_context_id"]
+        self.assertTrue(confirmed_context_id)
+        self.assertEqual(updated["threading"]["context_decision"], "created_new_context")
+        self.assertEqual(
+            updated["result"]["related_thread"]["confirmed_title"],
+            "Voice capture",
+        )
+        created_context = repo.get_context("user-1", confirmed_context_id)
+        self.assertIsNotNone(created_context)
+        self.assertEqual(created_context["title"], "Voice capture")
+        self.assertEqual(created_context["seed_capture_id"], capture.capture_id)
+
+        reopened = service.get_capture("user-1", capture.capture_id)
+        self.assertEqual(
+            reopened["result"]["related_thread"],
+            {
+                "confirmed_title": "Voice capture",
+                "suggested_title": None,
+                "suggestion_active": False,
+            },
+        )
+
     def test_service_can_record_voice_capture_metadata(self):
         repo = FakeRepository()
 

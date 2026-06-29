@@ -546,6 +546,17 @@ function renderThreadChooser(threads) {
           ${escapeHtml(thread.title)}
         </button>
       `).join("")}
+      <form class="workflows-thread-create-form">
+        <label class="workflows-visually-hidden" for="new-thread-title">Create new thread</label>
+        <input
+          id="new-thread-title"
+          name="new_thread_title"
+          type="text"
+          maxlength="80"
+          placeholder="Create new thread"
+        />
+        <button type="submit" class="btn btn-outline" data-create-context>Create</button>
+      </form>
     </div>
   `;
 }
@@ -568,7 +579,7 @@ function renderRelatedThreadSuggestion(payload, threads = []) {
         <button type="button" class="btn btn-outline" id="keep-thread-separate">Keep separate</button>
         <button type="button" class="btn btn-quiet" id="choose-another-thread">Choose another</button>
       </div>
-      ${renderThreadChooser(threads)}
+      <div class="workflows-thread-chooser-slot" data-thread-count="${threads.length}"></div>
     </div>
   `;
 }
@@ -1156,12 +1167,69 @@ function wireResultThreadControls(card, payload, options = {}) {
   }
   const captureId = payload?.capture_id;
   const suggestedContextId = payload?.threading?.suggested_context_id || "";
-  const chooser = card.querySelector(".workflows-thread-chooser");
+  const chooserSlot = card.querySelector(".workflows-thread-chooser-slot");
+  let chooser = card.querySelector(".workflows-thread-chooser");
   const confirmRelatedThreadButton = card.querySelector("#confirm-related-thread");
   const chooseAnotherThreadButton = card.querySelector("#choose-another-thread");
   const keepSeparateButton = card.querySelector("#keep-thread-separate");
-  if (!captureId || (!chooser && !keepSeparateButton && !confirmRelatedThreadButton)) {
+  if (!captureId || (!chooserSlot && !keepSeparateButton && !confirmRelatedThreadButton)) {
     return;
+  }
+
+  function wireChooserControls() {
+    chooser = card.querySelector(".workflows-thread-chooser");
+    const createForm = card.querySelector(".workflows-thread-create-form");
+    const createInput = createForm?.querySelector('input[name="new_thread_title"]');
+
+    for (const button of card.querySelectorAll(".workflows-thread-option")) {
+      if (button.dataset.wired === "true") {
+        continue;
+      }
+      button.dataset.wired = "true";
+      button.addEventListener("click", async () => {
+        const contextId = button.getAttribute("data-context-id");
+        if (!contextId) {
+          return;
+        }
+        setStatusTone("Saving thread choice...", "working");
+        try {
+          const updated = await submitThreadDecision(captureId, "selected_different_context", {
+            contextId,
+          });
+          setStatusTone("Saved with thread.");
+          renderPayload(updated, { activeThreads: [] });
+        } catch (error) {
+          console.error("[workflows] thread confirmation failed", error);
+          setStatusTone("Something went wrong. Try again.", "error");
+        }
+      });
+    }
+
+    if (createForm && createForm.dataset.wired !== "true") {
+      createForm.dataset.wired = "true";
+      createForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const newContextTitle = createInput?.value.trim() || "";
+        if (newContextTitle.length < 2) {
+          setStatusTone("Add a thread title first.", "error");
+          createInput?.focus();
+          return;
+        }
+        setStatusTone("Creating thread...", "working");
+        try {
+          const updated = await submitThreadDecision(captureId, "created_new_context", {
+            newContextTitle,
+          });
+          setStatusTone("Saved with thread.");
+          renderPayload(updated, { activeThreads: [] });
+        } catch (error) {
+          console.error("[workflows] thread creation failed", error);
+          setStatusTone("Something went wrong. Try again.", "error");
+        }
+      });
+    }
+
+    return { chooser, createInput };
   }
 
   confirmRelatedThreadButton?.addEventListener("click", async () => {
@@ -1182,6 +1250,16 @@ function wireResultThreadControls(card, payload, options = {}) {
   });
 
   chooseAnotherThreadButton?.addEventListener("click", () => {
+    if (!chooser && chooserSlot) {
+      chooserSlot.innerHTML = renderThreadChooser(options.activeThreads || []);
+      const wiredChooser = wireChooserControls();
+      chooser = wiredChooser?.chooser || card.querySelector(".workflows-thread-chooser");
+      if (chooser) {
+        chooser.hidden = false;
+      }
+      wiredChooser?.createInput?.focus();
+      return;
+    }
     if (chooser) {
       chooser.hidden = !chooser.hidden;
     }
@@ -1198,26 +1276,6 @@ function wireResultThreadControls(card, payload, options = {}) {
       setStatusTone("Something went wrong. Try again.", "error");
     }
   });
-
-  for (const button of card.querySelectorAll(".workflows-thread-option")) {
-    button.addEventListener("click", async () => {
-      const contextId = button.getAttribute("data-context-id");
-      if (!contextId) {
-        return;
-      }
-      setStatusTone("Saving thread choice...", "working");
-      try {
-        const updated = await submitThreadDecision(captureId, "confirmed", {
-          contextId,
-        });
-        setStatusTone("Saved with thread.");
-        renderPayload(updated, { activeThreads: [] });
-      } catch (error) {
-        console.error("[workflows] thread confirmation failed", error);
-        setStatusTone("Something went wrong. Try again.", "error");
-      }
-    });
-  }
 }
 
 async function maybeResumePendingCapture() {
