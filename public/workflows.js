@@ -538,10 +538,6 @@ function renderSourceExcerpt(text) {
   `;
 }
 
-function isImmediateResultRoute() {
-  return parseWorkflowsRoute(window.location.pathname).screen === "result";
-}
-
 function renderThreadChooser(threads) {
   return `
     <div class="workflows-thread-chooser" hidden>
@@ -560,7 +556,7 @@ function renderRelatedThreadBlock(payload, options = {}) {
   const activeThreads = options.activeThreads || [];
   const threadDecision = payload?.threading?.context_decision || "";
   const canShowManualControls =
-    isImmediateResultRoute()
+    Boolean(options.isImmediateResult)
     && !confirmedTitle
     && !threadDecision
     && activeThreads.length > 0;
@@ -774,7 +770,7 @@ function renderSavedNote(payload, options = {}) {
     interpretationLine: payload.result.interpretation_line,
     framingLine: savedArtifact.framing_line || defaultFramingLine,
     bodyHtml: `
-      ${renderRelatedThreadBlock(payload, { activeThreads })}
+      ${renderRelatedThreadBlock(payload, { activeThreads, isImmediateResult: options.isImmediateResult })}
       ${renderSourceExcerpt(savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "")}
       ${renderSections(savedArtifact.sections || [])}
     `,
@@ -786,7 +782,10 @@ function renderSavedNote(payload, options = {}) {
 
   sourcePanel.hidden = false;
   sourceText.textContent = payload.source_event.source_text;
-  wireResultThreadControls(card, payload, activeThreads);
+  wireResultThreadControls(card, payload, {
+    activeThreads,
+    isImmediateResult: options.isImmediateResult,
+  });
   wireReturnToCapture();
 }
 
@@ -800,7 +799,7 @@ function renderPrimaryArtifact(payload, options = {}) {
   const artifact = payload.result.primary_artifact;
   const activeThreads = options.activeThreads || [];
   const bodyHtml = `
-    ${renderRelatedThreadBlock(payload, { activeThreads })}
+    ${renderRelatedThreadBlock(payload, { activeThreads, isImmediateResult: options.isImmediateResult })}
     ${renderSourceExcerpt(artifact.source_excerpt)}
     ${renderSections(artifact.sections || [])}
   `;
@@ -828,7 +827,10 @@ function renderPrimaryArtifact(payload, options = {}) {
     await navigator.clipboard.writeText(artifact.copy_text || artifact.body || "");
     setStatusTone("Copied note.");
   });
-  wireResultThreadControls(card, payload, activeThreads);
+  wireResultThreadControls(card, payload, {
+    activeThreads,
+    isImmediateResult: options.isImmediateResult,
+  });
   wireReturnToCapture();
 }
 
@@ -900,14 +902,9 @@ async function loadCaptureList() {
 
 async function loadCapture(captureId) {
   setStatusTone("Loading saved result...", "working");
-  const [payload, activeThreads] = await Promise.all([
-    apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}`),
-    isImmediateResultRoute()
-      ? loadActiveThreads().catch(() => [])
-      : Promise.resolve([]),
-  ]);
+  const payload = await apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}`);
   setStatus("");
-  renderPayload(payload, { activeThreads });
+  renderPayload(payload, { activeThreads: [], isImmediateResult: false });
 }
 
 async function submitCapture(text, contextHint) {
@@ -921,8 +918,11 @@ async function submitCapture(text, contextHint) {
     clearPendingCapture();
     const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
     history.pushState({}, "", nextPath);
+    const activeThreads = payload?.threading?.confirmed_context_id
+      ? []
+      : await loadActiveThreads().catch(() => []);
     setStatus("");
-    renderPayload(payload, { activeThreads: [] });
+    renderPayload(payload, { activeThreads, isImmediateResult: true });
   } catch (error) {
     console.error("[workflows] capture submission failed", error);
     logDebug("capture_submit_failed", {
@@ -978,7 +978,10 @@ async function submitVoiceCapture(audioBlob, mimeType, contextHint) {
     clearPendingCapture();
     const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
     history.pushState({}, "", nextPath);
-    renderPayload(payload, { activeThreads: [] });
+    const activeThreads = payload?.threading?.confirmed_context_id
+      ? []
+      : await loadActiveThreads().catch(() => []);
+    renderPayload(payload, { activeThreads, isImmediateResult: true });
     setStatusTone("Voice note saved.");
     logDebug("voice_capture_saved", {
       inputType: payload.input_type,
@@ -1151,8 +1154,8 @@ function restorePendingCaptureToForm() {
   return pending;
 }
 
-function wireResultThreadControls(card, payload, activeThreads) {
-  if (!card || !isImmediateResultRoute()) {
+function wireResultThreadControls(card, payload, options = {}) {
+  if (!card || !options.isImmediateResult) {
     return;
   }
   const captureId = payload?.capture_id;
