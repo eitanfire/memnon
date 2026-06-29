@@ -758,6 +758,83 @@ def _thread_state_has_visible_linkage(threading: dict) -> bool:
     return bool(threading.get("confirmed_context_id")) or bool(threading.get("suggestion_active"))
 
 
+def _threading_without_suggestion(threading: dict) -> dict:
+    if not threading:
+        return {}
+    hidden_keys = {
+        "suggested_context_id",
+        "suggested_context_title",
+        "suggestion_active",
+        "suggestion_basis",
+        "suggested_at",
+    }
+    return {
+        key: value
+        for key, value in threading.items()
+        if key not in hidden_keys
+    }
+
+
+def _thread_title_tokens(value: str) -> list[str]:
+    return [
+        token
+        for token in re.findall(r"[A-Za-z0-9]+", (value or "").lower())
+        if len(token) >= 3
+    ]
+
+
+def _thread_named_terms(value: str) -> set[str]:
+    return {
+        match.lower()
+        for match in re.findall(r"\b[A-Z][a-z]+(?: [A-Z][a-z]+)*\b", value or "")
+        if len(match) >= 4
+    }
+
+
+def _token_overlap(left: str, right: str) -> int:
+    return len(set(_thread_title_tokens(left)) & set(_thread_title_tokens(right)))
+
+
+def _near_title_match(left: str, right: str) -> bool:
+    left_tokens = set(_thread_title_tokens(left))
+    right_tokens = set(_thread_title_tokens(right))
+    if not left_tokens or not right_tokens:
+        return False
+    overlap = len(left_tokens & right_tokens)
+    return overlap >= min(len(left_tokens), len(right_tokens))
+
+
+def _parse_iso_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _should_suppress_thread_suggestion(record: dict) -> bool:
+    result = record.get("result") or {}
+    route_kind = result.get("route_kind") or ""
+    saved_note = result.get("saved_note_artifact") or {}
+    if route_kind not in {"direct_professional_note", "saved_note"}:
+        return True
+    if route_kind == "saved_note" and saved_note.get("state") == "weak_signal":
+        return True
+
+    source_event = record.get("source_event") or {}
+    input_type = source_event.get("input_type") or record.get("input_type") or ""
+    quality = (record.get("event_manifest") or {}).get("transcript_quality") or {}
+    if input_type == "voice" and quality.get("quality") != "clean":
+        return True
+
+    source_text = source_event.get("source_text") or ""
+    if _looks_like_low_signal_excerpt(source_text):
+        return True
+
+    return False
+
+
 class WorkflowService:
     def __init__(self, repository, note_generator, now_provider, api_key_provider):
         self.repository = repository
@@ -822,6 +899,9 @@ class WorkflowService:
         return _context_store(self.repository).get(uid, {}).get(context_id)
 
     def _repository_list_contexts(self, uid: str, limit: int | None = 12) -> list[dict]:
+        if hasattr(self.repository, "list_active_contexts"):
+            effective_limit = 1000 if limit is None else limit
+            return self.repository.list_active_contexts(uid, limit=effective_limit)
         if hasattr(self.repository, "list_contexts"):
             if limit is None:
                 return self.repository.list_contexts(uid, limit=1000)
@@ -873,16 +953,19 @@ class WorkflowService:
         _persist_repository_state(self.repository)
         return context
 
-    def _hydrate_capture_record(self, uid: str, record: dict | None) -> dict | None:
+    def _hydrate_capture_record(self, uid: str, record: dict | None, *, include_suggestion: bool = True) -> dict | None:
         if record is None:
             return None
 
         hydrated = dict(record)
         result = dict(hydrated.get("result") or {})
-        threading = dict(hydrated.get("threading") or {})
+        raw_threading = dict(hydrated.get("threading") or {})
+        threading = dict(raw_threading if include_suggestion else _threading_without_suggestion(raw_threading))
         context = self._repository_get_context(uid, threading.get("confirmed_context_id"))
         if _thread_state_has_visible_linkage(threading) or context:
-            result["related_thread"] = _build_related_thread_payload(hydrated, context)
+            payload_record = dict(hydrated)
+            payload_record["threading"] = threading
+            result["related_thread"] = _build_related_thread_payload(payload_record, context)
         else:
             result.pop("related_thread", None)
         hydrated["result"] = result
@@ -950,6 +1033,97 @@ class WorkflowService:
         self._repository_update_capture_threading(uid, capture_id, threading, now)
         updated = self.repository.get_capture(uid, capture_id)
         return self._hydrate_capture_record(uid, updated)
+
+    def _context_recency_boost(self, thread: dict) -> int:
+        last_activity_at = _parse_iso_timestamp(thread.get("last_activity_at") or thread.get("updated_at"))
+        current_time = _parse_iso_timestamp(self.now_provider())
+        if not last_activity_at or not current_time:
+            return 0
+        age_seconds = (current_time - last_activity_at).total_seconds()
+        if age_seconds < 0:
+            return 0
+        return 2 if age_seconds <= 60 * 60 * 24 * 30 else 0
+
+    def _prior_confirmed_match_boosts(self, uid: str, record: dict, thread: dict) -> tuple[int, int]:
+        records = self.repository.list_captures(uid, limit=50)
+        current_source = (record.get("source_event") or {}).get("source_text") or ""
+        target_context_id = thread.get("context_id")
+        current_named_terms = _thread_named_terms(current_source)
+        for prior in records:
+            prior_threading = prior.get("threading") or {}
+            if prior_threading.get("confirmed_context_id") != target_context_id:
+                continue
+            prior_source = (prior.get("source_event") or {}).get("source_text") or ""
+            pattern_boost = 2 if _token_overlap(current_source, prior_source) >= 2 else 0
+            named_entity_boost = 4 if current_named_terms & _thread_named_terms(prior_source) else 0
+            if pattern_boost or named_entity_boost:
+                return pattern_boost, named_entity_boost
+        return 0, 0
+
+    def _score_context_match(self, uid: str, record: dict, thread: dict) -> int:
+        source_event = record.get("source_event") or {}
+        source_text = source_event.get("source_text") or ""
+        context_hint = record.get("context_hint") or source_event.get("context_hint") or ""
+        artifact = (record.get("result") or {}).get("primary_artifact") or {}
+        artifact_title = artifact.get("title") or ""
+        thread_title = thread.get("title") or ""
+
+        score = 0
+
+        normalized_hint = _normalize_text(context_hint).lower()
+        normalized_title = _normalize_text(thread_title).lower()
+        if normalized_hint and normalized_title and (
+            normalized_hint == normalized_title
+            or _near_title_match(context_hint, thread_title)
+        ):
+            score += 5
+
+        title_overlap = max(
+            _token_overlap(thread_title, source_text),
+            _token_overlap(thread_title, artifact_title),
+            _token_overlap(thread_title, context_hint),
+        )
+        if title_overlap >= 2:
+            score += 4
+
+        if _thread_named_terms(source_text) & _thread_named_terms(thread_title):
+            score += 4
+
+        score += self._context_recency_boost(thread)
+        pattern_boost, named_entity_boost = self._prior_confirmed_match_boosts(uid, record, thread)
+        score += pattern_boost
+        score += named_entity_boost
+        return score
+
+    def suggest_context_for_capture(self, uid: str, record: dict) -> dict | None:
+        if _should_suppress_thread_suggestion(record):
+            return None
+
+        threads = self.list_active_contexts(uid, limit=12)
+        if not threads:
+            return None
+
+        scored = [
+            (self._score_context_match(uid, record, thread), thread)
+            for thread in threads
+        ]
+        scored.sort(key=lambda item: item[0], reverse=True)
+
+        best_score, best_thread = scored[0]
+        runner_up_score = scored[1][0] if len(scored) > 1 else -1
+
+        if best_score < 5:
+            return None
+        if best_score - runner_up_score < 2:
+            return None
+
+        return {
+            "suggested_context_id": best_thread["context_id"],
+            "suggested_context_title": best_thread["title"],
+            "suggestion_active": True,
+            "suggestion_basis": "ranked_match",
+            "suggested_at": self.now_provider(),
+        }
 
     def create_text_capture(self, uid: str, source_text: str, context_hint: str, *, input_type: str = "text"):
         capture_id = f"cap-{secrets.token_hex(6)}"
@@ -1112,11 +1286,23 @@ class WorkflowService:
             updated_at=now,
             threading={},
         )
+        suggestion = self.suggest_context_for_capture(uid, record.to_dict())
+        if suggestion:
+            record.threading = suggestion
+            record.result["related_thread"] = {
+                "confirmed_title": None,
+                "suggested_title": suggestion["suggested_context_title"],
+                "suggestion_active": True,
+            }
         self.repository.save_capture(uid, record)
         return record
 
     def get_capture(self, uid: str, capture_id: str):
-        return self._hydrate_capture_record(uid, self.repository.get_capture(uid, capture_id))
+        return self._hydrate_capture_record(
+            uid,
+            self.repository.get_capture(uid, capture_id),
+            include_suggestion=False,
+        )
 
     def list_capture_summaries(self, uid: str, limit: int = 50):
         records = list(self.repository.list_captures(uid, limit=limit))

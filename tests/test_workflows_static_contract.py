@@ -167,54 +167,61 @@ class WorkflowsStaticContractTests(unittest.TestCase):
 
             const snippets = [
               extractBetween("function escapeHtml", "function setStatus"),
-              extractBetween("function renderThreadChooser", "function renderRelatedThreadBlock"),
-              extractBetween("function renderRelatedThreadBlock", "function renderSections"),
+              extractBetween("function renderThreadChooser", "function isImmediateResultNavigation"),
+              extractBetween("function isImmediateResultNavigation", "function renderRelatedThreadSuggestion"),
+              extractBetween("function renderRelatedThreadSuggestion", "function renderConfirmedThreadDisplay"),
+              extractBetween("function renderConfirmedThreadDisplay", "function renderSections"),
             ].join("\\n");
 
             const context = {};
             vm.createContext(context);
             vm.runInContext(snippets, context);
 
-            const immediateEligible = context.renderRelatedThreadBlock(
-              { result: { related_thread: {} }, threading: {} },
+            const immediateEligible = context.renderRelatedThreadSuggestion(
               {
-                isImmediateResult: true,
-                activeThreads: [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
+                result: {
+                  related_thread: {
+                    suggested_title: "Workflows UI/UX",
+                    suggestion_active: true,
+                  },
+                },
+                threading: { suggestion_active: true },
               },
+              [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
             );
-            const reopenedNoControls = context.renderRelatedThreadBlock(
+            const reopenedNoControls = context.renderRelatedThreadSuggestion(
               { result: { related_thread: {} }, threading: {} },
-              {
-                isImmediateResult: false,
-                activeThreads: [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
-              },
+              [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
             );
-            const reopenedConfirmed = context.renderRelatedThreadBlock(
+            const immediateNavigation = context.isImmediateResultNavigation({
+              result: { related_thread: { suggested_title: "Workflows UI/UX", suggestion_active: true } },
+              threading: { suggestion_active: true },
+            });
+            const reopenedNavigation = context.isImmediateResultNavigation({
+              result: { related_thread: { confirmed_title: "Workflows UI/UX" } },
+              threading: { confirmed_context_id: "ctx-1", context_decision: "confirmed" },
+            });
+            const reopenedConfirmed = context.renderConfirmedThreadDisplay(
               {
                 result: { related_thread: { confirmed_title: "Workflows UI/UX" } },
                 threading: { confirmed_context_id: "ctx-1", context_decision: "confirmed" },
               },
-              {
-                isImmediateResult: false,
-                activeThreads: [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
-              },
             );
-            const decidedSeparate = context.renderRelatedThreadBlock(
+            const decidedSeparate = context.renderRelatedThreadSuggestion(
               { result: { related_thread: {} }, threading: { context_decision: "kept_separate" } },
-              {
-                isImmediateResult: true,
-                activeThreads: [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
-              },
+              [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
             );
 
             const assertions = [
-              immediateEligible.includes("This belongs with an ongoing thread.")
-                && immediateEligible.includes("Keep with a thread")
-                && immediateEligible.includes("Keep separate"),
+              immediateEligible.includes("This looks related to Workflows UI/UX.")
+                && immediateEligible.includes("Continue there")
+                && immediateEligible.includes("Keep separate")
+                && immediateEligible.includes("Choose another"),
               reopenedNoControls.trim() === "",
+              immediateNavigation === true,
+              reopenedNavigation === false,
               reopenedConfirmed.includes("Workflows UI/UX")
-                && reopenedConfirmed.includes("Ongoing thread")
-                && !reopenedConfirmed.includes("Keep with a thread"),
+                && reopenedConfirmed.includes("Related to Workflows UI/UX"),
               decidedSeparate.trim() === "",
             ];
 

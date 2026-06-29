@@ -169,6 +169,38 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertEqual(reopened.get("threading"), {})
         self.assertNotIn("related_thread", reopened["result"])
 
+    def test_immediate_capture_includes_ranked_thread_suggestion(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        context = service.create_context("user-1", title="Workflows UI/UX", summary="")
+
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="workflows ui/ux",
+        )
+
+        self.assertEqual(capture.threading["suggested_context_id"], context["context_id"])
+        self.assertTrue(capture.threading["suggestion_active"])
+        self.assertEqual(
+            capture.result["related_thread"],
+            {
+                "confirmed_title": None,
+                "suggested_title": "Workflows UI/UX",
+                "suggestion_active": True,
+            },
+        )
+
     def test_kept_separate_clears_prior_confirmed_thread_linkage(self):
         repo = FakeRepository()
         service = WorkflowService(

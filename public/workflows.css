@@ -320,31 +320,28 @@ body.workflows-page {
 .workflows-related-thread-block {
   display: grid;
   gap: 10px;
-}
-
-.workflows-related-thread-confirmed,
-.workflows-related-thread-prompt {
   display: grid;
-  gap: 8px;
   padding: 12px 14px;
   border-radius: 12px;
   background: #f8f4ee;
   border: 1px solid #e8ddd0;
 }
 
-.workflows-related-thread-label {
-  margin: 0;
-  color: #6f665f;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.workflows-related-thread-title,
 .workflows-related-thread-copy {
   margin: 0;
   color: #2f2924;
+}
+
+.workflows-related-thread-confirmed {
+  margin: 0;
+  color: #5b5149;
+  font-size: 0.95rem;
+}
+
+.workflows-related-thread-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .workflows-thread-chooser {
@@ -495,6 +492,18 @@ body.workflows-page {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.btn-quiet {
+  border: 0;
+  background: transparent;
+  color: #6b5f52;
+  padding-inline: 0;
+}
+
+.btn-quiet:hover {
+  color: #3f352d;
+  background: transparent;
 }
 
 @media (max-width: 640px) {

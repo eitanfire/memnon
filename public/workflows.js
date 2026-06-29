@@ -550,41 +550,35 @@ function renderThreadChooser(threads) {
   `;
 }
 
-function renderRelatedThreadBlock(payload, options = {}) {
-  const relatedThread = payload?.result?.related_thread || {};
-  const confirmedTitle = relatedThread.confirmed_title || "";
-  const activeThreads = options.activeThreads || [];
-  const threadDecision = payload?.threading?.context_decision || "";
-  const canShowManualControls =
-    Boolean(options.isImmediateResult)
-    && !confirmedTitle
-    && !threadDecision
-    && activeThreads.length > 0;
+function isImmediateResultNavigation(payload) {
+  return Boolean(payload?.threading?.suggestion_active);
+}
 
-  if (!confirmedTitle && !canShowManualControls) {
+function renderRelatedThreadSuggestion(payload, threads = []) {
+  const relatedThread = payload?.result?.related_thread || {};
+  if (!relatedThread.suggestion_active || !relatedThread.suggested_title) {
     return "";
   }
 
   return `
-    <section class="workflows-related-thread-block">
-      ${confirmedTitle ? `
-        <div class="workflows-related-thread-confirmed">
-          <p class="workflows-related-thread-label">Ongoing thread</p>
-          <p class="workflows-related-thread-title">${escapeHtml(confirmedTitle)}</p>
-        </div>
-      ` : ""}
-      ${canShowManualControls ? `
-        <div class="workflows-related-thread-prompt">
-          <p class="workflows-related-thread-copy">This belongs with an ongoing thread.</p>
-          <div class="workflows-inline-actions">
-            <button type="button" class="btn btn-outline" id="keep-with-thread">Keep with a thread</button>
-            <button type="button" class="btn btn-outline" id="keep-separate">Keep separate</button>
-          </div>
-          ${renderThreadChooser(activeThreads)}
-        </div>
-      ` : ""}
-    </section>
+    <div class="workflows-related-thread-block">
+      <p class="workflows-related-thread-copy">This looks related to ${escapeHtml(relatedThread.suggested_title)}.</p>
+      <div class="workflows-related-thread-actions">
+        <button type="button" class="btn btn-primary" id="confirm-related-thread">Continue there</button>
+        <button type="button" class="btn btn-outline" id="keep-thread-separate">Keep separate</button>
+        <button type="button" class="btn btn-quiet" id="choose-another-thread">Choose another</button>
+      </div>
+      ${renderThreadChooser(threads)}
+    </div>
   `;
+}
+
+function renderConfirmedThreadDisplay(payload) {
+  const relatedThread = payload?.result?.related_thread || {};
+  if (!relatedThread.confirmed_title) {
+    return "";
+  }
+  return `<p class="workflows-related-thread-confirmed">Related to ${escapeHtml(relatedThread.confirmed_title)}</p>`;
 }
 
 function renderSections(sections) {
@@ -770,7 +764,8 @@ function renderSavedNote(payload, options = {}) {
     interpretationLine: payload.result.interpretation_line,
     framingLine: savedArtifact.framing_line || defaultFramingLine,
     bodyHtml: `
-      ${renderRelatedThreadBlock(payload, { activeThreads, isImmediateResult: options.isImmediateResult })}
+      ${renderRelatedThreadSuggestion(payload, activeThreads)}
+      ${renderConfirmedThreadDisplay(payload)}
       ${renderSourceExcerpt(savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "")}
       ${renderSections(savedArtifact.sections || [])}
     `,
@@ -799,7 +794,8 @@ function renderPrimaryArtifact(payload, options = {}) {
   const artifact = payload.result.primary_artifact;
   const activeThreads = options.activeThreads || [];
   const bodyHtml = `
-    ${renderRelatedThreadBlock(payload, { activeThreads, isImmediateResult: options.isImmediateResult })}
+    ${renderRelatedThreadSuggestion(payload, activeThreads)}
+    ${renderConfirmedThreadDisplay(payload)}
     ${renderSourceExcerpt(artifact.source_excerpt)}
     ${renderSections(artifact.sections || [])}
   `;
@@ -1155,18 +1151,37 @@ function restorePendingCaptureToForm() {
 }
 
 function wireResultThreadControls(card, payload, options = {}) {
-  if (!card || !options.isImmediateResult) {
+  if (!card || !options.isImmediateResult || !isImmediateResultNavigation(payload)) {
     return;
   }
   const captureId = payload?.capture_id;
+  const suggestedContextId = payload?.threading?.suggested_context_id || "";
   const chooser = card.querySelector(".workflows-thread-chooser");
-  const keepWithThreadButton = card.querySelector("#keep-with-thread");
-  const keepSeparateButton = card.querySelector("#keep-separate");
-  if (!captureId || (!chooser && !keepSeparateButton && !keepWithThreadButton)) {
+  const confirmRelatedThreadButton = card.querySelector("#confirm-related-thread");
+  const chooseAnotherThreadButton = card.querySelector("#choose-another-thread");
+  const keepSeparateButton = card.querySelector("#keep-thread-separate");
+  if (!captureId || (!chooser && !keepSeparateButton && !confirmRelatedThreadButton)) {
     return;
   }
 
-  keepWithThreadButton?.addEventListener("click", () => {
+  confirmRelatedThreadButton?.addEventListener("click", async () => {
+    if (!suggestedContextId) {
+      return;
+    }
+    setStatusTone("Saving thread choice...", "working");
+    try {
+      const updated = await submitThreadDecision(captureId, "confirmed", {
+        contextId: suggestedContextId,
+      });
+      setStatusTone("Saved with thread.");
+      renderPayload(updated, { activeThreads: [] });
+    } catch (error) {
+      console.error("[workflows] thread confirmation failed", error);
+      setStatusTone("Something went wrong. Try again.", "error");
+    }
+  });
+
+  chooseAnotherThreadButton?.addEventListener("click", () => {
     if (chooser) {
       chooser.hidden = !chooser.hidden;
     }
