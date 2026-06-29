@@ -317,6 +317,57 @@ body.workflows-page {
   border: 1px solid #ece2d6;
 }
 
+.workflows-related-thread-block {
+  display: grid;
+  gap: 10px;
+}
+
+.workflows-related-thread-confirmed,
+.workflows-related-thread-prompt {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8f4ee;
+  border: 1px solid #e8ddd0;
+}
+
+.workflows-related-thread-label {
+  margin: 0;
+  color: #6f665f;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.workflows-related-thread-title,
+.workflows-related-thread-copy {
+  margin: 0;
+  color: #2f2924;
+}
+
+.workflows-thread-chooser {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflows-thread-option {
+  border: 1px solid #d7cab9;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fffdf9;
+  color: #4d4137;
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.workflows-thread-option:hover {
+  background: #f6efe5;
+}
+
 .workflows-source-label,
 .workflows-section-block h3 {
   color: #5d5750;

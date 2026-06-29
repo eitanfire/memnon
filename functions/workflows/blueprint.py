@@ -27,6 +27,42 @@ def create_workflows_blueprint(
 ):
     blueprint = Blueprint("workflows", __name__)
 
+    def _error_response(error: Exception):
+        if isinstance(error, KeyError):
+            return jsonify({"error": "not found"}), 404
+        if isinstance(error, ValueError):
+            return jsonify({"error": str(error)}), 400
+        raise error
+
+    @blueprint.route("/contexts", methods=["GET"])
+    def list_contexts():
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        service = service_provider()
+        return jsonify({"items": service.list_active_contexts(uid)})
+
+    @blueprint.route("/contexts", methods=["POST"])
+    def create_context():
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        title = (payload.get("title") or "").strip()
+        if len(title) < 2:
+            return jsonify({"error": "title required"}), 400
+
+        service = service_provider()
+        created = service.create_context(
+            uid,
+            title=title,
+            summary=(payload.get("summary") or "").strip(),
+            seed_capture_id=payload.get("seed_capture_id"),
+        )
+        return jsonify(created), 201
+
     @blueprint.route("/captures", methods=["GET"])
     def list_captures():
         uid = verify_token(request)
@@ -105,5 +141,25 @@ def create_workflows_blueprint(
         if payload is None:
             return jsonify({"error": "not found"}), 404
         return jsonify(payload)
+
+    @blueprint.route("/captures/<capture_id>/context-decision", methods=["POST"])
+    def apply_context_decision(capture_id: str):
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        service = service_provider()
+        try:
+            updated = service.apply_context_decision(
+                uid,
+                capture_id,
+                action=(payload.get("action") or "").strip(),
+                context_id=payload.get("context_id"),
+                new_context_title=(payload.get("new_context_title") or "").strip() or None,
+            )
+        except (KeyError, ValueError) as error:
+            return _error_response(error)
+        return jsonify(updated)
 
     return blueprint

@@ -25,6 +25,7 @@ class FakeRepository:
                 "reflect_config": {"selected_guides": ["parker_palmer"]},
             }
         }
+        self.contexts = {}
 
     def load_user_profile(self, uid):
         return self.user_profiles.get(uid, {"lane": "professional", "profession": "professional"})
@@ -44,6 +45,36 @@ class FakeRepository:
         ]
         items.sort(key=lambda item: item.get("created_at", ""), reverse=True)
         return items[:limit]
+
+    def create_context(self, uid, *, context_id, title, summary, seed_capture_id, now):
+        context = {
+            "context_id": context_id,
+            "title": title,
+            "summary": summary,
+            "status": "active",
+            "seed_capture_id": seed_capture_id,
+            "created_at": now,
+            "updated_at": now,
+            "last_activity_at": now,
+        }
+        self.contexts[(uid, context_id)] = context
+        return context
+
+    def get_context(self, uid, context_id):
+        return self.contexts.get((uid, context_id))
+
+    def touch_context_activity(self, uid, context_id, now):
+        context = self.contexts.get((uid, context_id))
+        if context is None:
+            return None
+        context["last_activity_at"] = now
+        context["updated_at"] = now
+        return context
+
+    def update_capture_threading(self, uid, capture_id, threading):
+        record = self.records[(uid, capture_id)]
+        record["threading"] = dict(threading)
+        return record
 
 
 class WorkflowApiTests(unittest.TestCase):
@@ -354,6 +385,86 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(len(payload["items"]), 1)
         self.assertEqual(payload["items"][0]["capture_id"], capture_id)
         self.assertEqual(payload["items"][0]["next_route"], f"/workflows/result/{capture_id}")
+
+    def test_list_active_contexts_returns_active_threads_only(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "key_point": "Unused",
+                "next_step": "Unused",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        active_context = service.create_context("user-1", title="Workflows UI/UX", summary="")
+        archived_context = service.create_context("user-1", title="Voice capture", summary="")
+        repo.contexts[("user-1", archived_context["context_id"])]["status"] = "archived"
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.get("/workflows/contexts")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["title"] for item in response.get_json()["items"]],
+            [active_context["title"]],
+        )
+
+    def test_context_decision_endpoint_confirms_thread_for_capture(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Product direction conversation with Jordan",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "next_step": "Revise the result card before the next demo.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Met with Jordan about the workflows page. "
+                "Action: revise the result card."
+            ),
+            context_hint="",
+        )
+        context = service.create_context("user-1", title="Workflows UI/UX", summary="")
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/context-decision",
+            json={"action": "confirmed", "context_id": context["context_id"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(
+            payload["threading"]["confirmed_context_id"],
+            context["context_id"],
+        )
+        self.assertEqual(
+            payload["result"]["related_thread"]["confirmed_title"],
+            "Workflows UI/UX",
+        )
 
 
 if __name__ == "__main__":

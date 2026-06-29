@@ -821,6 +821,30 @@ class WorkflowService:
             return self.repository.get_context(uid, context_id)
         return _context_store(self.repository).get(uid, {}).get(context_id)
 
+    def _repository_list_contexts(self, uid: str, limit: int = 12) -> list[dict]:
+        if hasattr(self.repository, "list_contexts"):
+            return self.repository.list_contexts(uid, limit=limit)
+
+        repository_contexts = getattr(self.repository, "contexts", None)
+        if isinstance(repository_contexts, dict):
+            items = [
+                dict(context)
+                for (record_uid, _context_id), context in repository_contexts.items()
+                if record_uid == uid
+            ]
+        else:
+            store = _context_store(self.repository).get(uid, {})
+            items = [dict(context) for context in store.values()]
+        items.sort(
+            key=lambda item: (
+                item.get("last_activity_at", ""),
+                item.get("updated_at", ""),
+                item.get("created_at", ""),
+            ),
+            reverse=True,
+        )
+        return items[:limit]
+
     def _repository_update_capture_threading(self, uid: str, capture_id: str, threading: dict, now: str) -> None:
         if hasattr(self.repository, "update_capture_threading"):
             self.repository.update_capture_threading(uid, capture_id, threading)
@@ -872,6 +896,13 @@ class WorkflowService:
             seed_capture_id=seed_capture_id,
             now=now,
         )
+
+    def list_active_contexts(self, uid: str, limit: int = 12) -> list[dict]:
+        return [
+            context
+            for context in self._repository_list_contexts(uid, limit=limit)
+            if context.get("status") != "archived"
+        ][:limit]
 
     def apply_context_decision(
         self,

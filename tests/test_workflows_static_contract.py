@@ -38,6 +38,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         html = Path("public/workflows.html").read_text(encoding="utf-8")
 
         self.assertIn("/api/workflows/captures", js)
+        self.assertIn("/api/workflows/contexts", js)
         self.assertIn("http://127.0.0.1:5051", js)
         self.assertIn("canonicalizeAuthReturnUrl", js)
         self.assertIn("shouldShowLocalDebugUi", js)
@@ -138,6 +139,18 @@ class WorkflowsStaticContractTests(unittest.TestCase):
 
         self.assertIn("toLocaleDateString", js)
         self.assertNotIn("Just now", js)
+
+    def test_result_route_includes_quiet_manual_thread_controls(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        css = Path("public/workflows.css").read_text(encoding="utf-8")
+
+        self.assertIn("This belongs with an ongoing thread.", js)
+        self.assertIn("Keep with a thread", js)
+        self.assertIn("Keep separate", js)
+        self.assertIn("submitThreadDecision", js)
+        self.assertIn("renderThreadChooser", js)
+        self.assertIn("workflows-thread-chooser", css)
+        self.assertIn("workflows-thread-option", css)
 
 
 if __name__ == "__main__":

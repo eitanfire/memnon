@@ -44,6 +44,7 @@ const bypassRemoteAuth = shouldBypassRemoteAuth(
 const LOCAL_API_ORIGIN = "http://127.0.0.1:5051";
 const API_ORIGIN = isStaticLocalhost ? LOCAL_API_ORIGIN : "";
 const API_CAPTURES_PATH = "/api/workflows/captures";
+const API_CONTEXTS_PATH = "/api/workflows/contexts";
 const AUTH_START_URL = "https://api-4hth6oktaa-uc.a.run.app/auth/start";
 const SAVED_RESULTS_PATH = "/workflows/saved";
 const PENDING_CAPTURE_KEY = "memnon_workflows_pending_capture_v1";
@@ -537,6 +538,59 @@ function renderSourceExcerpt(text) {
   `;
 }
 
+function isImmediateResultRoute() {
+  return parseWorkflowsRoute(window.location.pathname).screen === "result";
+}
+
+function renderThreadChooser(threads) {
+  return `
+    <div class="workflows-thread-chooser" hidden>
+      ${threads.map((thread) => `
+        <button type="button" class="workflows-thread-option" data-context-id="${escapeHtml(thread.context_id)}">
+          ${escapeHtml(thread.title)}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderRelatedThreadBlock(payload, options = {}) {
+  const relatedThread = payload?.result?.related_thread || {};
+  const confirmedTitle = relatedThread.confirmed_title || "";
+  const activeThreads = options.activeThreads || [];
+  const threadDecision = payload?.threading?.context_decision || "";
+  const canShowManualControls =
+    isImmediateResultRoute()
+    && !confirmedTitle
+    && !threadDecision
+    && activeThreads.length > 0;
+
+  if (!confirmedTitle && !canShowManualControls) {
+    return "";
+  }
+
+  return `
+    <section class="workflows-related-thread-block">
+      ${confirmedTitle ? `
+        <div class="workflows-related-thread-confirmed">
+          <p class="workflows-related-thread-label">Ongoing thread</p>
+          <p class="workflows-related-thread-title">${escapeHtml(confirmedTitle)}</p>
+        </div>
+      ` : ""}
+      ${canShowManualControls ? `
+        <div class="workflows-related-thread-prompt">
+          <p class="workflows-related-thread-copy">This belongs with an ongoing thread.</p>
+          <div class="workflows-inline-actions">
+            <button type="button" class="btn btn-outline" id="keep-with-thread">Keep with a thread</button>
+            <button type="button" class="btn btn-outline" id="keep-separate">Keep separate</button>
+          </div>
+          ${renderThreadChooser(activeThreads)}
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
 function renderSections(sections) {
   if (!sections?.length) {
     return "";
@@ -694,7 +748,8 @@ function renderSavedResultsList(items) {
   wireReturnToCapture();
 }
 
-function renderSavedNote(payload) {
+function renderSavedNote(payload, options = {}) {
+  const activeThreads = options.activeThreads || [];
   resetResultCards();
   showResultScreen();
 
@@ -719,6 +774,7 @@ function renderSavedNote(payload) {
     interpretationLine: payload.result.interpretation_line,
     framingLine: savedArtifact.framing_line || defaultFramingLine,
     bodyHtml: `
+      ${renderRelatedThreadBlock(payload, { activeThreads })}
       ${renderSourceExcerpt(savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "")}
       ${renderSections(savedArtifact.sections || [])}
     `,
@@ -730,10 +786,11 @@ function renderSavedNote(payload) {
 
   sourcePanel.hidden = false;
   sourceText.textContent = payload.source_event.source_text;
+  wireResultThreadControls(card, payload, activeThreads);
   wireReturnToCapture();
 }
 
-function renderPrimaryArtifact(payload) {
+function renderPrimaryArtifact(payload, options = {}) {
   resetResultCards();
   showResultScreen();
 
@@ -741,7 +798,9 @@ function renderPrimaryArtifact(payload) {
   const sourcePanel = document.getElementById("source-text-panel");
   const sourceText = document.getElementById("source-text-content");
   const artifact = payload.result.primary_artifact;
+  const activeThreads = options.activeThreads || [];
   const bodyHtml = `
+    ${renderRelatedThreadBlock(payload, { activeThreads })}
     ${renderSourceExcerpt(artifact.source_excerpt)}
     ${renderSections(artifact.sections || [])}
   `;
@@ -769,6 +828,7 @@ function renderPrimaryArtifact(payload) {
     await navigator.clipboard.writeText(artifact.copy_text || artifact.body || "");
     setStatusTone("Copied note.");
   });
+  wireResultThreadControls(card, payload, activeThreads);
   wireReturnToCapture();
 }
 
@@ -784,13 +844,13 @@ function wireReturnToCapture() {
   });
 }
 
-function renderPayload(payload) {
+function renderPayload(payload, options = {}) {
   setStatus("");
   if (payload.result.route_kind === "saved_note" || !payload.result.primary_artifact) {
-    renderSavedNote(payload);
+    renderSavedNote(payload, options);
     return;
   }
-  renderPrimaryArtifact(payload);
+  renderPrimaryArtifact(payload, options);
 }
 
 async function createCapture(text, contextHint) {
@@ -815,6 +875,22 @@ async function createAudioCapture(audioBlob, filename, contextHint) {
   });
 }
 
+async function loadActiveThreads() {
+  const payload = await apiFetch(API_CONTEXTS_PATH);
+  return payload.items || [];
+}
+
+async function submitThreadDecision(captureId, action, options = {}) {
+  return apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}/context-decision`, {
+    method: "POST",
+    body: JSON.stringify({
+      action,
+      context_id: options.contextId || null,
+      new_context_title: options.newContextTitle || null,
+    }),
+  });
+}
+
 async function loadCaptureList() {
   setStatusTone("Loading saved results...", "working");
   const payload = await apiFetch(API_CAPTURES_PATH);
@@ -824,9 +900,14 @@ async function loadCaptureList() {
 
 async function loadCapture(captureId) {
   setStatusTone("Loading saved result...", "working");
-  const payload = await apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}`);
+  const [payload, activeThreads] = await Promise.all([
+    apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}`),
+    isImmediateResultRoute()
+      ? loadActiveThreads().catch(() => [])
+      : Promise.resolve([]),
+  ]);
   setStatus("");
-  renderPayload(payload);
+  renderPayload(payload, { activeThreads });
 }
 
 async function submitCapture(text, contextHint) {
@@ -841,7 +922,7 @@ async function submitCapture(text, contextHint) {
     const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
     history.pushState({}, "", nextPath);
     setStatus("");
-    renderPayload(payload);
+    renderPayload(payload, { activeThreads: [] });
   } catch (error) {
     console.error("[workflows] capture submission failed", error);
     logDebug("capture_submit_failed", {
@@ -897,7 +978,7 @@ async function submitVoiceCapture(audioBlob, mimeType, contextHint) {
     clearPendingCapture();
     const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
     history.pushState({}, "", nextPath);
-    renderPayload(payload);
+    renderPayload(payload, { activeThreads: [] });
     setStatusTone("Voice note saved.");
     logDebug("voice_capture_saved", {
       inputType: payload.input_type,
@@ -1068,6 +1149,57 @@ function restorePendingCaptureToForm() {
     context.value = pending.contextHint;
   }
   return pending;
+}
+
+function wireResultThreadControls(card, payload, activeThreads) {
+  if (!card || !isImmediateResultRoute()) {
+    return;
+  }
+  const captureId = payload?.capture_id;
+  const chooser = card.querySelector(".workflows-thread-chooser");
+  const keepWithThreadButton = card.querySelector("#keep-with-thread");
+  const keepSeparateButton = card.querySelector("#keep-separate");
+  if (!captureId || (!chooser && !keepSeparateButton && !keepWithThreadButton)) {
+    return;
+  }
+
+  keepWithThreadButton?.addEventListener("click", () => {
+    if (chooser) {
+      chooser.hidden = !chooser.hidden;
+    }
+  });
+
+  keepSeparateButton?.addEventListener("click", async () => {
+    setStatusTone("Keeping this separate...", "working");
+    try {
+      const updated = await submitThreadDecision(captureId, "kept_separate");
+      setStatusTone("Kept separate.");
+      renderPayload(updated, { activeThreads: [] });
+    } catch (error) {
+      console.error("[workflows] keep separate failed", error);
+      setStatusTone("Something went wrong. Try again.", "error");
+    }
+  });
+
+  for (const button of card.querySelectorAll(".workflows-thread-option")) {
+    button.addEventListener("click", async () => {
+      const contextId = button.getAttribute("data-context-id");
+      if (!contextId) {
+        return;
+      }
+      setStatusTone("Saving thread choice...", "working");
+      try {
+        const updated = await submitThreadDecision(captureId, "confirmed", {
+          contextId,
+        });
+        setStatusTone("Saved with thread.");
+        renderPayload(updated, { activeThreads: [] });
+      } catch (error) {
+        console.error("[workflows] thread confirmation failed", error);
+        setStatusTone("Something went wrong. Try again.", "error");
+      }
+    });
+  }
 }
 
 async function maybeResumePendingCapture() {
