@@ -819,7 +819,7 @@ def _should_suppress_thread_suggestion(record: dict) -> bool:
     saved_note = result.get("saved_note_artifact") or {}
     if route_kind not in {"direct_professional_note", "saved_note"}:
         return True
-    if route_kind == "saved_note" and saved_note.get("state") == "weak_signal":
+    if route_kind == "saved_note" and saved_note.get("state") in {"weak_signal", "needs_direction"}:
         return True
 
     source_event = record.get("source_event") or {}

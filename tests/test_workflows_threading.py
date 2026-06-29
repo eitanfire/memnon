@@ -80,6 +80,84 @@ class WorkflowThreadingTests(unittest.TestCase):
 
         self.assertIsNone(service.suggest_context_for_capture("user-1", capture.to_dict()))
 
+    def test_no_suggestion_for_ambiguous_saved_note(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "key_point": "Unused",
+                "next_step": "Unused",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        service.create_context("user-1", title="Workflows UI/UX", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Not sure what this should become. Something about the product direction I think. "
+                "Could be a note to myself, a follow-up, or maybe just something to hold onto."
+            ),
+            context_hint="workflows ui/ux",
+        )
+
+        self.assertEqual(
+            capture.result["saved_note_artifact"]["state"],
+            "needs_direction",
+        )
+        self.assertIsNone(service.suggest_context_for_capture("user-1", capture.to_dict()))
+
+    def test_no_suggestion_when_evidence_score_stays_below_threshold(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        service.create_context("user-1", title="Hiring pipeline", summary="")
+        service.create_context("user-1", title="Family travel", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Met with Jordan about the workflows page. "
+                "Action: revise the result card before the next demo."
+            ),
+            context_hint="",
+        )
+
+        self.assertIsNone(service.suggest_context_for_capture("user-1", capture.to_dict()))
+
+    def test_no_suggestion_when_two_threads_are_close_runner_ups(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        service.create_context("user-1", title="Jordan design feedback", summary="")
+        service.create_context("user-1", title="Jordan workflows review", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about workflows feedback for the result card.",
+            context_hint="",
+        )
+
+        self.assertIsNone(service.suggest_context_for_capture("user-1", capture.to_dict()))
+
     def test_no_suggestion_for_noisy_voice_result_even_with_matching_words(self):
         repo = FakeRepository()
         service = WorkflowService(
@@ -131,7 +209,10 @@ class WorkflowThreadingTests(unittest.TestCase):
         )
         current = service.create_text_capture(
             uid="user-1",
-            source_text="Jordan thinks the workflows page still feels too generic.",
+            source_text=(
+                "Jordan thinks the workflows page still feels too generic. "
+                "Action: revise the result card before the next review."
+            ),
             context_hint="",
         )
 

@@ -108,3 +108,48 @@ Confirmed still deferred:
 Planned commit message:
 
 `feat: add workflow thread suggestions`
+
+## Review Fix Follow-Up
+
+Applied the post-review suppression fix on top of commit `e0eceff`.
+
+### Review Findings Fixed
+
+1. Suppressed thread suggestions for ambiguous saved notes with `saved_note_artifact.state == "needs_direction"`, not just `weak_signal`.
+2. Added explicit ranking coverage showing `suggest_context_for_capture(...)` returns `None` when:
+   - active threads exist but the evidence stays below the score threshold
+   - active threads exist but the best match is too close to the runner-up
+
+### TDD Red/Green
+
+Verified the bug first with:
+
+```bash
+cd /Users/eitan/memnon-worktrees/workflows-vertical-slice
+.venv/bin/python -m unittest tests.test_workflows_threading.WorkflowThreadingTests.test_no_suggestion_for_ambiguous_saved_note -v
+```
+
+Result before the fix: `FAIL` because a `needs_direction` saved note with a strong context hint still returned a ranked suggestion.
+
+### Covering Test Re-run
+
+Ran:
+
+```bash
+cd /Users/eitan/memnon-worktrees/workflows-vertical-slice
+.venv/bin/python -m unittest tests.test_workflows_threading -v
+.venv/bin/python -m unittest tests.test_workflows_service -v
+```
+
+Result after the fix:
+
+- `tests.test_workflows_threading`: `8` tests passed
+- `tests.test_workflows_service`: `26` tests passed
+
+### Scope
+
+Kept the fix narrow:
+
+- no product-surface changes
+- reopened results remain quiet
+- suggestion logic is more suppressive, not broader
