@@ -48,7 +48,7 @@ Avoid showing internal language such as:
 
 - context assignment
 - routing suggestion
-- workflow classification
+- workflow classifier
 - confidence
 
 The distinction the product should preserve is:
@@ -59,6 +59,8 @@ The distinction the product should preserve is:
 ## What A Thread Is
 
 A thread is a topic-based container for ongoing related thinking.
+
+Threads are user-owned and private by default. They should inherit the same trust boundary as saved workflow results.
 
 Examples:
 
@@ -177,6 +179,7 @@ Rules:
 - if no thread was confirmed, show nothing
 - do not re-ask
 - do not reopen a review flow
+- if the confirmed thread is now archived, still display it on the saved result
 
 Example quiet display:
 
@@ -222,6 +225,8 @@ Weak or noisy notes should not produce a thread suggestion even if they happen t
 ### New Thread Creation
 
 Do not propose new thread creation on the main result page in v1.
+
+If the user has no existing active threads, do not show a main-page thread suggestion by default.
 
 If the user chooses `Choose another`, the chooser may offer:
 
@@ -276,6 +281,8 @@ Each saved result should gain:
 - `suggested_context_title: nullable`
 - `suggestion_active: boolean`
 - `context_decision: null | confirmed | kept_separate | selected_different_context | created_new_context`
+- `suggested_at: nullable`
+- `context_decision_at: nullable`
 
 Optional internal field:
 
@@ -318,8 +325,8 @@ This spec implies only a narrow expansion of the current workflows slice.
 ### Service / backend implications
 
 - the result payload may include an optional thread suggestion block
-- suggestion should be computed only for immediate post-capture rendering
-- suggestion persistence should preserve the exact suggestion shown so refresh does not recompute a different answer
+- suggestion should be computed after capture and persisted with the result so refresh does not recompute a different answer
+- reopened saved results should not generate fresh suggestions
 - once acted on, the result should carry only the confirmed thread display state
 
 ### UI implications
