@@ -60,6 +60,7 @@ class WorkflowResultPayload:
     review_queue: list[dict[str, Any]]
     source_preview: str
     likely_themes: list[str]
+    related_thread: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -76,6 +77,22 @@ class WorkflowCaptureRecord:
     event_manifest: dict[str, Any]
     created_at: str
     updated_at: str
+    threading: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class WorkflowThreadState:
+    confirmed_context_id: str | None = None
+    suggested_context_id: str | None = None
+    suggested_context_title: str | None = None
+    suggestion_active: bool = False
+    context_decision: str | None = None
+    suggestion_basis: str | None = None
+    suggested_at: str | None = None
+    context_decision_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

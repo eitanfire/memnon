@@ -9,10 +9,63 @@ FUNCTIONS_DIR = Path(__file__).resolve().parents[1] / "functions"
 if str(FUNCTIONS_DIR) not in sys.path:
     sys.path.insert(0, str(FUNCTIONS_DIR))
 
-from workflows.local_app import create_local_app
+from workflows.local_app import FileBackedWorkflowRepository, create_local_app
+from workflows.service import WorkflowService
 
 
 class WorkflowsLocalAppTests(unittest.TestCase):
+    def test_file_backed_repository_persists_thread_state_across_service_instances(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "workflow-captures.json"
+
+            repo_one = FileBackedWorkflowRepository(str(storage_path))
+            service_one = WorkflowService(
+                repository=repo_one,
+                note_generator=lambda *_args, **_kwargs: {
+                    "title": "Workflows page conversation with Jordan",
+                    "framing_line": "A saved note shaped around one concrete next step.",
+                    "key_point": "The result card still feels too generic.",
+                    "next_step": "Revise the result card.",
+                },
+                now_provider=lambda: "2026-06-29T12:00:00Z",
+                api_key_provider=lambda: "local-dev",
+            )
+
+            capture = service_one.create_text_capture(
+                uid="local-dev-user",
+                source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+                context_hint="",
+            )
+            context = service_one.create_context(
+                "local-dev-user",
+                title="Workflows UI/UX",
+                summary="",
+            )
+            service_one.apply_context_decision(
+                "local-dev-user",
+                capture.capture_id,
+                action="confirmed",
+                context_id=context["context_id"],
+            )
+
+            repo_two = FileBackedWorkflowRepository(str(storage_path))
+            service_two = WorkflowService(
+                repository=repo_two,
+                note_generator=lambda *_args, **_kwargs: {},
+                now_provider=lambda: "2026-06-29T12:05:00Z",
+                api_key_provider=lambda: "local-dev",
+            )
+
+            fetched = service_two.get_capture("local-dev-user", capture.capture_id)
+            self.assertEqual(
+                fetched["threading"]["confirmed_context_id"],
+                context["context_id"],
+            )
+            self.assertEqual(
+                fetched["result"]["related_thread"]["confirmed_title"],
+                "Workflows UI/UX",
+            )
+
     def test_local_app_accepts_audio_capture_multipart(self):
         app = create_local_app(
             transcribe_audio=lambda _audio, _filename, _api_key: (

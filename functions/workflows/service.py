@@ -11,6 +11,7 @@ from .models import (
     WorkflowCaptureRecord,
     WorkflowDecision,
     WorkflowResultPayload,
+    WorkflowThreadState,
 )
 from .quality import (
     best_transcript_sentence,
@@ -725,6 +726,32 @@ def _apply_voice_quality(decision: WorkflowDecision, quality: dict) -> WorkflowD
     return decision
 
 
+def _context_store(repository) -> dict[str, dict[str, dict]]:
+    profiles = getattr(repository, "user_profiles", None)
+    if not isinstance(profiles, dict):
+        raise AttributeError("Repository does not expose a fallback context store")
+    store = profiles.setdefault("__workflow_contexts__", {})
+    if not isinstance(store, dict):
+        store = {}
+        profiles["__workflow_contexts__"] = store
+    return store
+
+
+def _persist_repository_state(repository) -> None:
+    persist = getattr(repository, "_persist", None)
+    if callable(persist):
+        persist()
+
+
+def _build_related_thread_payload(record: dict, context: dict | None) -> dict:
+    threading = record.get("threading") or {}
+    return {
+        "confirmed_title": context.get("title") if context else None,
+        "suggested_title": threading.get("suggested_context_title"),
+        "suggestion_active": bool(threading.get("suggestion_active")),
+    }
+
+
 class WorkflowService:
     def __init__(self, repository, note_generator, now_provider, api_key_provider):
         self.repository = repository
@@ -754,6 +781,132 @@ class WorkflowService:
                 )
 
         return self.note_generator(source_text, context_hint, profile, api_key)
+
+    def _repository_create_context(self, uid: str, *, context_id: str, title: str, summary: str, seed_capture_id: str | None, now: str) -> dict:
+        if hasattr(self.repository, "create_context"):
+            return self.repository.create_context(
+                uid,
+                context_id=context_id,
+                title=title,
+                summary=summary,
+                seed_capture_id=seed_capture_id,
+                now=now,
+            )
+
+        store = _context_store(self.repository).setdefault(uid, {})
+        context = {
+            "context_id": context_id,
+            "title": title,
+            "summary": summary,
+            "status": "active",
+            "seed_capture_id": seed_capture_id,
+            "created_at": now,
+            "updated_at": now,
+            "last_activity_at": now,
+        }
+        store[context_id] = context
+        _persist_repository_state(self.repository)
+        return context
+
+    def _repository_get_context(self, uid: str, context_id: str | None) -> dict | None:
+        if not context_id:
+            return None
+        if hasattr(self.repository, "get_context"):
+            return self.repository.get_context(uid, context_id)
+        return _context_store(self.repository).get(uid, {}).get(context_id)
+
+    def _repository_update_capture_threading(self, uid: str, capture_id: str, threading: dict, now: str) -> None:
+        if hasattr(self.repository, "update_capture_threading"):
+            self.repository.update_capture_threading(uid, capture_id, threading)
+            return
+
+        records = getattr(self.repository, "records", None)
+        if not isinstance(records, dict) or (uid, capture_id) not in records:
+            raise KeyError(capture_id)
+        records[(uid, capture_id)]["threading"] = dict(threading)
+        records[(uid, capture_id)]["updated_at"] = now
+        _persist_repository_state(self.repository)
+
+    def _repository_touch_context_activity(self, uid: str, context_id: str, now: str) -> dict | None:
+        if hasattr(self.repository, "touch_context_activity"):
+            return self.repository.touch_context_activity(uid, context_id, now)
+
+        context = self._repository_get_context(uid, context_id)
+        if context is None:
+            return None
+        context["last_activity_at"] = now
+        context["updated_at"] = now
+        _persist_repository_state(self.repository)
+        return context
+
+    def _hydrate_capture_record(self, uid: str, record: dict | None) -> dict | None:
+        if record is None:
+            return None
+
+        hydrated = dict(record)
+        result = dict(hydrated.get("result") or {})
+        threading = dict(hydrated.get("threading") or {})
+        context = self._repository_get_context(uid, threading.get("confirmed_context_id"))
+        if threading or context:
+            result["related_thread"] = _build_related_thread_payload(hydrated, context)
+        hydrated["result"] = result
+        hydrated["threading"] = threading
+        return hydrated
+
+    def create_context(self, uid: str, *, title: str, summary: str = "", seed_capture_id: str | None = None) -> dict:
+        context_id = f"ctx-{secrets.token_hex(6)}"
+        now = self.now_provider()
+        return self._repository_create_context(
+            uid,
+            context_id=context_id,
+            title=title.strip(),
+            summary=summary.strip(),
+            seed_capture_id=seed_capture_id,
+            now=now,
+        )
+
+    def apply_context_decision(
+        self,
+        uid: str,
+        capture_id: str,
+        *,
+        action: str,
+        context_id: str | None = None,
+        new_context_title: str | None = None,
+    ) -> dict:
+        if new_context_title is not None:
+            raise ValueError("new_context_title is not supported in Task 1")
+
+        record = self.repository.get_capture(uid, capture_id)
+        if record is None:
+            raise KeyError(capture_id)
+
+        now = self.now_provider()
+        current_threading = dict(record.get("threading") or {})
+
+        if action == "confirmed":
+            context = self._repository_get_context(uid, context_id)
+            if context is None:
+                raise ValueError("context_id is required for confirmed decisions")
+            threading = WorkflowThreadState(
+                confirmed_context_id=context["context_id"],
+                context_decision="confirmed",
+                context_decision_at=now,
+            ).to_dict()
+            self._repository_touch_context_activity(uid, context["context_id"], now)
+        elif action == "kept_separate":
+            context = None
+            threading = WorkflowThreadState(
+                confirmed_context_id=current_threading.get("confirmed_context_id"),
+                context_decision="kept_separate",
+                context_decision_at=now,
+            ).to_dict()
+        else:
+            raise ValueError(f"Unsupported context action: {action}")
+
+        self._repository_update_capture_threading(uid, capture_id, threading, now)
+        updated = self.repository.get_capture(uid, capture_id)
+        return self._hydrate_capture_record(uid, updated)
 
     def create_text_capture(self, uid: str, source_text: str, context_hint: str, *, input_type: str = "text"):
         capture_id = f"cap-{secrets.token_hex(6)}"
@@ -914,12 +1067,13 @@ class WorkflowService:
             },
             created_at=now,
             updated_at=now,
+            threading=WorkflowThreadState().to_dict(),
         )
         self.repository.save_capture(uid, record)
         return record
 
     def get_capture(self, uid: str, capture_id: str):
-        return self.repository.get_capture(uid, capture_id)
+        return self._hydrate_capture_record(uid, self.repository.get_capture(uid, capture_id))
 
     def list_capture_summaries(self, uid: str, limit: int = 50):
         records = list(self.repository.list_captures(uid, limit=limit))

@@ -22,6 +22,7 @@ WEAK_EXTERNAL_MEDIA_TRANSCRIPT = (
 class FakeRepository:
     def __init__(self):
         self.records = {}
+        self.contexts = {}
         self.user_profiles = {
             "user-1": {
                 "lane": "professional",
@@ -50,8 +51,99 @@ class FakeRepository:
         items.sort(key=lambda item: item.get("created_at", ""), reverse=True)
         return items[:limit]
 
+    def create_context(self, uid, *, context_id, title, summary, seed_capture_id, now):
+        context = {
+            "context_id": context_id,
+            "title": title,
+            "summary": summary,
+            "status": "active",
+            "seed_capture_id": seed_capture_id,
+            "created_at": now,
+            "updated_at": now,
+            "last_activity_at": now,
+        }
+        self.contexts[(uid, context_id)] = context
+        return context
+
+    def get_context(self, uid, context_id):
+        return self.contexts.get((uid, context_id))
+
+    def list_active_contexts(self, uid, limit=12):
+        items = [
+            value
+            for (context_uid, _context_id), value in self.contexts.items()
+            if context_uid == uid and value.get("status") == "active"
+        ]
+        items.sort(key=lambda item: item.get("last_activity_at", ""), reverse=True)
+        return items[:limit]
+
+    def update_capture_threading(self, uid, capture_id, threading):
+        record = self.records[(uid, capture_id)]
+        record["threading"] = dict(threading)
+        record["updated_at"] = threading.get("context_decision_at", record.get("updated_at"))
+
+    def touch_context_activity(self, uid, context_id, now):
+        context = self.contexts[(uid, context_id)]
+        context["last_activity_at"] = now
+        context["updated_at"] = now
+        return context
+
 
 class WorkflowServiceTests(unittest.TestCase):
+    def test_service_can_create_active_context(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {},
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        created = service.create_context(
+            "user-1",
+            title="Workflows UI/UX",
+            summary="Ongoing product thinking about the workflows route.",
+            seed_capture_id="cap-seed",
+        )
+
+        self.assertEqual(created["title"], "Workflows UI/UX")
+        self.assertEqual(created["status"], "active")
+        self.assertEqual(created["seed_capture_id"], "cap-seed")
+
+    def test_service_can_confirm_context_for_existing_capture(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+        context = service.create_context("user-1", title="Workflows UI/UX", summary="")
+
+        updated = service.apply_context_decision(
+            "user-1",
+            capture.capture_id,
+            action="confirmed",
+            context_id=context["context_id"],
+        )
+
+        self.assertEqual(updated["threading"]["confirmed_context_id"], context["context_id"])
+        self.assertFalse(updated["threading"]["suggestion_active"])
+        self.assertEqual(
+            updated["result"]["related_thread"]["confirmed_title"],
+            "Workflows UI/UX",
+        )
+
     def test_service_can_record_voice_capture_metadata(self):
         repo = FakeRepository()
 

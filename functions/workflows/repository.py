@@ -10,6 +10,9 @@ class FirestoreWorkflowRepository:
     def _doc(self, uid: str, capture_id: str):
         return self.db.collection("users").document(uid).collection("workflow_captures").document(capture_id)
 
+    def _context_doc(self, uid: str, context_id: str):
+        return self.db.collection("users").document(uid).collection("workflow_contexts").document(context_id)
+
     def load_user_profile(self, uid: str):
         snap = self.db.collection("users").document(uid).get()
         payload = snap.to_dict() if snap.exists else {}
@@ -49,3 +52,55 @@ class FirestoreWorkflowRepository:
             payload["capture_id"] = snap.id
             items.append(payload)
         return items
+
+    def create_context(self, uid: str, *, context_id: str, title: str, summary: str, seed_capture_id: str | None, now: str):
+        payload = {
+            "title": title,
+            "summary": summary,
+            "status": "active",
+            "seed_capture_id": seed_capture_id,
+            "created_at": now,
+            "updated_at": now,
+            "last_activity_at": now,
+        }
+        self._context_doc(uid, context_id).set(payload)
+        return {"context_id": context_id, **payload}
+
+    def get_context(self, uid: str, context_id: str):
+        snap = self._context_doc(uid, context_id).get()
+        if not snap.exists:
+            return None
+        payload = snap.to_dict() or {}
+        payload["context_id"] = context_id
+        return payload
+
+    def list_active_contexts(self, uid: str, limit: int = 12):
+        query = (
+            self.db.collection("users")
+            .document(uid)
+            .collection("workflow_contexts")
+            .where("status", "==", "active")
+            .order_by("last_activity_at", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+        )
+        items = []
+        for snap in query.stream():
+            payload = snap.to_dict() or {}
+            payload["context_id"] = snap.id
+            items.append(payload)
+        return items
+
+    def update_capture_threading(self, uid: str, capture_id: str, threading: dict):
+        self._doc(uid, capture_id).set(
+            {"threading": threading, "updated_at": firestore.SERVER_TIMESTAMP},
+            merge=True,
+        )
+
+    def touch_context_activity(self, uid: str, context_id: str, now: str):
+        self._context_doc(uid, context_id).set(
+            {
+                "last_activity_at": now,
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
