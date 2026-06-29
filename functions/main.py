@@ -54,7 +54,7 @@ from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 from weather_context import clear_weather_cache_fields, load_weather_context
-from workflows.ai import generate_professional_note, load_openai_api_key
+from workflows.ai import generate_professional_note, load_openai_api_key, transcribe_audio_bytes
 from workflows.blueprint import create_workflows_blueprint
 from workflows.repository import FirestoreWorkflowRepository
 from workflows.service import WorkflowService
@@ -840,6 +840,8 @@ flask_app.register_blueprint(
     create_workflows_blueprint(
         verify_token=_verify_firebase_token,
         service_provider=_workflow_service,
+        transcribe_audio=transcribe_audio_bytes,
+        transcription_api_key_provider=load_openai_api_key,
     ),
     url_prefix="/workflows",
 )
@@ -2330,29 +2332,7 @@ Rules:
 # ── pipeline ──────────────────────────────────────────────────────────────────
 
 def _transcribe(audio_bytes: bytes, filename: str, api_key: str) -> str:
-    boundary = "MemnonWhisper" + hashlib.md5(audio_bytes[:64]).hexdigest()
-    ext = Path(filename).suffix.lower() or ".m4a"
-    mime = "audio/mp4" if ext in (".m4a", ".mp4") else f"audio/{ext.lstrip('.')}"
-    body = (
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n'
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="language"\r\n\r\nen\r\n'
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
-        f"Content-Type: {mime}\r\n\r\n"
-    ).encode() + audio_bytes + f"\r\n--{boundary}--\r\n".encode()
-
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/audio/transcriptions",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.loads(resp.read())["text"].strip()
+    return transcribe_audio_bytes(audio_bytes, filename, api_key)
 
 
 def _summarize(

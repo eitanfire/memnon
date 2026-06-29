@@ -36,6 +36,15 @@ class InMemoryWorkflowRepository:
     def get_capture(self, uid: str, capture_id: str):
         return self.records.get((uid, capture_id))
 
+    def list_captures(self, uid: str, limit: int = 50):
+        items = [
+            value
+            for (record_uid, _capture_id), value in self.records.items()
+            if record_uid == uid
+        ]
+        items.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+        return items[:limit]
+
 
 class FileBackedWorkflowRepository(InMemoryWorkflowRepository):
     def __init__(self, storage_path: str):
@@ -79,9 +88,11 @@ def _verify_local_token(req) -> str | None:
     return "local-dev-user"
 
 
-def _local_note_generator(source_text, context_hint, profile, api_key):
+def _local_note_generator(source_text, context_hint, profile, api_key, allow_next_step=True):
     title = derive_specific_title(source_text, context_hint, "", suffix="note")
-    next_step = derive_next_step(source_text) or "Clarify the single action this note is meant to support before expanding scope"
+    next_step = ""
+    if allow_next_step:
+        next_step = derive_next_step(source_text) or "Clarify the single action this note is meant to support before expanding scope"
     return {
         "title": title,
         "framing_line": "Shaped from your note into one practical artifact to review.",
@@ -90,7 +101,11 @@ def _local_note_generator(source_text, context_hint, profile, api_key):
     }
 
 
-def create_local_app(storage_path: str | None = None):
+def _local_transcribe_audio(_audio_bytes: bytes, _filename: str, _api_key: str) -> str:
+    return "Voice note captured in local development. Action: review the transcript-backed result path."
+
+
+def create_local_app(storage_path: str | None = None, transcribe_audio=None):
     app = Flask(__name__)
     CORS(
         app,
@@ -114,6 +129,8 @@ def create_local_app(storage_path: str | None = None):
         create_workflows_blueprint(
             verify_token=_verify_local_token,
             service_provider=lambda: service,
+            transcribe_audio=transcribe_audio or _local_transcribe_audio,
+            transcription_api_key_provider=lambda: "local-dev",
         ),
         url_prefix="/api/workflows",
     )

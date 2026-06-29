@@ -48,12 +48,28 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn("getIdToken", js)
         self.assertIn("View source text", html)
 
+    def test_workflows_js_includes_voice_capture_flow(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+
+        self.assertIn("MediaRecorder", js)
+        self.assertIn("FormData", js)
+        self.assertIn("audio/webm", js)
+        self.assertIn("audio/mp4", js)
+        self.assertIn("video/mp4", js)
+        self.assertIn("Requesting microphone access...", js)
+        self.assertIn("Recording...", js)
+        self.assertIn("Stopping recording...", js)
+        self.assertIn("Uploading voice note...", js)
+        self.assertIn("No audio was captured. Try again.", js)
+        self.assertIn("Microphone access was denied.", js)
+        self.assertIn("That recording is too long for inline capture. Try a shorter note.", js)
+
     def test_workflows_shell_exposes_signed_out_sign_in_path(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
         html = Path("public/workflows.html").read_text(encoding="utf-8")
 
         self.assertIn("Sign in with Google", html)
-        self.assertIn("Sign in required to save captures.", html)
+        self.assertIn("Draft now, sign in to save.", html)
         self.assertIn("/auth/start", js)
         self.assertIn("return_to", js)
 
@@ -62,7 +78,9 @@ class WorkflowsStaticContractTests(unittest.TestCase):
 
         self.assertIn("sessionStorage", js)
         self.assertIn("memnon_workflows_pending_capture_v1", js)
-        self.assertIn("Sign in to continue.", js)
+        self.assertIn("Continue and sign in to save", js)
+        self.assertIn("Redirecting to sign in so you can save this draft.", js)
+        self.assertNotIn("Sign in to continue.", js)
 
     def test_localhost_fallback_copy_does_not_leak_developer_language(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
@@ -83,8 +101,10 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn("Saved result", js)
         self.assertIn("Next step", js)
         self.assertIn("Key point", js)
+        self.assertIn("Why keep this", js)
         self.assertIn("From your note", js)
         self.assertIn("artifact.metadata_line", js)
+        self.assertNotIn("${renderThemes(themes)}", js)
 
     def test_local_debug_mode_uses_explicit_sign_in_href_and_hides_prompt(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
@@ -105,6 +125,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn('input.value = ""', js)
         self.assertIn('context.value = ""', js)
         self.assertIn("setPastePanelVisible(false)", js)
+        self.assertIn("resetCaptureForm();", js)
 
     def test_hidden_result_cards_are_forced_not_to_render(self):
         css = Path("public/workflows.css").read_text(encoding="utf-8")

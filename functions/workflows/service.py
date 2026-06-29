@@ -1,10 +1,24 @@
 from __future__ import annotations
 
 from datetime import datetime
+import inspect
 import secrets
 import re
 
-from .models import WorkflowArtifact, WorkflowArtifactSection, WorkflowCaptureRecord, WorkflowResultPayload
+from .models import (
+    WorkflowArtifact,
+    WorkflowArtifactSection,
+    WorkflowCaptureRecord,
+    WorkflowDecision,
+    WorkflowResultPayload,
+)
+from .quality import (
+    best_transcript_sentence,
+    has_explicit_action_signal,
+    score_transcript_sentence,
+    split_transcript_sentences,
+    transcript_quality_check,
+)
 from .routing import build_source_event, route_text_capture
 
 
@@ -16,6 +30,22 @@ GENERIC_TITLES = {
     "teacher workflow note",
     "memnon workflows note",
 }
+
+ACTION_FORWARD_TOKENS = (
+    "revise",
+    "revision",
+    "fix",
+    "update",
+    "clarify",
+    "rework",
+    "follow up",
+    "follow-up",
+    "review",
+    "send",
+    "write",
+    "finalize",
+    "schedule",
+)
 
 DOCUMENT_HINTS = (
     "journal",
@@ -32,6 +62,33 @@ DOCUMENT_HINTS = (
     "meeting",
 )
 
+EDUCATION_DOMAIN_MARKERS = (
+    "teacher",
+    "teachers",
+    "student",
+    "students",
+    "class",
+    "classes",
+    "classroom",
+    "lesson",
+    "lessons",
+    "school",
+    "schools",
+    "curriculum",
+    "gradebook",
+    "district",
+    "principal",
+    "ap computer science",
+)
+
+EDUCATION_PROFESSIONS = {
+    "teacher",
+    "educator",
+    "education",
+    "teacher leader",
+    "computer science teacher",
+}
+
 
 def _title_case_phrase(value: str) -> str:
     cleaned = re.sub(r"\s+", " ", (value or "").strip(" .,:;!-"))
@@ -45,12 +102,40 @@ def _extract_source_excerpt(source_text: str, limit: int = 160) -> str:
     normalized = re.sub(r"\s+", " ", source_text or "").strip()
     if not normalized:
         return ""
+    sentence_matches = re.findall(r"(.{1,%d}?[.!?])(?:\s|$)" % limit, normalized)
+    for candidate in sentence_matches:
+        excerpt = candidate.strip()
+        if not _looks_like_low_signal_excerpt(excerpt):
+            return excerpt
     sentence_match = re.match(r"(.{1,%d}?[.!?])(?:\s|$)" % limit, normalized)
     if sentence_match:
         return sentence_match.group(1).strip()
     if len(normalized) <= limit:
         return normalized
     return normalized[: limit - 1].rstrip() + "…"
+
+
+def _extract_voice_source_excerpt(source_text: str, limit: int = 160) -> str:
+    ranked = ""
+    candidates: list[tuple[int, str]] = []
+    for index, sentence in enumerate(split_transcript_sentences(source_text)):
+        normalized = sentence.strip()
+        if not normalized or _looks_like_low_signal_excerpt(normalized) or _looks_action_like_text(normalized):
+            continue
+        candidates.append((score_transcript_sentence(normalized, index=index), normalized))
+
+    if candidates:
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        ranked = candidates[0][1]
+
+    if not ranked:
+        ranked = best_transcript_sentence(source_text)
+    if ranked:
+        excerpt = ranked.strip()
+        if len(excerpt) <= limit:
+            return excerpt
+        return excerpt[: limit - 1].rstrip() + "…"
+    return _extract_source_excerpt(source_text, limit=limit)
 
 
 def _normalize_text(value: str) -> str:
@@ -115,6 +200,72 @@ def _normalize_clause(text: str) -> str:
     return cleaned[0].upper() + cleaned[1:]
 
 
+def _looks_like_low_signal_excerpt(value: str) -> bool:
+    normalized = _normalize_text(value)
+    if not normalized:
+        return True
+    words = re.findall(r"[A-Za-z0-9'-]+", normalized.lower())
+    if len(words) <= 3:
+        return True
+    number_words = {"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"}
+    if words and all(word.isdigit() or word in number_words for word in words):
+        return True
+    return False
+
+
+def _looks_action_like_text(value: str) -> bool:
+    normalized = _normalize_text(value).lower()
+    if not normalized:
+        return False
+    if any(
+        normalized.startswith(prefix)
+        for prefix in ACTION_FORWARD_TOKENS
+    ):
+        return True
+    action_patterns = (
+        r"\baction\s*:",
+        r"\bnext step\s*:",
+        r"\bbefore the next\b",
+        r"\bby end of\b",
+        r"\bthis week\b",
+        r"\bneed to\b",
+        r"\bshould\b",
+    )
+    return any(re.search(pattern, normalized, flags=re.IGNORECASE) for pattern in action_patterns)
+
+
+def _looks_low_quality_title(value: str) -> bool:
+    normalized = re.sub(r"\s+", " ", value or "").strip(" .")
+    if not normalized:
+        return True
+    lowered = normalized.lower()
+    words = re.findall(r"[A-Za-z0-9'-]+", lowered)
+    if len(words) > 9 or len(normalized) > 72:
+        return True
+    if _looks_action_like_text(normalized):
+        return True
+    weak_title_patterns = (
+        r"\bahead of next\b",
+        r"\bbefore the next\b",
+        r"\bneeded for\b",
+        r"\bneeded\b",
+    )
+    return any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in weak_title_patterns)
+
+
+def _source_supports_education_context(source_text: str, context_hint: str) -> bool:
+    lower = f"{_normalize_text(source_text)} {_normalize_text(context_hint)}".lower()
+    return any(marker in lower for marker in EDUCATION_DOMAIN_MARKERS)
+
+
+def _profile_for_note_generation(profile: dict, source_text: str, context_hint: str) -> dict:
+    sanitized = dict(profile or {})
+    profession = _normalize_text(str(sanitized.get("profession") or "professional")).lower()
+    if profession in EDUCATION_PROFESSIONS and not _source_supports_education_context(source_text, context_hint):
+        sanitized["profession"] = "professional"
+    return sanitized
+
+
 def _strip_uncertainty_prefix(source_text: str) -> str:
     normalized = _normalize_text(source_text)
     cleaned = re.sub(
@@ -146,6 +297,15 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
         if topic:
             return f"{topic} conversation with {person_match.group(1)}"
 
+    reviewer_match = re.search(
+        r"\breviewer says (?:the )?([a-z][a-z\s-]{2,40}?)(?: is | feels | seems | looks | can |,| but |$)",
+        lower,
+    )
+    if reviewer_match:
+        subject = _title_case_phrase(reviewer_match.group(1))
+        if subject:
+            return f"{subject} review"
+
     follow_up_match = re.search(
         r"\bfollow(?:-| )up(?: (?:with|after|on|about))? ([a-z0-9][a-z0-9\s-]{2,40}?)(?:[,.!?]|$)",
         lower,
@@ -169,6 +329,13 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
         if topic:
             return topic
 
+    send_match = re.search(r"(?:send|share)\s+to\s+([A-Z][A-Za-z'-]+)", normalized)
+    if send_match:
+        return f"Message to {send_match.group(1)}"
+
+    if "reflection" in lower:
+        return "Reflection"
+
     if _looks_like_document_text(source_text, context_hint) and context_hint:
         return _title_case_phrase(context_hint)
 
@@ -183,7 +350,8 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
     if context:
         return context
 
-    words = re.findall(r"[A-Za-z0-9'-]+", normalized)
+    fallback_source = best_transcript_sentence(normalized) or normalized
+    words = re.findall(r"[A-Za-z0-9'-]+", fallback_source)
     if not words:
         return "Saved note"
     return _title_case_phrase(" ".join(words[:6]))
@@ -191,7 +359,7 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
 
 def derive_specific_title(source_text: str, context_hint: str, proposed_title: str, *, suffix: str = "") -> str:
     proposed = re.sub(r"\s+", " ", proposed_title or "").strip(" .")
-    if proposed and proposed.lower() not in GENERIC_TITLES:
+    if proposed and proposed.lower() not in GENERIC_TITLES and not _looks_low_quality_title(proposed):
         return proposed
 
     topic = _derive_topic_phrase(source_text, context_hint)
@@ -273,24 +441,23 @@ def _format_direction_title(option: str) -> str:
     return option[0].upper() + option[1:]
 
 
-def _derive_ambiguous_title(source_text: str, context_hint: str, likely_themes: list[str]) -> str:
-    options = _extract_direction_options(source_text, context_hint, likely_themes)
-    if not options:
-        return ""
-    labels = [_format_direction_title(option) for option in options[:2]]
-    if len(labels) == 1:
-        return labels[0]
-    return f"{labels[0]} or {labels[1]}"
+def _derive_ambiguous_reason(source_text: str, context_hint: str, likely_themes: list[str]) -> str:
+    normalized = _normalize_text(source_text)
+    lower = normalized.lower()
+    topic = _derive_topic_phrase(source_text, context_hint)
+    topic_lower = topic.lower().removesuffix(" note")
 
-
-def _derive_possible_direction(source_text: str, context_hint: str, likely_themes: list[str]) -> str:
-    options = _extract_direction_options(source_text, context_hint, likely_themes)
-
-    if len(options) == 1:
-        return f"This could become {options[0]}."
-    if len(options) == 2:
-        return f"This could become {options[0]} or {options[1]}."
-    return f"This could become {options[0]}, {options[1]}, or {options[2]}."
+    if "follow up" in lower or "follow-up" in lower:
+        return "This is worth keeping, but the right follow-up direction is not clear yet."
+    if "message to " in topic_lower:
+        return f"This is worth keeping, but it needs a clearer direction before it becomes a {topic_lower}."
+    if topic and topic_lower not in {"follow-up", "reflection", "saved note"}:
+        return f"This is worth keeping because it points toward {topic_lower}, but it still needs one clearer direction."
+    if "reflection" in lower:
+        return "This is worth keeping, but it needs a clearer direction before it becomes a stronger reflection."
+    if likely_themes:
+        return "This is worth keeping, but it needs a clearer direction before it turns into a stronger note."
+    return "This is worth keeping, but the direction is not clear yet."
 
 
 def _looks_generic_key_point(value: str) -> bool:
@@ -309,6 +476,55 @@ def _derive_grounded_key_point(source_text: str) -> str:
                 return _normalize_clause(match.group(1))
         if re.search(r"\bsplits\b.+\bfrom\b", sentence, flags=re.IGNORECASE):
             return _normalize_clause(sentence.rstrip(".!?"))
+    return ""
+
+
+def _derive_source_sentence_key_point(source_text: str) -> str:
+    ranked_sentence = best_transcript_sentence(source_text)
+    if ranked_sentence:
+        normalized_ranked = _normalize_clause(ranked_sentence.rstrip(".!?"))
+        lowered_ranked = normalized_ranked.lower()
+        if (
+            normalized_ranked
+            and not _looks_like_low_signal_excerpt(normalized_ranked)
+            and not _looks_action_like_text(normalized_ranked)
+            and not re.match(r"^(met|talked|spoke|caught up)\b", lowered_ranked)
+        ):
+            return normalized_ranked
+
+    insight_patterns = (
+        r"\bneeds\b",
+        r"\bfeels\b",
+        r"\bwants\b",
+        r"\bthinks\b",
+        r"\bsays\b",
+        r"\bsaid\b",
+        r"\bissue\b",
+        r"\bproblem\b",
+        r"\bbecause\b",
+        r"\bworth it\b",
+    )
+    for sentence in _sentence_list(source_text):
+        normalized = _normalize_clause(sentence.rstrip(".!?"))
+        lowered = normalized.lower()
+        if _looks_like_low_signal_excerpt(normalized):
+            continue
+        if _looks_action_like_text(normalized):
+            continue
+        if re.match(r"^(met|talked|spoke|caught up)\b", lowered):
+            continue
+        if any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in insight_patterns):
+            return normalized
+    for sentence in _sentence_list(source_text):
+        normalized = _normalize_clause(sentence.rstrip(".!?"))
+        lowered = normalized.lower()
+        if _looks_like_low_signal_excerpt(normalized):
+            continue
+        if _looks_action_like_text(normalized):
+            continue
+        if re.match(r"^(met|talked|spoke|caught up)\b", lowered):
+            continue
+        return normalized
     return ""
 
 
@@ -398,9 +614,13 @@ def derive_framing_line(
         return "A reusable reference note shaped from the material you pasted."
 
     if "product direction" in lower_source or "product direction" in normalized_title.lower():
+        if not next_step:
+            return "A saved product direction note with one grounded takeaway to carry forward."
         return "A saved product direction note with one concrete change to carry forward."
 
     if "conversation with" in normalized_title.lower():
+        if not next_step:
+            return "A saved conversation note with the clearest takeaway to carry forward."
         return f"A saved conversation note with one concrete follow-up to carry forward."
 
     if next_step:
@@ -416,11 +636,14 @@ def derive_key_point(source_text: str, context_hint: str, proposed_key_point: st
     document_point = _derive_document_key_point(source_text, context_hint)
     if document_point and _looks_generic_key_point(proposed_key_point):
         return document_point
-    if not _looks_generic_key_point(proposed_key_point):
+    if not _looks_generic_key_point(proposed_key_point) and not _looks_action_like_text(proposed_key_point):
         return _normalize_clause(proposed_key_point)
     grounded = _derive_grounded_key_point(source_text)
     if grounded:
         return grounded
+    sentence_point = _derive_source_sentence_key_point(source_text)
+    if sentence_point:
+        return sentence_point
     if document_point:
         return document_point
     return _normalize_clause(proposed_key_point)
@@ -443,6 +666,65 @@ def derive_artifact_next_step(source_text: str, context_hint: str, proposed_next
     return _normalize_clause(proposed_next_step)
 
 
+def _voice_quality_interpretation(quality: dict) -> str:
+    signals = set(quality.get("signals") or [])
+    if quality["quality"] == "noisy":
+        return "Saved from a voice note that may include background or unrelated audio."
+    if "external_media" in signals and "no_first_person_intent" in signals:
+        return "Saved from a voice note that sounds more like captured media than a self-authored note."
+    if quality["quality"] == "mixed":
+        return "Saved from a voice note with mixed audio. Kept the clearest point without guessing the next step."
+    return "This looks like a professional note worth shaping."
+
+
+def _voice_mixed_framing_line() -> str:
+    return "A saved voice note with mixed audio. Kept the clearest point without guessing the next step."
+
+
+def _voice_review_reason(quality: dict) -> str:
+    signals = set(quality.get("signals") or [])
+    if "outro_language" in signals:
+        return "This recording sounds like captured media rather than a self-contained note. Review the source text before acting on it."
+    if "production_credits" in signals:
+        return "This recording may include background or production audio. Review the source text before turning it into an action."
+    if "external_media" in signals and "no_first_person_intent" in signals:
+        return "This recording sounds more like captured media than a self-authored note. Review the source text before acting on it."
+    return "This recording may contain mixed audio. Review the source text before acting on it."
+
+
+def _voice_requires_review_save(quality: dict | None) -> bool:
+    if not quality:
+        return False
+    signals = set(quality.get("signals") or [])
+    return quality.get("quality") == "noisy" or (
+        quality.get("quality") == "mixed"
+        and "external_media" in signals
+        and "no_first_person_intent" in signals
+    )
+
+
+def _apply_voice_quality(decision: WorkflowDecision, quality: dict) -> WorkflowDecision:
+    if _voice_requires_review_save(quality):
+        return WorkflowDecision(
+            route_kind="saved_note",
+            interpretation_line=_voice_quality_interpretation(quality),
+            primary_artifact_kind="",
+            secondary_artifact_kinds=[],
+            likely_themes=decision.likely_themes,
+            saved_note_state="needs_direction",
+        )
+    if quality["quality"] == "mixed":
+        return WorkflowDecision(
+            route_kind=decision.route_kind,
+            interpretation_line=_voice_quality_interpretation(quality),
+            primary_artifact_kind=decision.primary_artifact_kind,
+            secondary_artifact_kinds=decision.secondary_artifact_kinds,
+            likely_themes=decision.likely_themes,
+            saved_note_state=decision.saved_note_state,
+        )
+    return decision
+
+
 class WorkflowService:
     def __init__(self, repository, note_generator, now_provider, api_key_provider):
         self.repository = repository
@@ -450,25 +732,68 @@ class WorkflowService:
         self.now_provider = now_provider
         self.api_key_provider = api_key_provider
 
-    def create_text_capture(self, uid: str, source_text: str, context_hint: str):
+    def _call_note_generator(self, source_text: str, context_hint: str, profile: dict, *, allow_next_step: bool) -> dict:
+        api_key = self.api_key_provider()
+        try:
+            signature = inspect.signature(self.note_generator)
+        except (TypeError, ValueError):
+            signature = None
+
+        if signature:
+            supports_allow_next_step = "allow_next_step" in signature.parameters or any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in signature.parameters.values()
+            )
+            if supports_allow_next_step:
+                return self.note_generator(
+                    source_text,
+                    context_hint,
+                    profile,
+                    api_key,
+                    allow_next_step=allow_next_step,
+                )
+
+        return self.note_generator(source_text, context_hint, profile, api_key)
+
+    def create_text_capture(self, uid: str, source_text: str, context_hint: str, *, input_type: str = "text"):
         capture_id = f"cap-{secrets.token_hex(6)}"
         now = self.now_provider()
         profile = self.repository.load_user_profile(uid)
-        source_event = build_source_event(source_text, context_hint, capture_id, now)
+        source_event = build_source_event(
+            source_text,
+            context_hint,
+            capture_id,
+            now,
+            input_type=input_type,
+        )
         source_event["profile_snapshot"] = profile
         decision = route_text_capture(source_text, context_hint, profile)
+        voice_quality = None
+        allow_next_step = True
+        if input_type == "voice":
+            voice_quality = transcript_quality_check(source_text)
+            decision = _apply_voice_quality(decision, voice_quality)
+            allow_next_step = voice_quality["quality"] == "clean" and has_explicit_action_signal(source_text)
         metadata_line = _build_metadata_line(source_event["input_type"], now, context_hint)
 
         primary_artifact = None
         saved_note_artifact = None
         if decision.primary_artifact_kind == "professional_note":
-            generated = self.note_generator(source_text, context_hint, profile, self.api_key_provider())
-            key_point = derive_key_point(source_text, context_hint, generated.get("key_point", ""))
-            next_step = derive_artifact_next_step(
+            note_profile = _profile_for_note_generation(profile, source_text, context_hint)
+            generated = self._call_note_generator(
                 source_text,
                 context_hint,
-                generated.get("next_step") or derive_next_step(source_text),
-            ).strip()
+                note_profile,
+                allow_next_step=allow_next_step,
+            )
+            key_point = derive_key_point(source_text, context_hint, generated.get("key_point", ""))
+            next_step = ""
+            if allow_next_step:
+                next_step = derive_artifact_next_step(
+                    source_text,
+                    context_hint,
+                    generated.get("next_step") or derive_next_step(source_text),
+                ).strip()
             sections = [WorkflowArtifactSection(label="Key point", text=key_point)]
             if next_step:
                 sections.append(WorkflowArtifactSection(label="Next step", text=next_step))
@@ -483,7 +808,13 @@ class WorkflowService:
                 next_step,
                 generated.get("framing_line", ""),
             )
-            source_excerpt = _extract_source_excerpt(source_text)
+            if input_type == "voice" and voice_quality and voice_quality["quality"] == "mixed":
+                framing_line = _voice_mixed_framing_line()
+            source_excerpt = (
+                _extract_voice_source_excerpt(source_text)
+                if input_type == "voice"
+                else _extract_source_excerpt(source_text)
+            )
             primary_artifact = WorkflowArtifact(
                 artifact_id=f"{capture_id}-primary",
                 kind="professional_note",
@@ -499,16 +830,26 @@ class WorkflowService:
                 secondary_actions=["Edit", "Regenerate"],
             ).to_dict()
         else:
-            if decision.saved_note_state == "needs_direction":
-                saved_title = _derive_ambiguous_title(source_text, context_hint, decision.likely_themes)
-            else:
-                saved_title = derive_specific_title(source_text, context_hint, "", suffix="note")
-            saved_excerpt = _extract_source_excerpt(source_text, limit=140)
+            saved_title = derive_specific_title(source_text, context_hint, "", suffix="note")
+            saved_excerpt = (
+                _extract_voice_source_excerpt(source_text, limit=140)
+                if input_type == "voice"
+                else _extract_source_excerpt(source_text, limit=140)
+            )
             saved_next_step = derive_next_step(source_text)
             saved_status = "Saved as a small note"
             saved_framing = "Small note, saved before it slips away."
             saved_sections = []
-            if decision.saved_note_state == "weak_signal" and saved_next_step:
+            if input_type == "voice" and _voice_requires_review_save(voice_quality):
+                saved_status = "Saved for review"
+                saved_framing = _voice_quality_interpretation(voice_quality)
+                saved_sections.append(
+                    WorkflowArtifactSection(
+                        label="Review source",
+                        text=_voice_review_reason(voice_quality),
+                    )
+                )
+            elif decision.saved_note_state == "weak_signal" and saved_next_step:
                 saved_sections.append(
                     WorkflowArtifactSection(
                         label="Next step",
@@ -517,11 +858,11 @@ class WorkflowService:
                 )
             elif decision.saved_note_state == "needs_direction":
                 saved_status = "Saved, needs direction"
-                saved_framing = "Worth keeping. It hints at something real, but not one strong shape yet."
+                saved_framing = "Saved. The direction is not clear yet, but the thought is worth keeping."
                 saved_sections.append(
                     WorkflowArtifactSection(
-                        label="Could become",
-                        text=_derive_possible_direction(source_text, context_hint, decision.likely_themes),
+                        label="Why keep this",
+                        text=_derive_ambiguous_reason(source_text, context_hint, decision.likely_themes),
                     )
                 )
             elif decision.likely_themes:
@@ -555,12 +896,12 @@ class WorkflowService:
             secondary_artifacts=[],
             review_queue=[],
             source_preview=source_event["source_preview"],
-            likely_themes=decision.likely_themes,
+            likely_themes=[],
         ).to_dict()
 
         record = WorkflowCaptureRecord(
             capture_id=capture_id,
-            input_type="text",
+            input_type=input_type,
             context_hint=context_hint,
             source_event=source_event,
             routing=decision.to_dict(),
@@ -568,6 +909,7 @@ class WorkflowService:
             event_manifest={
                 "source_event": source_event,
                 "routing": decision.to_dict(),
+                "transcript_quality": voice_quality or {},
                 "artifact_count": 1 if primary_artifact else 0,
             },
             created_at=now,
@@ -578,3 +920,28 @@ class WorkflowService:
 
     def get_capture(self, uid: str, capture_id: str):
         return self.repository.get_capture(uid, capture_id)
+
+    def list_capture_summaries(self, uid: str, limit: int = 50):
+        records = list(self.repository.list_captures(uid, limit=limit))
+        records.sort(key=lambda item: self._capture_sort_key(item), reverse=True)
+        return [self._build_capture_summary(record) for record in records]
+
+    def _capture_sort_key(self, record: dict) -> str:
+        created_at = record.get("created_at")
+        if isinstance(created_at, datetime):
+            return created_at.isoformat()
+        return str(created_at or "")
+
+    def _build_capture_summary(self, record: dict) -> dict:
+        result = record.get("result") or {}
+        artifact = result.get("primary_artifact") or result.get("saved_note_artifact") or {}
+        capture_id = record.get("capture_id", "")
+        return {
+            "capture_id": capture_id,
+            "title": artifact.get("title") or "Saved note",
+            "metadata_line": artifact.get("metadata_line") or "",
+            "status": artifact.get("status") or "",
+            "route_kind": result.get("route_kind") or "",
+            "created_at": record.get("created_at"),
+            "next_route": f"/workflows/result/{capture_id}",
+        }

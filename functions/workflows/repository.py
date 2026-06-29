@@ -34,3 +34,18 @@ class FirestoreWorkflowRepository:
         payload = snap.to_dict() or {}
         payload["capture_id"] = capture_id
         return payload
+
+    def list_captures(self, uid: str, limit: int = 50):
+        query = (
+            self.db.collection("users")
+            .document(uid)
+            .collection("workflow_captures")
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+        )
+        items = []
+        for snap in query.stream():
+            payload = snap.to_dict() or {}
+            payload["capture_id"] = snap.id
+            items.append(payload)
+        return items

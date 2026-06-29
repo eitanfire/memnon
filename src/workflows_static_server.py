@@ -13,7 +13,7 @@ def rewrite_workflows_path(raw_path: str) -> str:
     parsed = urlsplit(raw_path)
     path = parsed.path or "/"
 
-    if path in {"/workflows", "/workflows/"} or path.startswith("/workflows/result/"):
+    if path in {"/workflows", "/workflows/", "/workflows/saved"} or path.startswith("/workflows/result/"):
         rewritten = SplitResult(
             scheme="",
             netloc="",

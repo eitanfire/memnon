@@ -45,16 +45,32 @@ const LOCAL_API_ORIGIN = "http://127.0.0.1:5051";
 const API_ORIGIN = isStaticLocalhost ? LOCAL_API_ORIGIN : "";
 const API_CAPTURES_PATH = "/api/workflows/captures";
 const AUTH_START_URL = "https://api-4hth6oktaa-uc.a.run.app/auth/start";
+const SAVED_RESULTS_PATH = "/workflows/saved";
 const PENDING_CAPTURE_KEY = "memnon_workflows_pending_capture_v1";
 const LOCAL_DEV_ID_TOKEN = "local-dev-token";
 const SCRIPT_LOADED_AT = new Date().toISOString();
 const SOURCE_EXCERPT_LABEL = "From your note";
 const KEY_POINT_LABEL = "Key point";
 const NEXT_STEP_LABEL = "Next step";
+const WHY_KEEP_THIS_LABEL = "Why keep this";
+const VOICE_MIME_CANDIDATES = ["audio/webm", "audio/mp4", "video/mp4"];
+const MIME_EXTENSION_MAP = {
+  "audio/webm": "webm",
+  "audio/mp4": "mp4",
+  "audio/x-m4a": "m4a",
+  "video/mp4": "mp4",
+  "audio/ogg": "ogg",
+};
+const MIN_AUDIO_BYTES = 128;
 
 let currentUser = null;
 let initialRouteHandled = false;
 let submitInFlight = false;
+let voiceCaptureState = "idle";
+let mediaRecorder = null;
+let mediaStream = null;
+let recordingChunks = [];
+let activeRecordingMimeType = "";
 
 function buildDebugPayload(event, extra = {}) {
   return {
@@ -127,6 +143,9 @@ console.log("workflows.js loaded", {
 function parseWorkflowsRoute(pathname) {
   const normalized =
     pathname === "/workflows.html" ? "/workflows" : pathname.replace(/\/+$/, "") || "/workflows";
+  if (normalized === SAVED_RESULTS_PATH) {
+    return { screen: "saved" };
+  }
   const match = normalized.match(/^\/workflows\/result\/([^/]+)$/);
   if (match) {
     return { screen: "result", captureId: decodeURIComponent(match[1]) };
@@ -215,6 +234,7 @@ function syncAuthPrompt() {
   }
 
   link.href = buildAuthStartUrl();
+  syncSavedResultsLink();
   if (bypassRemoteAuth) {
     prompt.hidden = true;
     prompt.style.display = "none";
@@ -228,19 +248,105 @@ function syncAuthPrompt() {
   prompt.hidden = Boolean(currentUser);
 }
 
+function syncSavedResultsLink() {
+  const row = document.getElementById("workflows-saved-link-row");
+  const link = document.getElementById("workflows-saved-link");
+  if (!row || !link) {
+    return;
+  }
+  const visible = Boolean(currentUser) || bypassRemoteAuth;
+  link.href = SAVED_RESULTS_PATH;
+  row.hidden = !visible;
+  row.style.display = visible ? "" : "none";
+}
+
 function syncSubmitState() {
   const input = document.getElementById("capture-text");
+  const context = document.getElementById("capture-context");
   const submit = document.getElementById("capture-submit");
   const form = document.getElementById("capture-form");
+  const recordTrigger = document.getElementById("record-trigger");
+  const recordLabel = recordTrigger?.querySelector(".workflows-record-label");
+  const showPaste = document.getElementById("show-paste");
+  const uploadTrigger = document.getElementById("upload-trigger");
+  const voiceBusy = voiceCaptureState !== "idle";
+  const blockingVoiceState = ["requesting", "stopping", "uploading", "processing"].includes(voiceCaptureState);
   if (!submit) {
     return;
   }
-  submit.disabled = submitInFlight || !input || !input.value.trim();
-  submit.textContent = submitInFlight ? "Working..." : "Continue";
+  submit.disabled = submitInFlight || voiceBusy || !input || !input.value.trim();
+  const signedOutCaptureCta = !currentUser && !bypassRemoteAuth;
+  submit.textContent = submitInFlight
+    ? "Working..."
+    : signedOutCaptureCta
+      ? "Continue and sign in to save"
+      : "Continue";
+  if (recordTrigger && recordLabel) {
+    recordTrigger.disabled = submitInFlight || blockingVoiceState;
+    recordTrigger.setAttribute("aria-pressed", voiceCaptureState === "recording" ? "true" : "false");
+    if (voiceCaptureState === "requesting") {
+      recordLabel.textContent = "Allow microphone…";
+    } else if (voiceCaptureState === "recording") {
+      recordLabel.textContent = "Stop recording";
+    } else if (voiceCaptureState === "stopping") {
+      recordLabel.textContent = "Stopping…";
+    } else if (voiceCaptureState === "uploading") {
+      recordLabel.textContent = "Uploading…";
+    } else if (voiceCaptureState === "processing") {
+      recordLabel.textContent = "Processing…";
+    } else {
+      recordLabel.textContent = "Record now";
+    }
+  }
+  if (showPaste) {
+    showPaste.disabled = submitInFlight || voiceBusy;
+  }
+  if (uploadTrigger) {
+    uploadTrigger.disabled = submitInFlight || voiceBusy;
+  }
+  if (context) {
+    context.disabled = submitInFlight || blockingVoiceState;
+  }
   if (form) {
-    form.setAttribute("aria-busy", submitInFlight ? "true" : "false");
+    form.setAttribute("aria-busy", submitInFlight || voiceBusy ? "true" : "false");
   }
   syncAuthPrompt();
+}
+
+function setVoiceCaptureState(nextState) {
+  voiceCaptureState = nextState;
+  syncSubmitState();
+}
+
+function selectVoiceMimeType() {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+    return "";
+  }
+  return VOICE_MIME_CANDIDATES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
+}
+
+function extensionForMimeType(mimeType) {
+  return MIME_EXTENSION_MAP[mimeType] || MIME_EXTENSION_MAP[mimeType?.split(";")[0]?.trim()] || "webm";
+}
+
+function buildVoiceFilename(mimeType) {
+  return `voice-note-${Date.now()}.${extensionForMimeType(mimeType)}`;
+}
+
+function releaseRecordingResources() {
+  if (mediaStream) {
+    mediaStream.getTracks().forEach((track) => track.stop());
+  }
+  mediaStream = null;
+  mediaRecorder = null;
+  recordingChunks = [];
+  activeRecordingMimeType = "";
+}
+
+function nextPaint() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 async function getToken() {
@@ -261,7 +367,7 @@ async function apiFetch(path, init = {}) {
   const token = await getToken();
   const headers = new Headers(init.headers || {});
   headers.set("Authorization", `Bearer ${token}`);
-  if (init.body && !headers.has("Content-Type")) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -444,6 +550,8 @@ function renderSections(sections) {
             ? KEY_POINT_LABEL
             : section.label === "Next step"
               ? NEXT_STEP_LABEL
+              : section.label === "Why keep this"
+                ? WHY_KEEP_THIS_LABEL
               : section.label;
         return `
         <section class="workflows-section-block">
@@ -524,6 +632,68 @@ function renderLoadError() {
   wireReturnToCapture();
 }
 
+function renderSavedResultsError() {
+  resetResultCards();
+  showResultScreen();
+  const card = document.getElementById("saved-note-card");
+  renderResultCard(card, {
+    statusLabel: "Try again",
+    statusTone: "attention",
+    kicker: "Saved results",
+    title: "Could not load saved results",
+    framingLine: "Try again in a moment or start a fresh capture.",
+    actions: [
+      { html: '<button type="button" class="btn btn-primary" id="retry-load-saved-results">Try again</button>' },
+      { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
+    ],
+  });
+  document.getElementById("retry-load-saved-results")?.addEventListener("click", () => {
+    handleCurrentRoute();
+  });
+  wireReturnToCapture();
+}
+
+function renderSavedResultsBody(items) {
+  if (!items?.length) {
+    return '<p class="workflows-empty-state">No saved results yet. Finish one capture and it will show up here.</p>';
+  }
+  return `
+    <div class="workflows-saved-results-list">
+      ${items
+        .map(
+          (item) => `
+            <article class="workflows-saved-results-item">
+              <div class="workflows-saved-results-item-header">
+                <h3>${escapeHtml(item.title || "Saved note")}</h3>
+                <a class="workflows-saved-results-link" href="${escapeHtml(item.next_route || "/workflows")}">Open</a>
+              </div>
+              <p class="workflows-saved-results-meta">${escapeHtml(item.metadata_line || item.status || "")}</p>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderSavedResultsList(items) {
+  resetResultCards();
+  showResultScreen();
+  const card = document.getElementById("primary-artifact-card");
+  renderResultCard(card, {
+    statusLabel: "Saved results",
+    statusTone: "saved",
+    kicker: "History",
+    title: "Saved workflow results",
+    framingLine: "Reopen any saved workflow artifact.",
+    bodyHtml: renderSavedResultsBody(items),
+    actions: [
+      { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
+    ],
+  });
+  wireReturnToCapture();
+}
+
 function renderSavedNote(payload) {
   resetResultCards();
   showResultScreen();
@@ -532,7 +702,6 @@ function renderSavedNote(payload) {
   const sourcePanel = document.getElementById("source-text-panel");
   const sourceText = document.getElementById("source-text-content");
   const savedArtifact = payload.result.saved_note_artifact || {};
-  const themes = payload.result.likely_themes || [];
   const defaultFramingLine =
     savedArtifact.state === "weak_signal"
       ? "This is a small note worth preserving."
@@ -552,9 +721,9 @@ function renderSavedNote(payload) {
     bodyHtml: `
       ${renderSourceExcerpt(savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "")}
       ${renderSections(savedArtifact.sections || [])}
-      ${renderThemes(themes)}
     `,
     actions: [
+      { html: '<a class="btn btn-outline" href="/workflows/saved">View saved results</a>' },
       { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
     ],
   });
@@ -588,6 +757,7 @@ function renderPrimaryArtifact(payload) {
     bodyHtml,
     actions: [
       { html: '<button type="button" class="btn btn-primary" id="copy-artifact-body">Copy note</button>' },
+      { html: '<a class="btn btn-outline" href="/workflows/saved">View saved results</a>' },
       { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
     ],
   });
@@ -633,6 +803,25 @@ async function createCapture(text, contextHint) {
   });
 }
 
+async function createAudioCapture(audioBlob, filename, contextHint) {
+  const formData = new FormData();
+  formData.append("file", audioBlob, filename);
+  if (contextHint) {
+    formData.append("context_hint", contextHint);
+  }
+  return apiFetch(API_CAPTURES_PATH, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+async function loadCaptureList() {
+  setStatusTone("Loading saved results...", "working");
+  const payload = await apiFetch(API_CAPTURES_PATH);
+  setStatus("");
+  renderSavedResultsList(payload.items || []);
+}
+
 async function loadCapture(captureId) {
   setStatusTone("Loading saved result...", "working");
   const payload = await apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}`);
@@ -669,6 +858,198 @@ async function submitCapture(text, contextHint) {
     submitInFlight = false;
     syncSubmitState();
   }
+}
+
+function getVoiceCaptureErrorMessage(error) {
+  if (error?.message === "text too short") {
+    return "No audio was captured. Try again.";
+  }
+  if (error?.message === "audio file is too large for inline capture") {
+    return "That recording is too long for inline capture. Try a shorter note.";
+  }
+  if (error?.message === "transcription failed") {
+    return "Could not turn that recording into text. Try again.";
+  }
+  if (error?.message === "unsupported audio format") {
+    return "This browser recorded an unsupported audio format.";
+  }
+  if (error?.message === "audio file is empty") {
+    return "No audio was captured. Try again.";
+  }
+  return "Could not save that voice note. Try again.";
+}
+
+async function submitVoiceCapture(audioBlob, mimeType, contextHint) {
+  submitInFlight = true;
+  setVoiceCaptureState("uploading");
+  setStatusTone("Uploading voice note...", "working");
+  await nextPaint();
+  renderLoadingState();
+  setVoiceCaptureState("processing");
+  setStatusTone("Processing voice note...", "working");
+
+  try {
+    const payload = await createAudioCapture(
+      audioBlob,
+      buildVoiceFilename(mimeType),
+      contextHint,
+    );
+    clearPendingCapture();
+    const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
+    history.pushState({}, "", nextPath);
+    renderPayload(payload);
+    setStatusTone("Voice note saved.");
+    logDebug("voice_capture_saved", {
+      inputType: payload.input_type,
+      sourceInputType: payload.source_event?.input_type,
+      selectedMimeType: mimeType || "(browser-default)",
+    });
+  } catch (error) {
+    console.error("[workflows] voice capture submission failed", error);
+    logDebug("voice_capture_submit_failed", {
+      errorMessage: error?.message || "unknown error",
+      selectedMimeType: mimeType || "(browser-default)",
+    });
+    showCaptureScreen();
+    resetResultCards();
+    setStatusTone(getVoiceCaptureErrorMessage(error), "error");
+  } finally {
+    submitInFlight = false;
+    setVoiceCaptureState("idle");
+  }
+}
+
+async function handleRecordingStopped() {
+  const contextHint = document.getElementById("capture-context")?.value.trim() || "";
+  const mimeType = activeRecordingMimeType || "audio/webm";
+  const audioBlob = new Blob(recordingChunks, {
+    type: mimeType,
+  });
+  releaseRecordingResources();
+
+  if (!audioBlob.size || audioBlob.size < MIN_AUDIO_BYTES) {
+    setVoiceCaptureState("idle");
+    setStatusTone("No audio was captured. Try again.", "error");
+    return;
+  }
+
+  await submitVoiceCapture(audioBlob, mimeType, contextHint);
+}
+
+async function startVoiceRecording() {
+  if (!currentUser && !bypassRemoteAuth) {
+    setStatusTone("Sign in with Google to record voice notes.", "error");
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setStatusTone("This browser cannot record audio here.", "error");
+    return;
+  }
+  if (typeof MediaRecorder === "undefined") {
+    setStatusTone("This browser does not support in-browser recording.", "error");
+    return;
+  }
+
+  setVoiceCaptureState("requesting");
+  setStatusTone("Requesting microphone access...", "working");
+
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    setVoiceCaptureState("idle");
+    const denied =
+      error?.name === "NotAllowedError" || error?.name === "PermissionDeniedError";
+    setStatusTone(
+      denied ? "Microphone access was denied." : "Could not access the microphone.",
+      "error",
+    );
+    return;
+  }
+
+  recordingChunks = [];
+  let selectedMimeType = selectVoiceMimeType();
+  try {
+    mediaRecorder = selectedMimeType
+      ? new MediaRecorder(mediaStream, { mimeType: selectedMimeType })
+      : new MediaRecorder(mediaStream);
+  } catch (_error) {
+    try {
+      mediaRecorder = new MediaRecorder(mediaStream);
+      selectedMimeType = "";
+    } catch (fallbackError) {
+      releaseRecordingResources();
+      setVoiceCaptureState("idle");
+      setStatusTone("This browser could not start recording audio.", "error");
+      return;
+    }
+  }
+
+  activeRecordingMimeType = mediaRecorder.mimeType || selectedMimeType || "";
+  mediaRecorder.addEventListener("dataavailable", (event) => {
+    if (event.data?.size) {
+      recordingChunks.push(event.data);
+    }
+  });
+  mediaRecorder.addEventListener(
+    "stop",
+    () => {
+      handleRecordingStopped().catch((error) => {
+        console.error("[workflows] recording stop handling failed", error);
+        releaseRecordingResources();
+        submitInFlight = false;
+        setVoiceCaptureState("idle");
+        showCaptureScreen();
+        resetResultCards();
+        setStatusTone("Could not save that voice note. Try again.", "error");
+      });
+    },
+    { once: true },
+  );
+  mediaRecorder.addEventListener(
+    "error",
+    () => {
+      releaseRecordingResources();
+      submitInFlight = false;
+      setVoiceCaptureState("idle");
+      setStatusTone("Could not continue recording. Try again.", "error");
+    },
+    { once: true },
+  );
+
+  try {
+    mediaRecorder.start();
+  } catch (_error) {
+    releaseRecordingResources();
+    setVoiceCaptureState("idle");
+    setStatusTone("This browser could not start recording audio.", "error");
+    return;
+  }
+
+  setVoiceCaptureState("recording");
+  setStatusTone("Recording...", "working");
+  logDebug("voice_recording_started", {
+    selectedMimeType: activeRecordingMimeType || "(browser-default)",
+  });
+}
+
+function stopVoiceRecording() {
+  if (!mediaRecorder || mediaRecorder.state !== "recording") {
+    return;
+  }
+  setVoiceCaptureState("stopping");
+  setStatusTone("Stopping recording...", "working");
+  mediaRecorder.stop();
+}
+
+async function handleRecordTrigger() {
+  if (voiceCaptureState === "recording") {
+    stopVoiceRecording();
+    return;
+  }
+  if (voiceCaptureState !== "idle" || submitInFlight) {
+    return;
+  }
+  await startVoiceRecording();
 }
 
 function restorePendingCaptureToForm() {
@@ -738,7 +1119,7 @@ async function handleSubmit(event) {
       shouldResume: true,
       savedAt: Date.now(),
     });
-    setStatusTone("Sign in to continue.");
+    setStatusTone("Redirecting to sign in so you can save this draft.", "working");
     safeNavigate(buildAuthStartUrl(), "continue_requires_remote_auth");
     return;
   }
@@ -749,7 +1130,7 @@ async function handleSubmit(event) {
 function applySignedOutState() {
   resetResultCards();
   showCaptureScreen();
-  setStatusTone("Sign in required to save captures.");
+  setStatus("");
   syncAuthPrompt();
   syncSubmitState();
 }
@@ -767,6 +1148,17 @@ async function handleCurrentRoute() {
     } catch (error) {
       console.error("[workflows] capture load failed", error);
       renderLoadError();
+      setStatus("");
+    }
+    return;
+  }
+
+  if (route.screen === "saved") {
+    try {
+      await loadCaptureList();
+    } catch (error) {
+      console.error("[workflows] capture list load failed", error);
+      renderSavedResultsError();
       setStatus("");
     }
     return;
@@ -793,7 +1185,13 @@ export function mountWorkflowsApp() {
     setStatus("");
   });
   recordTrigger?.addEventListener("click", () => {
-    setStatus("Voice capture is not available in this slice yet.");
+    handleRecordTrigger().catch((error) => {
+      console.error("[workflows] record trigger failed", error);
+      releaseRecordingResources();
+      submitInFlight = false;
+      setVoiceCaptureState("idle");
+      setStatusTone("Could not save that voice note. Try again.", "error");
+    });
   });
   uploadTrigger?.addEventListener("click", () => {
     setStatus("File upload is not available in this slice yet.");

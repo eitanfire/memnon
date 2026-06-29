@@ -14,6 +14,9 @@
         <h1>Capture a thought</h1>
         <p class="workflows-subhead">Speak, drop a file, or paste something messy.</p>
         <p class="workflows-subhead-secondary">Turn it into something useful.</p>
+        <p id="workflows-saved-link-row" class="workflows-subhead-tertiary" hidden>
+          <a id="workflows-saved-link" class="workflows-saved-link" href="/workflows/saved">View saved results</a>
+        </p>
         <div id="workflows-build-marker" class="workflows-debug-marker" hidden></div>
         <pre id="workflows-debug-state" class="workflows-debug-state" hidden></pre>
       </header>
@@ -63,7 +66,7 @@
         <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
 
         <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
-          <p class="workflows-auth-copy">Sign in required to save captures.</p>
+          <p class="workflows-auth-copy">Draft now, sign in to save.</p>
           <a
             id="workflows-signin"
             class="workflows-auth-link"

@@ -64,6 +64,11 @@ class WorkflowsStaticServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"Capture a thought", body)
 
+    def test_workflows_saved_route_rewrites_to_workflows_html(self):
+        status, body = self.request("/workflows/saved")
+        self.assertEqual(status, 200)
+        self.assertIn(b"Capture a thought", body)
+
     def test_missing_asset_returns_404(self):
         status, _body = self.request("/missing-file.js")
         self.assertEqual(status, 404)

@@ -27,6 +27,21 @@ body.workflows-page {
   font-size: 1.1rem;
 }
 
+.workflows-subhead-tertiary {
+  margin: 10px 0 0;
+}
+
+.workflows-saved-link {
+  color: #5c4037;
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.workflows-saved-link:hover {
+  text-decoration: underline;
+}
+
 .workflows-debug-marker,
 .workflows-debug-state {
   margin-top: 12px;
@@ -194,10 +209,11 @@ body.workflows-page {
 .workflows-auth-prompt {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   padding: 0 14px 14px;
   color: #7a6f67;
-  font-size: 0.92rem;
+  font-size: 0.86rem;
 }
 
 .workflows-auth-copy {
@@ -206,7 +222,7 @@ body.workflows-page {
 
 .workflows-auth-link {
   color: #5c4037;
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -323,6 +339,53 @@ body.workflows-page {
   background: #f3ede5;
   color: #5d5750;
   font-size: 0.88rem;
+}
+
+.workflows-saved-results-list {
+  display: grid;
+  gap: 12px;
+}
+
+.workflows-saved-results-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #e4d8c9;
+  border-radius: 16px;
+  background: #fffdfa;
+}
+
+.workflows-saved-results-item-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.workflows-saved-results-item h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.workflows-saved-results-meta {
+  margin: 0;
+  color: #6a635d;
+  font-size: 0.9rem;
+}
+
+.workflows-saved-results-link {
+  color: #5c4037;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.workflows-saved-results-link:hover {
+  text-decoration: underline;
+}
+
+.workflows-empty-state {
+  margin: 0;
 }
 
 .workflows-loading-card {

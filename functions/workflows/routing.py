@@ -65,13 +65,20 @@ def _looks_like_document_text(normalized: str, context: str) -> bool:
     return len(words) >= 18 and (hint_count >= 2 or (hint_count >= 1 and (bool(context) or heading_like)))
 
 
-def build_source_event(source_text: str, context_hint: str, capture_id: str, created_at: str) -> dict[str, Any]:
+def build_source_event(
+    source_text: str,
+    context_hint: str,
+    capture_id: str,
+    created_at: str,
+    *,
+    input_type: str = "text",
+) -> dict[str, Any]:
     normalized = _normalize_text(source_text)
     preview = normalized[:240]
     themes = sorted(extract_themes(f"{normalized} {context_hint}".strip()))[:6]
     return {
         "capture_id": capture_id,
-        "input_type": "text",
+        "input_type": input_type,
         "source_text": normalized,
         "source_preview": preview,
         "context_hint": _normalize_text(context_hint),
