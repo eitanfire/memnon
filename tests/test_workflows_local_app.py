@@ -108,7 +108,10 @@ class WorkflowsLocalAppTests(unittest.TestCase):
             "/api/workflows/captures",
             headers=headers,
             json={
-                "text": "I want to turn this messy product reflection into one useful professional note for the next build step.",
+                "text": (
+                    "I want to turn this messy product reflection into one useful professional note for the next build step. "
+                    "Action: revise the summary before tomorrow's review."
+                ),
                 "context_hint": "product review",
             },
         )
