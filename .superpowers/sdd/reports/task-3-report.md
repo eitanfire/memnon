@@ -40,3 +40,20 @@
 ## Concerns
 
 - Local manual QA is running against the current local fallback/result generator state, which still produces very generic titles such as `Saved` and also suggested the existing thread for one product-idea benchmark input. Those behaviors were already present in the backend/local generator path and were outside this task's allowed write scope.
+
+## Fix Wave Addendum
+
+### Follow-up scope
+
+- Reviewer fix applied: compact related-thread suggestion rendering now trusts `payload.threading.suggestion_active` as the authoritative high-confidence/immediate signal.
+- Tightened the static contract to cover the stale-state case where `result.related_thread.suggestion_active` is true but `threading.suggestion_active` is absent.
+
+### Follow-up verification
+
+- `.venv/bin/python -m unittest tests.test_workflows_static_contract -v`
+  - First run: `FAIL` in `test_result_route_thread_controls_follow_immediate_result_rules` because the stale `result.related_thread.suggestion_active` case still rendered the compact block.
+  - Second run after the JS gate change: `OK`.
+- `.venv/bin/python -m unittest tests.test_workflows_result_quality tests.test_workflows_service tests.test_workflows_api tests.test_workflows_static_contract -v`
+  - Outcome: `OK` (`65` tests passed).
+- `node --check public/workflows.js`
+  - Outcome: exit `0`.

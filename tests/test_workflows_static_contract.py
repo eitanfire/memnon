@@ -254,6 +254,18 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               { result: { related_thread: {} }, threading: {} },
               [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
             );
+            const staleRelatedThreadSignal = context.renderRelatedThreadSuggestion(
+              {
+                result: {
+                  related_thread: {
+                    suggested_title: "Workflows UI/UX",
+                    suggestion_active: true,
+                  },
+                },
+                threading: {},
+              },
+              [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
+            );
             const immediateNavigation = context.isImmediateResultNavigation({
               result: { related_thread: { suggested_title: "Workflows UI/UX", suggestion_active: true } },
               threading: { suggestion_active: true },
@@ -285,6 +297,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
                 && chooserOnly.includes("Create")
                 && chooserOnly.includes("data-create-context"),
               reopenedNoControls.trim() === "",
+              staleRelatedThreadSignal.trim() === "",
               immediateNavigation === true,
               reopenedNavigation === false,
               reopenedConfirmed.includes("Workflows UI/UX")
@@ -296,6 +309,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               throw new Error(JSON.stringify({
                 immediateEligible,
                 reopenedNoControls,
+                staleRelatedThreadSignal,
                 reopenedConfirmed,
                 decidedSeparate,
               }));

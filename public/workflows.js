@@ -562,7 +562,7 @@ function isImmediateResultNavigation(payload) {
 
 function renderRelatedThreadSuggestion(payload, threads = []) {
   const relatedThread = payload?.result?.related_thread || {};
-  if (!relatedThread.suggestion_active || !relatedThread.suggested_title) {
+  if (!payload?.threading?.suggestion_active || !relatedThread.suggested_title) {
     return "";
   }
 
