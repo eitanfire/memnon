@@ -5,6 +5,11 @@ import inspect
 import secrets
 import re
 
+try:
+    from google.api_core.exceptions import FailedPrecondition as FirestoreFailedPrecondition
+except Exception:  # pragma: no cover - local fallback when google client libs are unavailable
+    FirestoreFailedPrecondition = ()
+
 from .models import (
     WorkflowArtifact,
     WorkflowArtifactSection,
@@ -901,7 +906,10 @@ class WorkflowService:
     def _repository_list_contexts(self, uid: str, limit: int | None = 12) -> list[dict]:
         if hasattr(self.repository, "list_active_contexts"):
             effective_limit = 1000 if limit is None else limit
-            return self.repository.list_active_contexts(uid, limit=effective_limit)
+            try:
+                return self.repository.list_active_contexts(uid, limit=effective_limit)
+            except FirestoreFailedPrecondition:
+                return []
         if hasattr(self.repository, "list_contexts"):
             if limit is None:
                 return self.repository.list_contexts(uid, limit=1000)
