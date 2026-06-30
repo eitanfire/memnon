@@ -2,6 +2,8 @@ import sys
 import unittest
 from pathlib import Path
 
+from google.api_core.exceptions import FailedPrecondition
+
 
 FUNCTIONS_DIR = Path(__file__).resolve().parents[1] / "functions"
 if str(FUNCTIONS_DIR) not in sys.path:
@@ -9,6 +11,11 @@ if str(FUNCTIONS_DIR) not in sys.path:
 
 from workflows.service import WorkflowService
 from tests.test_workflows_service import FakeRepository
+
+
+class IndexBuildingRepository(FakeRepository):
+    def list_active_contexts(self, uid, limit=12):
+        raise FailedPrecondition("The query requires an index. That index is currently building and cannot be used yet.")
 
 
 class WorkflowThreadingTests(unittest.TestCase):
@@ -57,6 +64,29 @@ class WorkflowThreadingTests(unittest.TestCase):
         )
 
         self.assertIsNone(service.suggest_context_for_capture("user-1", capture.to_dict()))
+
+    def test_no_suggestion_when_context_query_is_temporarily_unavailable(self):
+        repo = IndexBuildingRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="workflows ui/ux",
+        )
+
+        self.assertEqual(capture.threading, {})
+        self.assertIsNone(capture.result.get("related_thread"))
 
     def test_no_suggestion_for_weak_saved_note(self):
         repo = FakeRepository()
