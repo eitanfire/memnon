@@ -45,6 +45,13 @@ class WeatherContextTests(unittest.TestCase):
         })
         self.assertEqual(anchor, "Jefferson Academy, CO")
 
+    def test_build_weather_anchor_falls_back_to_school_city_and_state(self):
+        anchor = self.weather.build_weather_anchor({
+            "school_city": "BROOMFIELD",
+            "school_state": "CO",
+        })
+        self.assertEqual(anchor, "BROOMFIELD")
+
     def test_clear_weather_cache_fields_returns_expected_reset(self):
         self.assertEqual(
             self.weather.clear_weather_cache_fields(),
@@ -104,6 +111,28 @@ class WeatherContextTests(unittest.TestCase):
             })
         self.assertIsNone(context)
         self.assertEqual(updates, {})
+
+    def test_load_weather_context_falls_back_to_school_city_when_school_name_does_not_geocode(self):
+        empty_geocode_payload = '{"generationtime_ms":0.4}'
+        city_geocode_payload = '{"results":[{"name":"Broomfield","latitude":39.92054,"longitude":-105.08665,"timezone":"America/Denver","admin1":"Colorado","country_code":"US"}]}'
+        forecast_payload = '{"daily":{"temperature_2m_max":[82.0],"temperature_2m_min":[55.0],"precipitation_probability_max":[20],"precipitation_sum":[0.1],"weathercode":[3]}}'
+        with patch.object(
+            self.weather.urllib.request,
+            "urlopen",
+            side_effect=[
+                _FakeResponse(empty_geocode_payload),
+                _FakeResponse(city_geocode_payload),
+                _FakeResponse(forecast_payload),
+            ],
+        ):
+            context, updates = self.weather.load_weather_context({
+                "school_name": "Jefferson Academy",
+                "school_city": "BROOMFIELD",
+                "school_state": "CO",
+            })
+        self.assertIsNotNone(context)
+        self.assertEqual(updates["weather_geocoded_from"], "BROOMFIELD")
+        self.assertEqual(updates["weather_location_label"], "Broomfield Colorado")
 
 
 if __name__ == "__main__":

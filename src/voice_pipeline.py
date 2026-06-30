@@ -74,6 +74,19 @@ def yaml_list(items: List[str], indent: int = 2) -> str:
     return "\n".join(f"{prefix}- {yaml_quote(item)}" for item in items)
 
 
+def yaml_object_list(items: List[Dict[str, Any]], indent: int = 2) -> str:
+    if not items:
+        return (" " * indent) + "[]"
+
+    prefix = " " * indent
+    lines: List[str] = []
+    for item in items:
+        lines.append(f"{prefix}- processor: {yaml_quote(str(item.get('processor', '')))}")
+        lines.append(f"{prefix}  reason: {yaml_quote(str(item.get('reason', '')))}")
+        lines.append(f"{prefix}  failed_at: {yaml_quote(str(item.get('failed_at', '')))}")
+    return "\n".join(lines)
+
+
 def read_json(path: Path, default: Any) -> Any:
     if not path.exists():
         return default
@@ -320,8 +333,10 @@ def clean_transcript(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Workflow lane detection
+# Deferred lane routing
 # ---------------------------------------------------------------------------
+# Deferred: this is not part of the v1 canonical ingest path. It remains
+# available for future/downstream orchestration work.
 
 # Built-in keyword fallbacks used when a lane has no explicit keywords in config.
 # These are examples — define your own lanes and keywords in config.json instead.
@@ -350,19 +365,20 @@ def detect_workflow(transcript: str, config: Dict[str, Any]) -> tuple:
         label_map.setdefault(lane_name, lane_name)
 
     # 1. Voice label: "professional:" / "build —" / "reflect" at line start
-    label_pattern = re.compile(
-        r"^(" + "|".join(re.escape(k) for k in sorted(label_map, key=len, reverse=True)) + r")[\s:,.\-—]?",
-        re.IGNORECASE,
-    )
-    match = label_pattern.match(first_line)
-    if match:
-        detected_label = match.group(1).lower()
-        lane_name = label_map[detected_label]
-        # Strip the label prefix from the transcript
-        stripped = text[match.end():].lstrip(" \t:,.—-")
-        if not stripped:
-            stripped = text  # label only, keep full text
-        return lane_name, "voice_label", stripped
+    if label_map:
+        label_pattern = re.compile(
+            r"^(" + "|".join(re.escape(k) for k in sorted(label_map, key=len, reverse=True)) + r")[\s:,.\-—]?",
+            re.IGNORECASE,
+        )
+        match = label_pattern.match(first_line)
+        if match:
+            detected_label = match.group(1).lower()
+            lane_name = label_map[detected_label]
+            # Strip the label prefix from the transcript
+            stripped = text[match.end():].lstrip(" \t:,.—-")
+            if not stripped:
+                stripped = text  # label only, keep full text
+            return lane_name, "voice_label", stripped
 
     # 2. Keyword heuristics
     text_lower = text.lower()
@@ -661,7 +677,7 @@ def transcribe_audio(config: Dict[str, Any], source_path: Path) -> tuple[str, Pa
 LANE_AI_INSTRUCTIONS: Dict[str, str] = {}
 
 
-def ai_prompt(
+def summary_processor_prompt(
     transcript: str,
     max_tags: int,
     preferred_tags: List[str],
@@ -693,23 +709,55 @@ def ai_prompt(
         )
 
     return (
-        "You organize personal voice notes for Obsidian.\n"
+        "You organize personal voice notes into durable canonical notes.\n"
         "Return strict JSON only. Do not wrap it in markdown.\n"
         "Use this schema:\n"
         "{\n"
         '  "title": "short note title",\n'
         '  "summary": "2-5 sentence factual summary",\n'
-        '  "action_items": ["task one", "task two"],\n'
         f'  "suggested_tags": ["lowercase-kebab-tag"]\n'
         "}\n"
         f"Rules:\n- Keep suggested_tags to at most {max_tags} items.\n"
         "- Do not invent facts.\n"
-        "- If there are no action items, return an empty array.\n"
         "- Tags must be grounded in the actual transcript content.\n"
         "- Tags should describe likely future retrieval, not every topic mentioned.\n"
         "- Make the title specific but concise.\n\n"
         f"{lane_block}"
         f"{preferred_tags_block}"
+        "Transcript:\n"
+        f"{transcript}\n"
+    )
+
+
+def action_items_processor_prompt(
+    transcript: str,
+    workflow: str = "default",
+    lane_instruction: str = "",
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    lane_block = f"Lane context: {lane_instruction}\n\n" if lane_instruction else ""
+
+    template = (config or {}).get("ai", {}).get("action_items_prompt_template", "")
+    if template:
+        return template.format(
+            transcript=transcript,
+            lane_instruction=lane_instruction,
+            lane_block=lane_block,
+            workflow=workflow,
+        )
+
+    return (
+        "You extract concrete next steps from personal voice notes.\n"
+        "Return strict JSON only. Do not wrap it in markdown.\n"
+        "Use this schema:\n"
+        "{\n"
+        '  "action_items": ["task one", "task two"]\n'
+        "}\n"
+        "Rules:\n"
+        "- Do not invent facts.\n"
+        "- Include only actions that are explicit or strongly implied by the transcript.\n"
+        "- If there are no action items, return an empty array.\n\n"
+        f"{lane_block}"
         "Transcript:\n"
         f"{transcript}\n"
     )
@@ -721,12 +769,11 @@ def lane_ai_instruction(config: Dict[str, Any], workflow: str) -> str:
     return lane_cfg.get("ai_instruction", "") or LANE_AI_INSTRUCTIONS.get(workflow, "")
 
 
-def run_ai_ollama_http(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
+def run_json_prompt_ollama_http(config: Dict[str, Any], prompt: str) -> Dict[str, Any]:
     ai = config["ai"]
-    preferred_tags = collect_preferred_tags(config)
     payload = {
         "model": ai["model"],
-        "prompt": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow, lane_ai_instruction(config, workflow), config),
+        "prompt": prompt,
         "stream": False,
         "format": "json",
         "options": {
@@ -751,13 +798,11 @@ def run_ai_ollama_http(config: Dict[str, Any], transcript: str, workflow: str = 
     raw_response = outer.get("response", "")
     if not raw_response:
         raise RuntimeError(f"Ollama returned an empty response body: {body}")
-    parsed = parse_json_object(raw_response)
-    return normalize_ai_payload(parsed)
+    return parse_json_object(raw_response)
 
 
-def run_ai_openai_http(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
+def run_json_prompt_openai_http(config: Dict[str, Any], prompt: str) -> Dict[str, Any]:
     ai = config["ai"]
-    preferred_tags = collect_preferred_tags(config)
     api_key = ai.get("api_key") or os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
         raise RuntimeError(
@@ -767,7 +812,7 @@ def run_ai_openai_http(config: Dict[str, Any], transcript: str, workflow: str = 
     payload = {
         "model": ai.get("model", "gpt-4o-mini"),
         "messages": [
-            {"role": "user", "content": ai_prompt(transcript, int(ai.get("max_tags", 5)), preferred_tags, workflow, lane_ai_instruction(config, workflow), config)}
+            {"role": "user", "content": prompt}
         ],
         "temperature": ai.get("temperature", 0.2),
         "response_format": {"type": "json_object"},
@@ -794,36 +839,17 @@ def run_ai_openai_http(config: Dict[str, Any], transcript: str, workflow: str = 
 
     outer = json.loads(body)
     content = outer["choices"][0]["message"]["content"]
-    parsed = parse_json_object(content)
-    return normalize_ai_payload(parsed)
+    return parse_json_object(content)
 
 
-def run_ai_mock(config: Dict[str, Any], transcript: str) -> Dict[str, Any]:
-    del transcript
-    ai = config["ai"]
-    payload = ai.get(
-        "mock_response",
-        {
-            "title": "Mock voice note",
-            "summary": "This is a mock summary used for validation.",
-            "action_items": ["Replace the mock AI backend with Ollama."],
-            "suggested_tags": ["mock", "voice-note"],
-        },
-    )
-    return normalize_ai_payload(payload)
+def run_json_prompt_mock(mock_payload: Dict[str, Any]) -> Dict[str, Any]:
+    return dict(mock_payload)
 
 
-def normalize_ai_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_summary_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     title = str(payload.get("title", "")).strip()
     summary = str(payload.get("summary", "")).strip()
-    action_items_raw = payload.get("action_items", [])
     tags_raw = payload.get("suggested_tags", [])
-
-    action_items = []
-    for item in action_items_raw if isinstance(action_items_raw, list) else []:
-        cleaned = str(item).strip()
-        if cleaned:
-            action_items.append(cleaned)
 
     tags = []
     for item in tags_raw if isinstance(tags_raw, list) else []:
@@ -834,29 +860,81 @@ def normalize_ai_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "title": title,
         "summary": summary,
-        "action_items": action_items,
         "suggested_tags": tags,
     }
 
 
-def run_ai(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
-    ai = config["ai"]
-    if not ai.get("enabled", True):
-        return {
-            "title": "",
-            "summary": "",
-            "action_items": [],
-            "suggested_tags": [],
-        }
+def normalize_action_items_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    action_items_raw = payload.get("action_items", [])
+    action_items = []
+    for item in action_items_raw if isinstance(action_items_raw, list) else []:
+        cleaned = str(item).strip()
+        if cleaned:
+            action_items.append(cleaned)
 
+    return {"action_items": action_items}
+
+
+def run_summary_processor(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
+    ai = config["ai"]
+    preferred_tags = collect_preferred_tags(config)
+    prompt = summary_processor_prompt(
+        transcript,
+        int(ai.get("max_tags", 5)),
+        preferred_tags,
+        workflow,
+        lane_ai_instruction(config, workflow),
+        config,
+    )
     backend = ai.get("backend", "ollama_http")
     if backend == "ollama_http":
-        return run_ai_ollama_http(config, transcript, workflow)
+        return normalize_summary_payload(run_json_prompt_ollama_http(config, prompt))
     if backend == "openai_http":
-        return run_ai_openai_http(config, transcript, workflow)
+        return normalize_summary_payload(run_json_prompt_openai_http(config, prompt))
     if backend == "mock":
-        return run_ai_mock(config, transcript)
+        payload = ai.get(
+            "mock_summary_response",
+            ai.get(
+                "mock_response",
+                {
+                    "title": "Mock voice note",
+                    "summary": "This is a mock summary used for validation.",
+                    "suggested_tags": ["mock", "voice-note"],
+                },
+            ),
+        )
+        return normalize_summary_payload(run_json_prompt_mock(payload))
     raise RuntimeError(f"Unsupported AI backend: {backend}")
+
+
+def run_action_items_processor(config: Dict[str, Any], transcript: str, workflow: str = "default") -> Dict[str, Any]:
+    ai = config["ai"]
+    prompt = action_items_processor_prompt(
+        transcript,
+        workflow,
+        lane_ai_instruction(config, workflow),
+        config,
+    )
+    backend = ai.get("backend", "ollama_http")
+    if backend == "ollama_http":
+        return normalize_action_items_payload(run_json_prompt_ollama_http(config, prompt))
+    if backend == "openai_http":
+        return normalize_action_items_payload(run_json_prompt_openai_http(config, prompt))
+    if backend == "mock":
+        payload = ai.get(
+            "mock_action_items_response",
+            {"action_items": ai.get("mock_response", {}).get("action_items", [])},
+        )
+        return normalize_action_items_payload(run_json_prompt_mock(payload))
+    raise RuntimeError(f"Unsupported AI backend: {backend}")
+
+
+def processor_failure(processor: str, reason: str) -> Dict[str, str]:
+    return {
+        "processor": processor,
+        "reason": reason,
+        "failed_at": iso_now(),
+    }
 
 
 def note_title(source_path: Path, ai_payload: Dict[str, Any]) -> str:
@@ -873,12 +951,12 @@ def build_note_content(
     archived_audio_path: Path,
     transcript: str,
     ai_payload: Dict[str, Any],
-    workflow: str = "default",
-    routing_reason: str = "fallback",
+    processors_run: List[str],
+    processor_failures: List[Dict[str, Any]],
+    created_at: datetime,
 ) -> str:
     template_path = Path(config["note_template_path"])
     template = template_path.read_text(encoding="utf-8")
-    created_at = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone().replace(microsecond=0)
     processed_at = iso_now()
     title = note_title(source_path, ai_payload)
 
@@ -887,12 +965,12 @@ def build_note_content(
         "created_at": created_at.isoformat(),
         "processed_at": processed_at,
         "status": "inbox",
-        "workflow": workflow,
-        "routing_reason": routing_reason,
         "source_audio_name": source_path.name,
         "source_audio_path": str(archived_audio_path),
         "transcript_backend": config["transcription"]["backend"],
         "ai_backend": config["ai"]["backend"] if config["ai"].get("enabled", True) else "disabled",
+        "processors_run_yaml": yaml_list(processors_run),
+        "processor_failures_yaml": yaml_object_list(processor_failures),
         "summary": ai_payload.get("summary", "") or "_No AI summary generated._",
         "action_items": format_action_items(ai_payload.get("action_items", [])),
         "suggested_tags_list": format_bullet_tags(ai_payload.get("suggested_tags", [])),
@@ -902,17 +980,15 @@ def build_note_content(
     return render_template(template, values)
 
 
-def note_destination(config: Dict[str, Any], title: str, source_path: Path) -> Path:
+def note_destination(config: Dict[str, Any], title: str, created_at: datetime) -> Path:
     inbox_dir = Path(config["obsidian_inbox_dir"])
-    created_at = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone()
     slug = slugify(title)
     filename = f"{created_at.strftime('%Y-%m-%d %H%M%S')} {slug}.md"
     return unique_path(inbox_dir / filename)
 
 
-def gpt_packet_destination(config: Dict[str, Any], title: str, source_path: Path) -> Path:
+def gpt_packet_destination(config: Dict[str, Any], title: str, created_at: datetime) -> Path:
     export_dir = Path(config["gpt_handoff"]["export_dir"])
-    created_at = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone()
     filename = f"{created_at.strftime('%Y-%m-%d %H%M%S')} {slugify(title)}.md"
     return unique_path(export_dir / filename)
 
@@ -923,13 +999,21 @@ def write_note(
     archived_audio_path: Path,
     transcript: str,
     ai_payload: Dict[str, Any],
-    workflow: str = "default",
-    routing_reason: str = "fallback",
+    processors_run: List[str],
+    processor_failures: List[Dict[str, Any]],
+    created_at: datetime,
 ) -> Path:
     title = note_title(source_path, ai_payload)
-    destination = note_destination(config, title, source_path)
+    destination = note_destination(config, title, created_at)
     content = build_note_content(
-        config, source_path, archived_audio_path, transcript, ai_payload, workflow, routing_reason
+        config,
+        source_path,
+        archived_audio_path,
+        transcript,
+        ai_payload,
+        processors_run,
+        processor_failures,
+        created_at,
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(content, encoding="utf-8")
@@ -943,11 +1027,11 @@ def build_gpt_handoff_content(
     transcript: str,
     ai_payload: Dict[str, Any],
     note_path: Path,
+    created_at: datetime,
 ) -> str:
     template_path = Path(config["gpt_handoff"]["template_path"])
     template = template_path.read_text(encoding="utf-8")
     title = note_title(source_path, ai_payload)
-    created_at = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone().replace(microsecond=0)
 
     values = {
         "title": title,
@@ -982,9 +1066,10 @@ def write_gpt_packet(
     transcript: str,
     ai_payload: Dict[str, Any],
     note_path: Path,
+    created_at: datetime,
 ) -> Path:
     title = note_title(source_path, ai_payload)
-    destination = gpt_packet_destination(config, title, source_path)
+    destination = gpt_packet_destination(config, title, created_at)
     content = build_gpt_handoff_content(
         config=config,
         source_path=source_path,
@@ -992,6 +1077,7 @@ def write_gpt_packet(
         transcript=transcript,
         ai_payload=ai_payload,
         note_path=note_path,
+        created_at=created_at,
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(content, encoding="utf-8")
@@ -1007,7 +1093,6 @@ def metadata_destination(config: Dict[str, Any], archived_audio_path: Path) -> P
 
 def write_metadata(
     config: Dict[str, Any],
-    lane: str,
     source_path: Path,
     archived_audio_path: Path,
     note_path: Path,
@@ -1015,37 +1100,47 @@ def write_metadata(
     transcript_path: Path,
     ai_payload: Dict[str, Any],
     gpt_packet_path: Optional[Path],
-    workflow: str,
-    routing_reason: str,
     entry_id: str,
+    processors_run: Optional[List[str]] = None,
+    processor_failures: Optional[List[Dict[str, Any]]] = None,
+    created_at: Optional[datetime] = None,
 ) -> Path:
     destination = metadata_destination(config, archived_audio_path)
+    source_hash = content_hash(archived_audio_path)
+    if created_at is None:
+        created_at = datetime.fromtimestamp(archived_audio_path.stat().st_mtime).astimezone().replace(microsecond=0)
+    ingested_at = iso_now()
+    processed_at = iso_now()
     payload = {
-        "source_event_id": entry_id,
-        "entry_id": entry_id,
-        "lane": lane,
-        "workflow": workflow,
-        "routing_reason": routing_reason,
+        "id": entry_id,
         "title": note_title(source_path, ai_payload),
-        "source_path": str(source_path),
-        "archived_audio_path": str(archived_audio_path),
+        "created": created_at.isoformat(),
+        "ingested_at": ingested_at,
+        "processed_at": processed_at,
         "note_path": str(note_path),
+        "transcript": transcript,
         "transcript_path": str(transcript_path),
-        "gpt_packet_path": str(gpt_packet_path) if gpt_packet_path else None,
-        "processed_at": iso_now(),
+        "source_audio_name": source_path.name,
+        "source_audio_hash": source_hash,
+        "source_audio_archive_path": str(archived_audio_path),
         "transcript_backend": config["transcription"]["backend"],
-        "ai_backend": config["ai"]["backend"] if config["ai"].get("enabled", True) else "disabled",
-        "transcript_preview": transcript[:500],
-        "transcript_characters": len(transcript),
+        "transcription_version": config["transcription"].get("model", config["transcription"]["backend"]),
         "summary": ai_payload.get("summary", ""),
+        "summary_version": config["ai"].get("model", config["ai"].get("backend", "")) if "summary" in (processors_run or []) else None,
         "action_items": ai_payload.get("action_items", []),
+        "actions_version": config["ai"].get("model", config["ai"].get("backend", "")) if "action_items" in (processors_run or []) else None,
         "suggested_tags": ai_payload.get("suggested_tags", []),
+        "processors_run": list(processors_run or []),
+        "processor_failures": list(processor_failures or []),
     }
+    if gpt_packet_path:
+        payload["gpt_packet_path"] = str(gpt_packet_path)
     write_json(destination, payload)
     return destination
 
 
 def maybe_run_orchestration(metadata_path: Path, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    # Deferred: orchestration is not part of the v1 canonical ingest path.
     from src.orchestration.config import build_orchestration_config
     from src.orchestration.engine import orchestrate_from_metadata
 
@@ -2121,6 +2216,7 @@ def run_lane_actions(
     file_mtime: Optional[datetime] = None,
     archived_audio_path: Optional[Path] = None,
 ) -> None:
+    # Deferred: lane actions are not part of the v1 canonical ingest path.
     """Execute any downstream actions configured for a workflow lane.
 
     Currently supports:
@@ -2245,6 +2341,8 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
         "action_items": [],
         "suggested_tags": [],
     }
+    processors_run: List[str] = []
+    processor_failures: List[Dict[str, Any]] = []
     note_path: Optional[Path] = None
     metadata_path: Optional[Path] = None
     archived_audio_path: Optional[Path] = None
@@ -2264,6 +2362,7 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
             )
 
         transcript, transcript_path = transcribe_audio(config, source_path)
+        processors_run.append("transcript")
 
         # Minimum transcript length check — reject near-silent or noise-only recordings
         min_words = int(config.get("min_transcript_words", 3))
@@ -2274,29 +2373,54 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
                 "Likely an accidental or empty recording."
             )
 
+        enable_lane_routing = bool(config.get("enable_lane_routing", False))
         workflow = "default"
         routing_reason = "fallback"
         if transcript:
-            workflow, routing_reason, transcript = detect_workflow(transcript, config)
-            ai_payload = run_ai(config, transcript, workflow)
-        # Compute archive path now that we have the AI title — audio file gets
-        # a slug filename that matches the Obsidian note instead of the iPhone name.
-        title = note_title(source_path, ai_payload)
-        archive_path = archive_destination(config, source_path, title=title)
-        note_path = write_note(
-            config, source_path, archive_path, transcript, ai_payload, workflow, routing_reason
-        )
+            if enable_lane_routing:
+                workflow, routing_reason, transcript = detect_workflow(transcript, config)
+            if config["ai"].get("enabled", True):
+                try:
+                    summary_payload = run_summary_processor(config, transcript, workflow)
+                    ai_payload["title"] = summary_payload.get("title", "")
+                    ai_payload["summary"] = summary_payload.get("summary", "")
+                    ai_payload["suggested_tags"] = summary_payload.get("suggested_tags", [])
+                    processors_run.append("summary")
+                except Exception as exc:  # pylint: disable=broad-except
+                    processor_failures.append(processor_failure("summary", str(exc)))
+
+                try:
+                    action_items_payload = run_action_items_processor(config, transcript, workflow)
+                    ai_payload["action_items"] = action_items_payload.get("action_items", [])
+                    processors_run.append("action_items")
+                except Exception as exc:  # pylint: disable=broad-except
+                    processor_failures.append(processor_failure("action_items", str(exc)))
         # Capture all stat()-derived values before the move — the file will
         # not exist at source_path once move_to_archive() is called.
         entry_id = source_key(source_path)
         file_mtime = datetime.fromtimestamp(source_path.stat().st_mtime).astimezone().replace(microsecond=0)
+        # Compute archive path now that we have the AI title — audio file gets
+        # a slug filename that matches the Obsidian note instead of the iPhone name.
+        title = note_title(source_path, ai_payload)
+        archive_path = archive_destination(config, source_path, title=title)
         archived_audio_path = move_to_archive(source_path, archive_path)
-        run_lane_actions(
-            config, workflow, source_path, transcript, ai_payload, note_path,
-            entry_id=entry_id,
-            file_mtime=file_mtime,
-            archived_audio_path=archived_audio_path,
+        note_path = write_note(
+            config,
+            source_path,
+            archived_audio_path,
+            transcript,
+            ai_payload,
+            processors_run,
+            processor_failures,
+            file_mtime,
         )
+        if enable_lane_routing:
+            run_lane_actions(
+                config, workflow, source_path, transcript, ai_payload, note_path,
+                entry_id=entry_id,
+                file_mtime=file_mtime,
+                archived_audio_path=archived_audio_path,
+            )
         if lane == "gpt" and config["gpt_handoff"].get("enabled"):
             gpt_packet_path = write_gpt_packet(
                 config=config,
@@ -2305,10 +2429,10 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
                 transcript=transcript,
                 ai_payload=ai_payload,
                 note_path=note_path,
+                created_at=file_mtime,
             )
         metadata_path = write_metadata(
             config,
-            lane=lane,
             source_path=source_path,
             archived_audio_path=archived_audio_path,
             note_path=note_path,
@@ -2316,11 +2440,11 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
             transcript_path=transcript_path,
             ai_payload=ai_payload,
             gpt_packet_path=gpt_packet_path,
-            workflow=workflow,
-            routing_reason=routing_reason,
             entry_id=entry_id,
+            processors_run=processors_run,
+            processor_failures=processor_failures,
+            created_at=file_mtime,
         )
-        maybe_run_orchestration(metadata_path, config)
         return ProcessResult(
             status="done",
             lane=lane,

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -23,6 +24,10 @@ DEFAULT_MUSIC_LIBRARY_DIRS = [
     Path(__file__).resolve().parent / "assets" / "music",
     Path.home() / ".codex" / "wisdom" / "audio",
 ]
+DAILY_BRIEF_PROFESSIONAL_FADE_IN_SECONDS = 3
+DAILY_BRIEF_PROFESSIONAL_FADE_OUT_SECONDS = 4
+DAILY_BRIEF_REFLECTIVE_FADE_IN_SECONDS = 4
+DAILY_BRIEF_REFLECTIVE_FADE_OUT_SECONDS = 5
 
 
 def synthesize_reflection_mp3(
@@ -91,6 +96,27 @@ def _candidate_music_dirs(music_library_dirs: list[str | Path] | None = None) ->
     return resolved
 
 
+def _probe_audio_duration(audio_path: str | Path) -> float:
+    ffmpeg = _resolve_ffmpeg()
+    cmd = [
+        ffmpeg,
+        "-i",
+        str(audio_path),
+        "-f",
+        "null",
+        "-",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    output = f"{result.stdout}\n{result.stderr}"
+    match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", output)
+    if not match:
+        raise RuntimeError("ffmpeg duration probe failed")
+    hours = int(match.group(1))
+    minutes = int(match.group(2))
+    seconds = float(match.group(3))
+    return hours * 3600 + minutes * 60 + seconds
+
+
 def _select_music_for_mood(
     mood: str,
     *,
@@ -120,11 +146,14 @@ def _mix_narration_with_music(
     narration = Path(narration_path)
     music = Path(music_path)
     output = Path(output_path)
+    narration_duration = _probe_audio_duration(narration)
+    fade_out_start = max(0.0, narration_duration - float(fade_out_seconds))
 
     fade_in_filter = f"afade=t=in:st=0:d={fade_in_seconds}," if fade_in_seconds > 0 else ""
     filter_graph = (
         f"[1:a]volume={music_volume},{fade_in_filter}aloop=loop=-1:size=2147483647[music];"
-        f"[0:a][music]amix=inputs=2:duration=first:dropout_transition={fade_out_seconds}[out]"
+        f"[0:a][music]amix=inputs=2:duration=first:dropout_transition=0[mixed];"
+        f"[mixed]afade=t=out:st={fade_out_start}:d={fade_out_seconds}[out]"
     )
     cmd = [
         ffmpeg,
@@ -178,6 +207,44 @@ def _concatenate_mp3_files(input_paths: list[str | Path], output_path: str | Pat
         concat_path.unlink(missing_ok=True)
 
 
+def _crossfade_mp3_files(
+    input_paths: list[str | Path],
+    output_path: str | Path,
+    *,
+    crossfade_seconds: int = 3,
+) -> Path:
+    if len(input_paths) < 2:
+        raise ValueError("crossfade requires at least two input files")
+    if len(input_paths) != 2:
+        return _concatenate_mp3_files(input_paths, output_path)
+
+    ffmpeg = _resolve_ffmpeg()
+    output = Path(output_path)
+    first = Path(input_paths[0])
+    second = Path(input_paths[1])
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(first),
+        "-i",
+        str(second),
+        "-filter_complex",
+        f"[0:a][1:a]acrossfade=d={crossfade_seconds}[out]",
+        "-map",
+        "[out]",
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        "128k",
+        str(output),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg crossfade failed: {result.stderr.strip()}")
+    return output
+
+
 def synthesize_daily_brief_bytes(
     *,
     professional_text: str,
@@ -209,6 +276,7 @@ def synthesize_daily_brief_bytes(
             mood: str,
             *,
             fade_in_seconds: int = 0,
+            fade_out_seconds: int = 4,
         ) -> None:
             if not text:
                 return
@@ -223,6 +291,7 @@ def synthesize_daily_brief_bytes(
                     mixed_path,
                     music_volume=music_volume,
                     fade_in_seconds=fade_in_seconds,
+                    fade_out_seconds=fade_out_seconds,
                 )
                 if stem == "professional":
                     mix_meta["professional_music_track"] = track.name
@@ -234,8 +303,20 @@ def synthesize_daily_brief_bytes(
             else:
                 rendered_parts.append(narration_path)
 
-        _render_section("professional", professional_text, professional_music_mood)
-        _render_section("reflective", reflective_text, reflective_music_mood, fade_in_seconds=2)
+        _render_section(
+            "professional",
+            professional_text,
+            professional_music_mood,
+            fade_in_seconds=DAILY_BRIEF_PROFESSIONAL_FADE_IN_SECONDS,
+            fade_out_seconds=DAILY_BRIEF_PROFESSIONAL_FADE_OUT_SECONDS,
+        )
+        _render_section(
+            "reflective",
+            reflective_text,
+            reflective_music_mood,
+            fade_in_seconds=DAILY_BRIEF_REFLECTIVE_FADE_IN_SECONDS,
+            fade_out_seconds=DAILY_BRIEF_REFLECTIVE_FADE_OUT_SECONDS,
+        )
 
         if not rendered_parts:
             raise RuntimeError("daily brief rendering produced no audio sections")
@@ -243,5 +324,5 @@ def synthesize_daily_brief_bytes(
             return rendered_parts[0].read_bytes(), mix_meta
 
         final_path = tmp / "daily-brief.mp3"
-        _concatenate_mp3_files(rendered_parts, final_path)
+        _crossfade_mp3_files(rendered_parts, final_path, crossfade_seconds=3)
         return final_path.read_bytes(), mix_meta

@@ -235,6 +235,7 @@ class DailyFeedSliceTests(unittest.TestCase):
     def test_save_setup_clears_weather_cache_when_school_anchor_changes(self):
         existing_user = {
             "school_name": "Jefferson Academy",
+            "school_city": "BROOMFIELD",
             "school_state": "CO",
             "weather_location_label": "Jefferson Academy Colorado",
             "weather_latitude": 39.7392,
@@ -254,6 +255,40 @@ class DailyFeedSliceTests(unittest.TestCase):
                 "profession": "teacher",
                 "reflection_style": "complete",
                 "school_name": "Arapahoe Ridge",
+                "school_state": "CO",
+            })
+
+        self.assertEqual(response.status_code, 200)
+        saved_payload, merge_flag = user_ref.set_calls[-1]
+        self.assertTrue(merge_flag)
+        self.assertIsNone(saved_payload["weather_latitude"])
+        self.assertIsNone(saved_payload["weather_longitude"])
+        self.assertEqual(saved_payload["weather_geocoded_from"], "")
+
+    def test_save_setup_clears_weather_cache_when_school_city_changes(self):
+        existing_user = {
+            "school_name": "Jefferson Academy",
+            "school_city": "BROOMFIELD",
+            "school_state": "CO",
+            "weather_location_label": "Broomfield Colorado",
+            "weather_latitude": 39.92054,
+            "weather_longitude": -105.08665,
+            "weather_timezone": "America/Denver",
+            "weather_geocoded_from": "BROOMFIELD",
+        }
+        user_ref = FakeUserRef(existing_user)
+        client = self.main.flask_app.test_client()
+
+        with (
+            patch.object(self.main, "_verify_firebase_token", return_value="user123"),
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+        ):
+            response = client.post("/setup", json={
+                "lane": "professional",
+                "profession": "teacher",
+                "reflection_style": "complete",
+                "school_name": "Jefferson Academy",
+                "school_city": "LAFAYETTE",
                 "school_state": "CO",
             })
 
@@ -355,6 +390,85 @@ class DailyFeedSliceTests(unittest.TestCase):
 
         self.assertEqual(result["id"], "2026-06-24")
         load_weather.assert_called_once()
+
+    def test_build_daily_feed_episode_rewrites_only_practical_briefing_with_weather(self):
+        user_ref = FakeUserRef({
+            "email": "eitanfire@gmail.com",
+            "preferred_name": "Jordan",
+            "spoken_name": "Jordan",
+            "reflection_style": "complete",
+            "school_name": "Jefferson Academy",
+            "school_city": "BROOMFIELD",
+            "school_state": "CO",
+        })
+
+        class EpisodeRef:
+            def __init__(self):
+                self.saved = {}
+
+            def get(self):
+                if self.saved:
+                    return FakeDoc(self.saved, True, "2026-06-24")
+                return FakeDoc({}, False, "2026-06-24")
+
+            def set(self, payload, merge=False):
+                self.saved.update(payload)
+
+        episode_ref = EpisodeRef()
+        weather_context = {
+            "day_type": "stormy",
+            "temperature_summary": "High 85F, low 62F",
+            "precipitation_summary": "30% precipitation risk, 0.0 mm expected",
+            "orientation_cue": "A stormy afternoon may make transitions and end-of-day energy heavier than usual.",
+        }
+        summarize_results = [
+            {
+                "title": "June 24",
+                "description": "desc",
+                "time_anchor": "Today is Tuesday, June 24th.",
+                "continuity_anchor": "Protect the morning",
+                "segments": {
+                    "opening": "Today is Tuesday, June 24th.",
+                    "practical_briefing": "Protect the morning and keep transitions simple.",
+                    "calendar_today": "",
+                    "reflective_grounding": "This still matters today.",
+                    "meditative_close": "One next step is enough.",
+                },
+            },
+            {
+                "practical_briefing": "Protect the morning and keep transitions simple. A stormy afternoon may make transitions and end-of-day energy heavier than usual.",
+            },
+        ]
+
+        with (
+            patch.dict(self.main.os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False),
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+            patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}]),
+            patch.object(self.main, "_daily_feed_has_recent_reflection", return_value=True),
+            patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
+            patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
+            patch.object(self.main, "load_weather_context", return_value=(weather_context, {"weather_geocoded_from": "BROOMFIELD"}), create=True),
+            patch.object(self.main, "_summarize", side_effect=summarize_results) as summarize,
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            result = self.main._build_daily_feed_episode(
+                "user123",
+                user_ref.data,
+                now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
+                force=True,
+            )
+
+        self.assertEqual(result["script_segments"]["opening"], "Today is Tuesday, June 24th.")
+        self.assertEqual(result["script_segments"]["reflective_grounding"], "This still matters today.")
+        self.assertEqual(result["script_segments"]["meditative_close"], "One next step is enough.")
+        self.assertIn("stormy afternoon", result["script_segments"]["practical_briefing"].lower())
+        self.assertEqual(summarize.call_count, 2)
+        base_prompt = summarize.call_args_list[0].args[0]
+        rewrite_prompt = summarize.call_args_list[1].args[0]
+        self.assertNotIn("--- WEATHER CONTEXT ---", base_prompt)
+        self.assertIn("Protect the morning and keep transitions simple.", rewrite_prompt)
+        self.assertIn("A stormy afternoon may make transitions and end-of-day energy heavier than usual.", rewrite_prompt)
 
     def test_dashboard_includes_admin_regenerate_controls(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")

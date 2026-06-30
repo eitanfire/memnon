@@ -1932,6 +1932,65 @@ Rules:
 """
 
 
+def _build_practical_briefing_weather_rewrite_prompt(
+    user_data: dict,
+    practical_briefing: str,
+    weather_context: dict,
+) -> str:
+    preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
+    spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
+    return f"""You are revising exactly one segment of a private daily audio briefing for {preferred_name}.
+
+Revise only the practical_briefing segment below. Preserve its structure, tone, and main idea. Weave in weather only if it sharpens the day's practical orientation.
+
+Existing practical_briefing:
+{practical_briefing}
+
+Weather context:
+- Day type: {_safe_string(weather_context.get("day_type"))}
+- Temperature: {_safe_string(weather_context.get("temperature_summary"))}
+- Precipitation: {_safe_string(weather_context.get("precipitation_summary"))}
+- Orientation cue: {_safe_string(weather_context.get("orientation_cue"))}
+
+Return strict JSON only with this schema:
+{{
+  "practical_briefing": "Rewritten segment text only"
+}}
+
+Rules:
+- Rewrite only practical_briefing.
+- Keep the segment close in length to the original.
+- Preserve the original segment's flow and emphasis unless weather makes a practical adjustment more useful.
+- Do not turn this into a forecast readout.
+- Do not mention every weather field unless genuinely useful.
+- Keep the language natural for spoken audio.
+- Use the spoken name "{spoken_name}" only if natural.
+"""
+
+
+def _rewrite_practical_briefing_with_weather(
+    user_data: dict,
+    practical_briefing: str,
+    weather_context: dict | None,
+    api_key: str,
+) -> tuple[str, bool]:
+    original_text = _safe_string(practical_briefing)
+    if not original_text or not weather_context:
+        return original_text, False
+    prompt = _build_practical_briefing_weather_rewrite_prompt(user_data, original_text, weather_context)
+    result = _summarize(
+        prompt,
+        api_key,
+        json_mode=True,
+        timeout_seconds=60,
+        max_output_tokens=220,
+    )
+    rewritten = _safe_string((result or {}).get("practical_briefing"))
+    if not rewritten:
+        return original_text, False
+    return rewritten, rewritten != original_text
+
+
 def _build_deterministic_daily_feed_result(
     user_data: dict,
     notes: list[dict],
@@ -1988,6 +2047,7 @@ def _build_deterministic_daily_feed_result(
         "description": description[:500],
         "time_anchor": time_anchor,
         "continuity_anchor": continuity_anchor[:240],
+        "_weather_applied": bool(orientation_cue),
         "segments": {
             "opening": opening,
             "practical_briefing": practical_briefing,
@@ -2096,7 +2156,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "audio_size_bytes": len(audio_bytes),
             "duration_seconds": duration_seconds,
             "segments_used": segments_used,
-            "context_sources_used": ["reflection_history"] + (["weather"] if weather_context else []),
+            "context_sources_used": ["reflection_history"] + (["weather"] if _coerce_bool(result.get("_weather_applied"), False) else []),
             "script_text": script_text,
             "script_segments": {key: _safe_string(value) for key, value in (segments or {}).items() if _safe_string(value)},
             "audio_mix_meta": audio_mix_meta,
@@ -2143,7 +2203,6 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             notes,
             selected_type,
             local_now,
-            weather_context=weather_context,
         )
         result = _summarize(
             prompt,
@@ -2152,6 +2211,22 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             timeout_seconds=120,
             max_output_tokens=700,
         )
+        segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
+        original_practical = _safe_string(segments.get("practical_briefing"))
+        weather_applied = False
+        if weather_context and original_practical:
+            try:
+                rewritten_practical, weather_applied = _rewrite_practical_briefing_with_weather(
+                    user_data,
+                    original_practical,
+                    weather_context,
+                    api_key,
+                )
+                segments["practical_briefing"] = rewritten_practical
+                result["segments"] = segments
+            except Exception as exc:
+                print(f"[{uid}] Practical briefing weather rewrite unavailable: {exc}")
+        result["_weather_applied"] = weather_applied
         return _save_episode_from_result(result, selected_type)
 
     try:
@@ -3307,6 +3382,7 @@ def save_setup():
     existing_user = existing_doc.to_dict() if existing_doc.exists else {}
 
     school_name = data.get("school_name", "")
+    school_city = data.get("school_city", "")
     school_state = data.get("school_state", "")
     updates = {
         "lane":           data.get("lane", "professional"),
@@ -3324,7 +3400,7 @@ def save_setup():
         "state_standards": data.get("state_standards", []),
         "school_name":     school_name,
         "school_district": data.get("school_district", ""),
-        "school_city":     data.get("school_city", ""),
+        "school_city":     school_city,
         "allow_anonymized_research": _coerce_bool(data.get("allow_anonymized_research"), False),
         # Reflect lane voices config
         "reflect_config":  data.get("reflect_config", {}),
@@ -3335,6 +3411,7 @@ def save_setup():
     }
     if (
         str(existing_user.get("school_name") or "").strip() != str(school_name).strip()
+        or str(existing_user.get("school_city") or "").strip() != str(school_city).strip()
         or str(existing_user.get("school_state") or "").strip() != str(school_state).strip()
     ):
         updates.update(clear_weather_cache_fields())

@@ -49,7 +49,7 @@ class OrchestrationContractsTests(unittest.TestCase):
             "/tmp/memnon-config/custom-orchestration/review-queue",
         )
 
-    def test_write_metadata_persists_orchestration_required_fields(self):
+    def test_write_metadata_persists_canonical_note_fields(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             config = {
@@ -68,7 +68,6 @@ class OrchestrationContractsTests(unittest.TestCase):
 
             metadata_path = write_metadata(
                 config=config,
-                lane="batch",
                 source_path=source,
                 archived_audio_path=archived,
                 note_path=note,
@@ -76,18 +75,23 @@ class OrchestrationContractsTests(unittest.TestCase):
                 transcript_path=transcript,
                 ai_payload={"title": "District Signal", "summary": "", "action_items": [], "suggested_tags": []},
                 gpt_packet_path=None,
-                workflow="professional",
-                routing_reason="voice_label",
                 entry_id="abc123",
+                processors_run=["transcript"],
+                processor_failures=[],
             )
 
             payload = json.loads(Path(metadata_path).read_text(encoding="utf-8"))
+            self.assertEqual(payload["id"], "abc123")
             self.assertEqual(payload["title"], "District Signal")
-            self.assertEqual(payload["workflow"], "professional")
-            self.assertEqual(payload["routing_reason"], "voice_label")
-            self.assertEqual(payload["entry_id"], "abc123")
             self.assertEqual(payload["transcript_path"], str(transcript))
-            self.assertEqual(payload["source_event_id"], "abc123")
+            self.assertEqual(payload["source_audio_name"], "raw.m4a")
+            self.assertEqual(payload["source_audio_archive_path"], str(archived))
+            self.assertEqual(payload["processors_run"], ["transcript"])
+            self.assertEqual(payload["processor_failures"], [])
+            self.assertNotIn("workflow", payload)
+            self.assertNotIn("routing_reason", payload)
+            self.assertNotIn("lane", payload)
+            self.assertNotIn("workflow_mode", payload)
 
     def test_review_queue_schema_reuses_workflow_job_shape(self):
         review_queue_schema = json.loads(
