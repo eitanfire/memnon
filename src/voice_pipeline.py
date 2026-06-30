@@ -632,7 +632,7 @@ def transcribe_with_openai_whisper(
         raise RuntimeError(f"OpenAI Whisper API error {exc.code}: {body_text}") from exc
 
 
-def transcribe_audio(config: Dict[str, Any], source_path: Path) -> str:
+def transcribe_audio(config: Dict[str, Any], source_path: Path) -> tuple[str, Path]:
     transcripts_dir = Path(config["runtime_dir"]) / "transcripts"
     transcripts_dir.mkdir(parents=True, exist_ok=True)
     output_prefix = transcripts_dir / source_path.stem
@@ -652,7 +652,7 @@ def transcribe_audio(config: Dict[str, Any], source_path: Path) -> str:
     transcript = clean_transcript(transcript)
     transcript_path = unique_path(transcripts_dir / f"{source_path.stem}.txt")
     transcript_path.write_text(transcript + "\n", encoding="utf-8")
-    return transcript
+    return transcript, transcript_path
 
 
 # Per-lane AI summarization hints. Add entries matching your lane names in config.json
@@ -1012,15 +1012,25 @@ def write_metadata(
     archived_audio_path: Path,
     note_path: Path,
     transcript: str,
+    transcript_path: Path,
     ai_payload: Dict[str, Any],
     gpt_packet_path: Optional[Path],
+    workflow: str,
+    routing_reason: str,
+    entry_id: str,
 ) -> Path:
     destination = metadata_destination(config, archived_audio_path)
     payload = {
+        "source_event_id": entry_id,
+        "entry_id": entry_id,
         "lane": lane,
+        "workflow": workflow,
+        "routing_reason": routing_reason,
+        "title": note_title(source_path, ai_payload),
         "source_path": str(source_path),
         "archived_audio_path": str(archived_audio_path),
         "note_path": str(note_path),
+        "transcript_path": str(transcript_path),
         "gpt_packet_path": str(gpt_packet_path) if gpt_packet_path else None,
         "processed_at": iso_now(),
         "transcript_backend": config["transcription"]["backend"],
@@ -1033,6 +1043,16 @@ def write_metadata(
     }
     write_json(destination, payload)
     return destination
+
+
+def maybe_run_orchestration(metadata_path: Path, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    from src.orchestration.config import build_orchestration_config
+    from src.orchestration.engine import orchestrate_from_metadata
+
+    orchestration = build_orchestration_config(config)
+    if not orchestration["enabled"]:
+        return None
+    return orchestrate_from_metadata(metadata_path, config)
 
 
 # ---------------------------------------------------------------------------
@@ -2243,7 +2263,7 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
                 "Likely an accidental or empty recording."
             )
 
-        transcript = transcribe_audio(config, source_path)
+        transcript, transcript_path = transcribe_audio(config, source_path)
 
         # Minimum transcript length check — reject near-silent or noise-only recordings
         min_words = int(config.get("min_transcript_words", 3))
@@ -2293,9 +2313,14 @@ def process_file(config: Dict[str, Any], source_path: Path, lane: str = "batch")
             archived_audio_path=archived_audio_path,
             note_path=note_path,
             transcript=transcript,
+            transcript_path=transcript_path,
             ai_payload=ai_payload,
             gpt_packet_path=gpt_packet_path,
+            workflow=workflow,
+            routing_reason=routing_reason,
+            entry_id=entry_id,
         )
+        maybe_run_orchestration(metadata_path, config)
         return ProcessResult(
             status="done",
             lane=lane,

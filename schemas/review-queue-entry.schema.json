@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReviewQueueEntry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_event_id",
+    "created_at",
+    "workflow_jobs",
+    "artifacts_generated",
+    "needs_review",
+    "review_priority",
+    "external_drafts_pending",
+    "forced_by_rule_jobs"
+  ],
+  "properties": {
+    "source_event_id": { "type": "string" },
+    "created_at": { "type": "string" },
+    "workflow_jobs": {
+      "type": "array",
+      "items": { "$ref": "./workflow-job.schema.json" }
+    },
+    "artifacts_generated": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "needs_review": { "type": "boolean" },
+    "review_priority": { "type": "string" },
+    "external_drafts_pending": { "type": "boolean" },
+    "forced_by_rule_jobs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -120,6 +120,32 @@ thing is going to bite us if we deploy Friday without fixing it...
 
 ---
 
+## Workflows Local Dev
+
+For the `workflows.html` vertical slice, use the dedicated local servers instead of `python3 -m http.server`.
+
+Backend:
+
+```bash
+cd /Users/eitan/memnon-worktrees/workflows-vertical-slice
+.venv/bin/python functions/run_workflows_local.py
+```
+
+Static app with Firebase-style rewrites for `/workflows` and `/workflows/result/...`:
+
+```bash
+cd /Users/eitan/memnon-worktrees/workflows-vertical-slice
+.venv/bin/python scripts/run_workflows_static.py
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000/workflows
+```
+
+---
+
 ## Installation
 
 ### Option A — DMG (recommended for most users)

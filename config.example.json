@@ -74,5 +74,15 @@
     "template_path": "./templates/gpt-handoff.md",
     "copy_to_clipboard": true,
     "instructions": "Continue the active conversation using the transcript as source of truth. Answer the user's latest question first, then add any useful follow-up or clarifying questions."
+  },
+
+  "orchestration": {
+    "enabled": false,
+    "runtime_dir": "./runtime/orchestration",
+    "enable_llm_enrichment": false,
+    "default_boulderjs_event_number": 30,
+    "default_boulderjs_talk_number": 41,
+    "social_agent_repo_dir": "/Users/your-username/path/to/boulderjs-social-agent",
+    "run_social_agent_cli": false
   }
 }

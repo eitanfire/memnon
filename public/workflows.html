@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memnon Workflows</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/workflows.css" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  </head>
+  <body class="workflows-page">
+    <main id="workflows-app" class="workflows-shell">
+      <header class="workflows-header">
+        <h1>Capture a thought</h1>
+        <p class="workflows-subhead">Speak, drop a file, or paste something messy.</p>
+        <p class="workflows-subhead-secondary">Turn it into something useful.</p>
+        <p id="workflows-saved-link-row" class="workflows-subhead-tertiary" hidden>
+          <a id="workflows-saved-link" class="workflows-saved-link" href="/workflows/saved">View saved results</a>
+        </p>
+        <div id="workflows-build-marker" class="workflows-debug-marker" hidden></div>
+        <pre id="workflows-debug-state" class="workflows-debug-state" hidden></pre>
+      </header>
+
+      <form id="capture-form" class="workflows-card">
+        <section id="capture-surface" class="workflows-capture-surface">
+          <button id="record-trigger" type="button" class="workflows-record-trigger">
+            <span class="workflows-record-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="4" width="6" height="11" rx="3"></rect>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
+                <path d="M12 17v3"></path>
+                <path d="M9 20h6"></path>
+              </svg>
+            </span>
+            <span class="workflows-record-label">Record now</span>
+          </button>
+
+          <div class="workflows-mode-row" aria-label="Other capture options">
+            <button type="button" id="upload-trigger" class="workflows-mode-link">Upload a file</button>
+            <span class="workflows-mode-divider" aria-hidden="true">·</span>
+            <button type="button" id="show-paste" class="workflows-mode-link">Paste text</button>
+          </div>
+
+          <div id="paste-panel" class="workflows-paste-panel" hidden>
+            <label class="workflows-visually-hidden" for="capture-text">Paste text</label>
+            <textarea
+              id="capture-text"
+              name="capture-text"
+              rows="5"
+              placeholder="Paste a product thought, professional reflection, or note you want to shape."
+            ></textarea>
+          </div>
+        </section>
+
+        <div class="workflows-footer-row">
+          <label class="workflows-visually-hidden" for="capture-context">Anything this should keep in mind?</label>
+          <input
+            id="capture-context"
+            name="capture-context"
+            type="text"
+            placeholder="Anything this should keep in mind? (optional)"
+          />
+          <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
+        </div>
+
+        <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
+
+        <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
+          <p class="workflows-auth-copy">Draft now, sign in to save.</p>
+          <a
+            id="workflows-signin"
+            class="workflows-auth-link"
+            href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
+          >
+            Sign in with Google
+          </a>
+        </div>
+      </form>
+
+      <section id="result-view" class="workflows-result" hidden>
+        <article id="loading-card" class="card workflows-artifact-card workflows-loading-card" hidden></article>
+        <article id="primary-artifact-card" class="card workflows-artifact-card" hidden></article>
+        <article id="saved-note-card" class="card workflows-artifact-card" hidden></article>
+        <details id="source-text-panel" class="workflows-source-panel" hidden>
+          <summary>View source text</summary>
+          <pre id="source-text-content"></pre>
+        </details>
+      </section>
+    </main>
+
+    <script type="module" src="/workflows.js"></script>
+  </body>
+</html>
