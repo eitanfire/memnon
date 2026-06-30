@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 FUNCTIONS_DIR = Path(__file__).resolve().parents[1] / "functions"
@@ -8,6 +9,7 @@ if str(FUNCTIONS_DIR) not in sys.path:
     sys.path.insert(0, str(FUNCTIONS_DIR))
 
 from workflows.service import WorkflowService
+from workflows.ai import generate_professional_note
 
 
 MEETING_DEBRIEF = (
@@ -69,6 +71,48 @@ def build_service():
 
 
 class WorkflowResultQualityTests(unittest.TestCase):
+    def test_generated_output_does_not_default_to_professional_labeling(self):
+        captured_prompt = {}
+
+        class _FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return (
+                    b'{"choices":[{"message":{"content":"{\\"title\\":\\"Saved note\\",'
+                    b'\\"framing_line\\":\\"Shaped from your note into one saved result worth reopening.\\",'
+                    b'\\"key_point\\":\\"The key is one useful saved result, not more workflow options.\\",'
+                    b'\\"next_step\\":\\"\\"}"}}]}'
+                )
+
+        def fake_urlopen(request, timeout=45):
+            del timeout
+            captured_prompt["body"] = request.data.decode("utf-8")
+            return _FakeResponse()
+
+        with patch("workflows.ai.urllib.request.urlopen", side_effect=fake_urlopen):
+            generated = generate_professional_note(
+                PRODUCT_IDEA,
+                "",
+                {"lane": "professional", "profession": "teacher"},
+                "test-key",
+                allow_next_step=False,
+            )
+
+        self.assertIn(
+            "if the source is not teacher-specific, do not inject teacher framing from the saved profile",
+            captured_prompt["body"],
+        )
+        self.assertIn(
+            "framing_line should describe why this saved object is worth keeping, not just that it is professional",
+            captured_prompt["body"],
+        )
+        self.assertNotIn("teacher", generated.get("framing_line", "").lower())
+
     def test_meeting_debrief_produces_specific_title_grounded_excerpt_and_next_step(self):
         service = build_service()
 
@@ -110,4 +154,3 @@ class WorkflowResultQualityTests(unittest.TestCase):
         artifact = record.result["primary_artifact"]
         labels = [section["label"] for section in artifact["sections"]]
         self.assertEqual(labels, ["Key point"])
-

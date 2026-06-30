@@ -386,6 +386,8 @@ def derive_next_step(source_text: str) -> str:
     normalized = _normalize_text(source_text)
     patterns = [
         r"(?:action|next step)\s*:\s*([^.!?]+)",
+        r"^(send [^.?!]+)",
+        r"^(ask [^.?!]+)",
         r"(follow up with [^.?!]+)",
         r"(follow up [^.?!]+)",
         r"(need to [^.?!]+)",
@@ -657,19 +659,53 @@ def derive_key_point(source_text: str, context_hint: str, proposed_key_point: st
 
 def derive_artifact_next_step(source_text: str, context_hint: str, proposed_next_step: str) -> str:
     document_next_step = _derive_document_next_step(source_text, context_hint)
+    grounded = derive_next_step(source_text)
     if document_next_step and (
         _looks_generic_next_step(proposed_next_step)
         or (_looks_extractive_next_step(source_text, proposed_next_step) and not _has_explicit_action_marker(source_text))
     ):
         return document_next_step
+    if grounded and not _looks_extractive_next_step(source_text, proposed_next_step):
+        return grounded
     if not _looks_generic_next_step(proposed_next_step):
         return _normalize_clause(proposed_next_step)
-    grounded = derive_next_step(source_text)
     if grounded:
         return grounded
     if document_next_step:
         return document_next_step
     return _normalize_clause(proposed_next_step)
+
+
+def _source_supports_next_step(source_text: str, context_hint: str, *, input_type: str) -> bool:
+    normalized = _normalize_text(source_text)
+    if not normalized:
+        return False
+    if _looks_like_document_text(source_text, context_hint):
+        return True
+    if _has_explicit_action_marker(source_text):
+        return True
+    if re.match(r"^(send|ask|revise|review|write|finalize|schedule|create)\b", normalized, flags=re.IGNORECASE):
+        return True
+    if re.search(r"\b(?:memnon|the product|this|it)\s+should\s+[^.?!]+", normalized, flags=re.IGNORECASE):
+        return True
+    if re.search(r"\bby (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b", normalized, flags=re.IGNORECASE):
+        return True
+    if input_type == "voice":
+        return has_explicit_action_signal(source_text)
+    return False
+
+
+def _should_surface_next_step(source_text: str, context_hint: str, next_step: str, *, input_type: str) -> bool:
+    if not _source_supports_next_step(source_text, context_hint, input_type=input_type):
+        return False
+    return bool(next_step.strip())
+
+
+def _build_primary_sections(key_point: str, next_step: str) -> list[WorkflowArtifactSection]:
+    sections = [WorkflowArtifactSection(label="Key point", text=key_point)]
+    if next_step:
+        sections.append(WorkflowArtifactSection(label="Next step", text=next_step))
+    return sections
 
 
 def _voice_quality_interpretation(quality: dict) -> str:
@@ -1196,9 +1232,9 @@ class WorkflowService:
                     context_hint,
                     generated.get("next_step") or derive_next_step(source_text),
                 ).strip()
-            sections = [WorkflowArtifactSection(label="Key point", text=key_point)]
-            if next_step:
-                sections.append(WorkflowArtifactSection(label="Next step", text=next_step))
+            if not _should_surface_next_step(source_text, context_hint, next_step, input_type=input_type):
+                next_step = ""
+            sections = _build_primary_sections(key_point, next_step)
             title = derive_specific_title(source_text, context_hint, generated.get("title", ""))
             if title.lower().endswith(" note"):
                 title = title[:-5].rstrip()
