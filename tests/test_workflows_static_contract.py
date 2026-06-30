@@ -142,6 +142,65 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn("toLocaleDateString", js)
         self.assertNotIn("Just now", js)
 
+    def test_context_hint_does_not_render_as_thread_like_metadata(self):
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              "const SAVED_RESULTS_PATH = '/workflows/saved';",
+              extractBetween("function escapeHtml", "function setStatus"),
+              extractBetween("function formatLocalCaptureDate", "function describeSourceType"),
+              extractBetween("function describeSourceType", "function buildMetadataLine"),
+              extractBetween("function buildMetadataLine", "function renderSourceExcerpt"),
+              extractBetween("function renderConfirmedThreadDisplay", "function renderSections"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const metadataOnlyHint = context.buildMetadataLine({
+              input_type: "text",
+              created_at: "2026-06-27T16:00:00Z",
+              context_hint: "workflows ui/ux",
+            });
+            const confirmedThread = context.renderConfirmedThreadDisplay({
+              result: { related_thread: { confirmed_title: "Workflows UI/UX" } },
+              threading: { confirmed_context_id: "ctx-1", context_decision: "confirmed" },
+            });
+
+            if (metadataOnlyHint !== "Pasted note · Jun 27, 2026") {
+              throw new Error(`unexpected metadata line: ${metadataOnlyHint}`);
+            }
+            if (!confirmedThread.includes("Related to Workflows UI/UX")) {
+              throw new Error(`missing confirmed thread copy: ${confirmedThread}`);
+            }
+            """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
     def test_result_route_thread_controls_follow_immediate_result_rules(self):
         css = Path("public/workflows.css").read_text(encoding="utf-8")
         self.assertIn("workflows-thread-chooser", css)

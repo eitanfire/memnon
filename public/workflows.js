@@ -518,11 +518,6 @@ function buildMetadataLine(sourceEvent) {
   if (captureDate) {
     parts.push(captureDate);
   }
-  if (sourceEvent?.context_hint) {
-    parts.push(
-      sourceEvent.context_hint[0].toUpperCase() + sourceEvent.context_hint.slice(1),
-    );
-  }
   return parts.join(" · ");
 }
 
