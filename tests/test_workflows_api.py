@@ -137,6 +137,48 @@ class WorkflowApiTests(unittest.TestCase):
         )
         self.assertEqual(fetched["source_event"]["input_type"], "text")
 
+    def test_api_primary_artifact_keeps_source_excerpt_and_sections(self):
+        repo = FakeRepository()
+
+        def fake_ai(source_text, context_hint, profile, api_key):
+            return {
+                "title": "Product direction conversation with Jordan",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "next_step": "Revise the result card before the next demo.",
+            }
+
+        service = WorkflowService(
+            repository=repo,
+            note_generator=fake_ai,
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        create_capture_response = client.post(
+            "/workflows/captures",
+            json={
+                "text": (
+                    "Met with Jordan today about the product direction. She thinks the system feels too generic "
+                    "because it is trying to do too much at once instead of making one strong call. "
+                    "Action: revise the result card before the next demo."
+                ),
+                "context_hint": "product review",
+            },
+        )
+        payload = create_capture_response.get_json()
+        artifact = payload["result"]["primary_artifact"]
+        self.assertTrue(artifact["source_excerpt"])
+        self.assertIn("metadata_line", artifact)
+        self.assertIn("sections", artifact)
+
     def test_create_audio_capture_from_multipart_uses_voice_source_type(self):
         repo = FakeRepository()
 

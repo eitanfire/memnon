@@ -363,6 +363,8 @@ class WorkflowServiceTests(unittest.TestCase):
             record.result["primary_artifact"]["metadata_line"],
             "Voice note · Jun 27, 2026 · Product review",
         )
+        self.assertTrue(record.result["primary_artifact"]["source_excerpt"])
+        self.assertIn("sections", record.result["primary_artifact"])
 
     def test_service_creates_one_professional_note_record(self):
         repo = FakeRepository()
