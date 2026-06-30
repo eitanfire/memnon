@@ -343,6 +343,16 @@ body.workflows-page {
   gap: 10px;
 }
 
+.workflows-related-thread-escape[hidden] {
+  display: none !important;
+}
+
+.workflows-related-thread-escape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .workflows-thread-chooser {
   display: grid;
   gap: 8px;

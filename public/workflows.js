@@ -567,12 +567,15 @@ function renderRelatedThreadSuggestion(payload, threads = []) {
   }
 
   return `
-    <div class="workflows-related-thread-block">
+    <div class="workflows-related-thread-block" data-thread-ui="compact">
       <p class="workflows-related-thread-copy">This looks related to ${escapeHtml(relatedThread.suggested_title)}.</p>
       <div class="workflows-related-thread-actions">
         <button type="button" class="btn btn-primary" id="confirm-related-thread">Continue there</button>
+        <button type="button" class="btn btn-quiet" id="reveal-thread-escape">Not this</button>
+      </div>
+      <div class="workflows-related-thread-escape" hidden>
         <button type="button" class="btn btn-outline" id="keep-thread-separate">Keep separate</button>
-        <button type="button" class="btn btn-quiet" id="choose-another-thread">Choose another</button>
+        ${threads.length > 1 ? '<button type="button" class="btn btn-quiet" id="choose-another-thread">Choose another</button>' : ""}
       </div>
       <div class="workflows-thread-chooser-slot" data-thread-count="${threads.length}"></div>
     </div>
@@ -1165,8 +1168,10 @@ function wireResultThreadControls(card, payload, options = {}) {
   const chooserSlot = card.querySelector(".workflows-thread-chooser-slot");
   let chooser = card.querySelector(".workflows-thread-chooser");
   const confirmRelatedThreadButton = card.querySelector("#confirm-related-thread");
+  const revealEscapeButton = card.querySelector("#reveal-thread-escape");
   const chooseAnotherThreadButton = card.querySelector("#choose-another-thread");
   const keepSeparateButton = card.querySelector("#keep-thread-separate");
+  const escapePanel = card.querySelector(".workflows-related-thread-escape");
   if (!captureId || (!chooserSlot && !keepSeparateButton && !confirmRelatedThreadButton)) {
     return;
   }
@@ -1241,6 +1246,16 @@ function wireResultThreadControls(card, payload, options = {}) {
     } catch (error) {
       console.error("[workflows] thread confirmation failed", error);
       setStatusTone("Something went wrong. Try again.", "error");
+    }
+  });
+
+  revealEscapeButton?.addEventListener("click", () => {
+    if (!escapePanel) {
+      return;
+    }
+    escapePanel.hidden = !escapePanel.hidden;
+    if (escapePanel.hidden && chooser) {
+      chooser.hidden = true;
     }
   });
 
