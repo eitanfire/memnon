@@ -92,9 +92,8 @@ class FirestoreWorkflowRepository:
         return items
 
     def update_capture_threading(self, uid: str, capture_id: str, threading: dict):
-        self._doc(uid, capture_id).set(
+        self._doc(uid, capture_id).update(
             {"threading": threading, "updated_at": firestore.SERVER_TIMESTAMP},
-            merge=True,
         )
 
     def touch_context_activity(self, uid: str, context_id: str, now: str):
