@@ -95,6 +95,20 @@ EDUCATION_PROFESSIONS = {
     "computer science teacher",
 }
 
+NEXT_STEP_OVERLAP_STOPWORDS = {
+    "the",
+    "and",
+    "that",
+    "this",
+    "with",
+    "from",
+    "into",
+    "your",
+    "before",
+    "after",
+    "whether",
+}
+
 
 def _title_case_phrase(value: str) -> str:
     cleaned = re.sub(r"\s+", " ", (value or "").strip(" .,:;!-"))
@@ -588,6 +602,46 @@ def _looks_extractive_next_step(source_text: str, next_step: str) -> bool:
     return bool(normalized_step) and normalized_step in normalized_source
 
 
+def _next_step_overlap_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[A-Za-z0-9]+", (value or "").lower())
+        if len(token) >= 4 and token not in NEXT_STEP_OVERLAP_STOPWORDS
+    }
+
+
+def _looks_supported_specific_next_step_variant(grounded_next_step: str, proposed_next_step: str) -> bool:
+    grounded_tokens = _next_step_overlap_tokens(grounded_next_step)
+    proposed_tokens = _next_step_overlap_tokens(proposed_next_step)
+    if not grounded_tokens or not proposed_tokens:
+        return False
+    overlap = len(grounded_tokens & proposed_tokens)
+    return overlap >= max(3, (len(proposed_tokens) + 1) // 2)
+
+
+def _looks_mismatched_specific_next_step(
+    source_text: str,
+    grounded_next_step: str,
+    proposed_next_step: str,
+) -> bool:
+    normalized_proposed = _normalize_text(proposed_next_step)
+    if not normalized_proposed or _looks_extractive_next_step(source_text, normalized_proposed):
+        return False
+    if _looks_supported_specific_next_step_variant(grounded_next_step, normalized_proposed):
+        return False
+
+    proposed_named_terms = _thread_named_terms(normalized_proposed)
+    source_named_terms = _thread_named_terms(source_text)
+    if proposed_named_terms and not (proposed_named_terms & source_named_terms):
+        return True
+
+    proposed_tokens = _next_step_overlap_tokens(normalized_proposed)
+    source_tokens = _next_step_overlap_tokens(source_text)
+    overlap = len(proposed_tokens & source_tokens)
+    novel_tokens = proposed_tokens - source_tokens
+    return overlap <= 2 and len(novel_tokens) >= 2
+
+
 def _looks_generic_framing_line(value: str) -> bool:
     lowered = _normalize_text(value).lower()
     if not lowered:
@@ -665,9 +719,9 @@ def derive_artifact_next_step(source_text: str, context_hint: str, proposed_next
         or (_looks_extractive_next_step(source_text, proposed_next_step) and not _has_explicit_action_marker(source_text))
     ):
         return document_next_step
-    if grounded and not _looks_extractive_next_step(source_text, proposed_next_step):
-        return grounded
     if not _looks_generic_next_step(proposed_next_step):
+        if grounded and _looks_mismatched_specific_next_step(source_text, grounded, proposed_next_step):
+            return grounded
         return _normalize_clause(proposed_next_step)
     if grounded:
         return grounded

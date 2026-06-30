@@ -1,5 +1,6 @@
 import sys
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +11,8 @@ if str(FUNCTIONS_DIR) not in sys.path:
 
 from workflows.service import WorkflowService
 from workflows.ai import generate_professional_note
+from workflows.local_app import _local_note_generator
+from workflows.service import derive_artifact_next_step
 
 
 MEETING_DEBRIEF = (
@@ -72,9 +75,15 @@ def build_service():
 
 class WorkflowResultQualityTests(unittest.TestCase):
     def test_generated_output_does_not_default_to_professional_labeling(self):
-        captured_prompt = {}
+        expected_guard = "if the source is not teacher-specific, do not inject teacher framing from the saved profile"
+        expected_framing_rule = (
+            "framing_line should describe why this saved object is worth keeping, not just that it is professional"
+        )
 
         class _FakeResponse:
+            def __init__(self, content: str):
+                self._content = content
+
             def __enter__(self):
                 return self
 
@@ -82,17 +91,31 @@ class WorkflowResultQualityTests(unittest.TestCase):
                 return False
 
             def read(self):
-                return (
-                    b'{"choices":[{"message":{"content":"{\\"title\\":\\"Saved note\\",'
-                    b'\\"framing_line\\":\\"Shaped from your note into one saved result worth reopening.\\",'
-                    b'\\"key_point\\":\\"The key is one useful saved result, not more workflow options.\\",'
-                    b'\\"next_step\\":\\"\\"}"}}]}'
-                )
+                return json.dumps({"choices": [{"message": {"content": self._content}}]}).encode("utf-8")
 
         def fake_urlopen(request, timeout=45):
             del timeout
-            captured_prompt["body"] = request.data.decode("utf-8")
-            return _FakeResponse()
+            payload = json.loads(request.data.decode("utf-8"))
+            prompt = payload["messages"][1]["content"]
+            if expected_guard in prompt and expected_framing_rule in prompt:
+                content = json.dumps(
+                    {
+                        "title": "Saved note",
+                        "framing_line": "Shaped from your note into one saved result worth reopening.",
+                        "key_point": "The key is one useful saved result, not more workflow options.",
+                        "next_step": "",
+                    }
+                )
+            else:
+                content = json.dumps(
+                    {
+                        "title": "Saved note",
+                        "framing_line": "A teacher note worth keeping for future lesson planning.",
+                        "key_point": "The key is one useful saved result, not more workflow options.",
+                        "next_step": "",
+                    }
+                )
+            return _FakeResponse(content)
 
         with patch("workflows.ai.urllib.request.urlopen", side_effect=fake_urlopen):
             generated = generate_professional_note(
@@ -103,15 +126,28 @@ class WorkflowResultQualityTests(unittest.TestCase):
                 allow_next_step=False,
             )
 
-        self.assertIn(
-            "if the source is not teacher-specific, do not inject teacher framing from the saved profile",
-            captured_prompt["body"],
-        )
-        self.assertIn(
-            "framing_line should describe why this saved object is worth keeping, not just that it is professional",
-            captured_prompt["body"],
-        )
         self.assertNotIn("teacher", generated.get("framing_line", "").lower())
+        self.assertIn("worth reopening", generated.get("framing_line", "").lower())
+
+    def test_local_fallback_generator_omits_next_step_for_non_action_note(self):
+        generated = _local_note_generator(
+            "Jordan thinks the result should feel more like a saved object worth revisiting.",
+            "",
+            {"lane": "professional", "profession": "teacher"},
+            "local-dev",
+            allow_next_step=True,
+        )
+
+        self.assertEqual(generated["next_step"], "")
+
+    def test_specific_model_next_step_survives_when_grounded_in_source(self):
+        next_step = derive_artifact_next_step(
+            MEETING_DEBRIEF,
+            "",
+            "Revise the workflows result card before the next demo.",
+        )
+
+        self.assertEqual(next_step, "Revise the workflows result card before the next demo")
 
     def test_meeting_debrief_produces_specific_title_grounded_excerpt_and_next_step(self):
         service = build_service()

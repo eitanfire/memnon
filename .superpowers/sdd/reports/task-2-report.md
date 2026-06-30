@@ -102,3 +102,64 @@ Result:
 ## Concerns
 
 - The full focused suite passed, but the test run still surfaces an existing `ResourceWarning` from the API test process about an unclosed file handle. It did not fail the suite and was outside this task’s write scope.
+
+---
+
+## Fix pass: review findings follow-up
+
+### What I changed
+
+- Tightened `functions/workflows/local_app.py` so the local fallback generator only emits `next_step` when `_should_surface_next_step(...)` says the source clearly supports one. This removes the local/service inconsistency for non-action general captures.
+- Narrowed the `functions/workflows/service.py` `derive_artifact_next_step(...)` override:
+  - generic model actions still fall back to grounded extraction
+  - clearly mismatched model actions still fall back to grounded extraction
+  - specific model actions that stay meaningfully aligned with the source now survive even when they are not verbatim extracts
+- Replaced the weak prompt-restraint regression in `tests/test_workflows_result_quality.py` with a prompt-sensitive fake responder that only returns neutral framing when the actual prompt includes the required non-teacher restraint and saved-result framing guidance.
+- Added focused regression coverage in `tests/test_workflows_result_quality.py` for:
+  - the local fallback generator on a non-action benchmark input
+  - preservation of a good specific model-generated next step
+
+### TDD evidence
+
+#### RED
+
+```bash
+/Users/eitan/memnon/functions/venv/bin/python -m unittest \
+  tests.test_workflows_result_quality.WorkflowResultQualityTests.test_generated_output_does_not_default_to_professional_labeling \
+  tests.test_workflows_result_quality.WorkflowResultQualityTests.test_local_fallback_generator_omits_next_step_for_non_action_note \
+  tests.test_workflows_result_quality.WorkflowResultQualityTests.test_specific_model_next_step_survives_when_grounded_in_source -v
+```
+
+Result before production edits:
+- `FAIL`: `test_local_fallback_generator_omits_next_step_for_non_action_note`
+- `FAIL`: `test_specific_model_next_step_survives_when_grounded_in_source`
+- prompt-restraint test stayed meaningful and green because it now validates prompt-conditioned behavior instead of a trivial mocked payload
+
+#### GREEN
+
+```bash
+/Users/eitan/memnon/functions/venv/bin/python -m unittest \
+  tests.test_workflows_result_quality.WorkflowResultQualityTests.test_generated_output_does_not_default_to_professional_labeling \
+  tests.test_workflows_result_quality.WorkflowResultQualityTests.test_local_fallback_generator_omits_next_step_for_non_action_note \
+  tests.test_workflows_result_quality.WorkflowResultQualityTests.test_specific_model_next_step_survives_when_grounded_in_source \
+  tests.test_workflows_result_quality.WorkflowResultQualityTests.test_follow_up_note_prefers_action_shaped_next_step \
+  tests.test_workflows_result_quality.WorkflowResultQualityTests.test_non_action_capture_can_omit_next_step -v
+```
+
+Result after the fix:
+- `Ran 5 tests`
+- `OK`
+
+### Tests run
+
+```bash
+/Users/eitan/memnon/functions/venv/bin/python -m unittest tests.test_workflows_result_quality tests.test_workflows_service tests.test_workflows_api -v
+```
+
+Result:
+- `Ran 50 tests`
+- `OK`
+
+### Remaining concerns
+
+- The focused suite still emits an existing `ResourceWarning` from the API test process about an unclosed file handle. The suite passed, and this remains outside the requested scope and write list.
