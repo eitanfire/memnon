@@ -36,12 +36,15 @@ Rules:
 - prefer the concrete topic, person, product, or decision over generic role labels
 - if the source is not teacher-specific, do not inject teacher framing from the saved profile
 - framing_line should describe why this saved object is worth keeping, not just that it is professional
+- framing_line should read like a saved object worth reopening, not an executive summary
 - key_point should be one grounded, concrete takeaway
+- when the source has multiple sentences, prefer the sentence with the clearest takeaway instead of repeating the opening scene-setting sentence
 - {next_step_rule}
 - if next_step is present, keep key_point distinct from the action; do not use the same sentence for both
 - if the source looks like pasted document material, synthesize what the material is for or why it matters; do not merely describe the sections it contains
 - for document-like source text, infer the organizing next action; do not copy a stray sentence verbatim unless it is explicitly marked as an action or next step
 - practical, direct language
+- avoid phrases like "professional note worth shaping", "important for ensuring", "crucial to ensure", "competitive landscape", or "clear direction for positioning"
 - do not mention workflows, confidence, or routing
 - use the saved profile only when it clearly matches the source text or context hint
 - do not import domain-specific interpretations that are not present in the source text

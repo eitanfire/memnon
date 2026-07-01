@@ -552,6 +552,9 @@ def _looks_generic_key_point(value: str) -> bool:
 def _derive_grounded_key_point(source_text: str) -> str:
     for sentence in _sentence_list(source_text):
         for pattern in (
+            r"\bthe key is that\s+(.+)",
+            r"\bthe key is\s+(.+)",
+            r"\bwhat matters is\s+(.+)",
             r"(?:the big insight is that|big insight is that|insight is that)\s+(.+)",
             r"(?:thinks the issue is that|issue is that)\s+(.+)",
         ):
@@ -714,7 +717,47 @@ def _looks_generic_framing_line(value: str) -> bool:
         "practical artifact to review",
         "practical artifact",
     )
-    return any(marker in lowered for marker in generic_markers)
+    return lowered.startswith("this note ") or any(marker in lowered for marker in generic_markers)
+
+
+def derive_interpretation_line(
+    source_text: str,
+    context_hint: str,
+    title: str,
+    key_point: str,
+    next_step: str,
+    proposed_interpretation_line: str,
+) -> str:
+    if _generated_text_leaks_education_context(proposed_interpretation_line, source_text, context_hint):
+        proposed_interpretation_line = ""
+
+    lowered = _normalize_text(proposed_interpretation_line).lower()
+    if lowered and "professional note worth shaping" not in lowered and "looks like a" not in lowered:
+        return _normalize_clause(proposed_interpretation_line)
+
+    normalized_title = _normalize_text(title).lower()
+    lower_source = _normalize_text(source_text).lower()
+
+    if _looks_like_document_text(source_text, context_hint):
+        return "Saved as a reusable reference note."
+
+    if "product direction" in lower_source or "product direction" in normalized_title:
+        if next_step:
+            return "Saved as a product direction note with one clear change to carry forward."
+        return "Saved as a product direction note worth revisiting."
+
+    if "conversation with" in normalized_title:
+        if next_step:
+            return "Saved from a conversation with one clear next step to carry forward."
+        return "Saved from a conversation worth carrying forward."
+
+    if next_step:
+        return "Saved as a note with one clear next step."
+
+    if key_point:
+        return "Saved as a note with one grounded takeaway."
+
+    return "Saved as a note worth keeping."
 
 
 def derive_framing_line(
@@ -741,21 +784,21 @@ def derive_framing_line(
 
     if "product direction" in lower_source or "product direction" in normalized_title.lower():
         if not next_step:
-            return "A saved product direction note with one grounded takeaway to carry forward."
-        return "A saved product direction note with one concrete change to carry forward."
+            return "Saved as a product direction note worth revisiting."
+        return "Saved as a product direction note with one concrete change to carry forward."
 
     if "conversation with" in normalized_title.lower():
         if not next_step:
-            return "A saved conversation note with the clearest takeaway to carry forward."
-        return f"A saved conversation note with one concrete follow-up to carry forward."
+            return "Saved from a conversation worth carrying forward."
+        return "Saved from a conversation with one clear next step to carry forward."
 
     if next_step:
-        return "A saved note shaped around one concrete next step."
+        return "Saved as a note with one clear next step."
 
     if key_point:
-        return "A saved note shaped around one grounded takeaway."
+        return "Saved as a note with one grounded takeaway."
 
-    return "A saved note shaped into something worth reopening."
+    return "Saved as a note worth reopening."
 
 
 def derive_key_point(source_text: str, context_hint: str, proposed_key_point: str) -> str:
@@ -1449,7 +1492,14 @@ class WorkflowService:
             ).to_dict()
 
         result = WorkflowResultPayload(
-            interpretation_line=decision.interpretation_line,
+            interpretation_line=derive_interpretation_line(
+                source_text,
+                context_hint,
+                title if primary_artifact else saved_title,
+                key_point if primary_artifact else "",
+                next_step if primary_artifact else "",
+                decision.interpretation_line,
+            ),
             route_kind=decision.route_kind,
             primary_artifact=primary_artifact,
             saved_note_artifact=saved_note_artifact,

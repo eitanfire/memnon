@@ -894,7 +894,8 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertEqual(note_calls, [False])
         self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
         self.assertNotIn("Next step", artifact["body"])
-        self.assertIn("grounded takeaway", artifact["framing_line"].lower())
+        self.assertIn("worth revisiting", artifact["framing_line"].lower())
+        self.assertNotIn("practical artifact", artifact["framing_line"].lower())
 
     def test_service_neutralizes_teacher_profile_for_unrelated_voice_note(self):
         repo = FakeRepository()
