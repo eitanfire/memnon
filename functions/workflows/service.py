@@ -83,7 +83,22 @@ EDUCATION_DOMAIN_MARKERS = (
     "curriculum",
     "gradebook",
     "district",
-    "principal",
+    "ap computer science",
+)
+
+PRINCIPAL_EDUCATION_CONTEXT_MARKERS = (
+    "school",
+    "schools",
+    "district",
+    "teacher",
+    "teachers",
+    "student",
+    "students",
+    "classroom",
+    "lesson",
+    "lessons",
+    "curriculum",
+    "gradebook",
     "ap computer science",
 )
 
@@ -301,6 +316,11 @@ def _source_supports_education_context(source_text: str, context_hint: str) -> b
                 return True
             continue
         if re.search(rf"\b{re.escape(marker)}\b", lower):
+            return True
+    if re.search(r"\bprincipal\b", lower):
+        if any(re.search(rf"\b{re.escape(marker)}\b", lower) for marker in PRINCIPAL_EDUCATION_CONTEXT_MARKERS):
+            return True
+        if re.search(r"\b(?:school|assistant|vice)\s+principal\b", lower):
             return True
     return False
 
@@ -786,7 +806,9 @@ def _source_supports_next_step(source_text: str, context_hint: str, *, input_typ
         return True
     if _has_explicit_action_marker(source_text):
         return True
-    if re.match(r"^(send|ask|revise|review|write|finalize|schedule|create)\b", normalized, flags=re.IGNORECASE):
+    if re.match(r"^(send|ask|revise|write|finalize|schedule|create)\b", normalized, flags=re.IGNORECASE):
+        return True
+    if re.match(r"^review\b(?!\s+of\b)", normalized, flags=re.IGNORECASE):
         return True
     if re.search(r"\bby (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b", normalized, flags=re.IGNORECASE):
         return True

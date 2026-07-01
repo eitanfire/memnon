@@ -14,6 +14,7 @@ from workflows.ai import generate_professional_note
 from workflows.local_app import _local_note_generator
 from workflows.service import derive_artifact_next_step
 from workflows.service import _source_supports_education_context
+from workflows.service import _source_supports_next_step
 
 
 MEETING_DEBRIEF = (
@@ -229,6 +230,14 @@ class WorkflowResultQualityTests(unittest.TestCase):
             )
         )
 
+    def test_education_context_matching_ignores_principal_engineer_phrase(self):
+        self.assertFalse(
+            _source_supports_education_context(
+                "Talked with the principal engineer about the workflows ranking change.",
+                "",
+            )
+        )
+
     def test_voice_reflection_stays_grounded_without_inventing_external_action(self):
         service = build_service()
 
@@ -258,6 +267,28 @@ class WorkflowResultQualityTests(unittest.TestCase):
         )
 
         record = service.create_text_capture("user-1", PRINCIPLE_NOTE, "")
+        artifact = record.result["primary_artifact"]
+
+        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
+        self.assertNotIn("Next step", artifact["body"])
+
+    def test_review_of_noun_phrase_does_not_support_next_step(self):
+        source_text = "Review of the workflows page with Jordan. The note still feels generic."
+        self.assertFalse(_source_supports_next_step(source_text, "", input_type="text"))
+
+        service = WorkflowService(
+            repository=FakeRepository(),
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page review",
+                "framing_line": "A saved conversation note with one concrete follow-up to carry forward.",
+                "key_point": "The note still feels generic.",
+                "next_step": "Review the workflows page with Jordan.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture("user-1", source_text, "")
         artifact = record.result["primary_artifact"]
 
         self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
