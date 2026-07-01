@@ -105,6 +105,11 @@ class WorkflowResultQualityTests(unittest.TestCase):
         expected_framing_rule = (
             "framing_line should describe why this saved object is worth keeping, not just that it is professional"
         )
+        expected_saved_object_rule = "framing_line should read like a saved object worth reopening, not an executive summary"
+        expected_generic_phrase_rule = (
+            'avoid phrases like "professional note worth shaping", "important for ensuring", "crucial to ensure", '
+            '"competitive landscape", or "clear direction for positioning"'
+        )
 
         class _FakeResponse:
             def __init__(self, content: str):
@@ -123,7 +128,12 @@ class WorkflowResultQualityTests(unittest.TestCase):
             del timeout
             payload = json.loads(request.data.decode("utf-8"))
             prompt = payload["messages"][1]["content"]
-            if expected_guard in prompt and expected_framing_rule in prompt:
+            if (
+                expected_guard in prompt
+                and expected_framing_rule in prompt
+                and expected_saved_object_rule in prompt
+                and expected_generic_phrase_rule in prompt
+            ):
                 content = json.dumps(
                     {
                         "title": "Saved note",
@@ -184,6 +194,9 @@ class WorkflowResultQualityTests(unittest.TestCase):
         self.assertTrue(artifact["source_excerpt"].startswith("Met with Jordan"))
         self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point", "Next step"])
         self.assertNotIn(artifact["title"].lower(), {"professional note", "suggested note", "saved note"})
+        self.assertNotIn("professional note worth shaping", record.result["interpretation_line"].lower())
+        self.assertNotIn("professional note worth shaping", artifact["framing_line"].lower())
+        self.assertNotIn("crucial to ensure", artifact["framing_line"].lower())
 
     def test_product_idea_can_be_worth_reopening_without_forced_action(self):
         service = build_service()
@@ -193,6 +206,11 @@ class WorkflowResultQualityTests(unittest.TestCase):
         self.assertNotEqual(artifact["title"], "Professional note")
         self.assertTrue(artifact["source_excerpt"])
         self.assertNotIn("teacher", artifact["framing_line"].lower())
+        self.assertNotEqual(
+            artifact["sections"][0]["text"].lower().rstrip("."),
+            PRODUCT_IDEA.split(".")[0].lower().rstrip("."),
+        )
+        self.assertNotIn("competitive with capture-first apps", artifact["framing_line"].lower())
 
     def test_follow_up_note_prefers_action_shaped_next_step(self):
         service = build_service()
@@ -271,6 +289,8 @@ class WorkflowResultQualityTests(unittest.TestCase):
 
         self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
         self.assertNotIn("Next step", artifact["body"])
+        self.assertNotIn("professional note worth shaping", record.result["interpretation_line"].lower())
+        self.assertNotIn("crucial adjustment", artifact["framing_line"].lower())
 
     def test_review_of_noun_phrase_does_not_support_next_step(self):
         source_text = "Review of the workflows page with Jordan. The note still feels generic."
