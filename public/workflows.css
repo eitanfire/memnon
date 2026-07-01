@@ -337,6 +337,30 @@ body.workflows-page {
   font-size: 0.95rem;
 }
 
+.workflows-feedback-block {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.workflows-feedback-label {
+  color: #5d5750;
+  font-size: 0.9rem;
+}
+
+.workflows-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workflows-feedback-button.is-selected,
+.workflows-feedback-button[aria-pressed="true"] {
+  border-color: #8b7b67;
+  background: #f3ede5;
+  color: #3f352d;
+}
+
 .workflows-related-thread-actions {
   display: flex;
   flex-wrap: wrap;

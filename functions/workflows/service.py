@@ -142,6 +142,8 @@ NEXT_STEP_OVERLAP_STOPWORDS = {
     "whether",
 }
 
+VALID_FEEDBACK_CHOICES = {"useful", "not_useful"}
+
 
 def _title_case_phrase(value: str) -> str:
     cleaned = re.sub(r"\s+", " ", (value or "").strip(" .,:;!-"))
@@ -1150,6 +1152,27 @@ class WorkflowService:
         records[(uid, capture_id)]["updated_at"] = now
         _persist_repository_state(self.repository)
 
+    def _repository_update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str, now: str) -> None:
+        if hasattr(self.repository, "update_capture_feedback"):
+            update_feedback = self.repository.update_capture_feedback
+            try:
+                signature = inspect.signature(update_feedback)
+            except (TypeError, ValueError):
+                signature = None
+
+            if signature and "feedback_updated_at" in signature.parameters:
+                update_feedback(uid, capture_id, feedback_choice, now)
+            else:
+                update_feedback(uid, capture_id, feedback_choice)
+            return
+
+        records = getattr(self.repository, "records", None)
+        if not isinstance(records, dict) or (uid, capture_id) not in records:
+            raise KeyError(capture_id)
+        records[(uid, capture_id)]["feedback_choice"] = feedback_choice
+        records[(uid, capture_id)]["feedback_updated_at"] = now
+        _persist_repository_state(self.repository)
+
     def _repository_touch_context_activity(self, uid: str, context_id: str, now: str) -> dict | None:
         if hasattr(self.repository, "touch_context_activity"):
             return self.repository.touch_context_activity(uid, context_id, now)
@@ -1264,6 +1287,25 @@ class WorkflowService:
             raise ValueError(f"Unsupported context action: {action}")
 
         self._repository_update_capture_threading(uid, capture_id, threading, now)
+        updated = self.repository.get_capture(uid, capture_id)
+        return self._hydrate_capture_record(uid, updated)
+
+    def apply_feedback_choice(
+        self,
+        uid: str,
+        capture_id: str,
+        *,
+        feedback_choice: str,
+    ) -> dict:
+        if feedback_choice not in VALID_FEEDBACK_CHOICES:
+            raise ValueError("invalid feedback choice")
+
+        record = self.repository.get_capture(uid, capture_id)
+        if record is None:
+            raise KeyError(capture_id)
+
+        now = self.now_provider()
+        self._repository_update_capture_feedback(uid, capture_id, feedback_choice, now)
         updated = self.repository.get_capture(uid, capture_id)
         return self._hydrate_capture_record(uid, updated)
 
@@ -1508,6 +1550,7 @@ class WorkflowService:
             source_preview=source_event["source_preview"],
             likely_themes=[],
         ).to_dict()
+        result.pop("related_thread", None)
 
         record = WorkflowCaptureRecord(
             capture_id=capture_id,

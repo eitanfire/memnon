@@ -617,6 +617,40 @@ function renderSections(sections) {
     .join("");
 }
 
+function renderResultFeedback(payload, options = {}) {
+  if (!options.isImmediateResult || !payload?.capture_id) {
+    return "";
+  }
+
+  const feedbackChoice = payload.feedback_choice || "";
+  const isUsefulSelected = feedbackChoice === "useful";
+  const isNotUsefulSelected = feedbackChoice === "not_useful";
+
+  return `
+    <section class="workflows-feedback-block" aria-label="Result feedback">
+      <p class="workflows-feedback-label">How was this result?</p>
+      <div class="workflows-feedback-actions" role="group" aria-label="Result feedback options">
+        <button
+          type="button"
+          class="btn btn-outline workflows-feedback-button ${isUsefulSelected ? "is-selected" : ""}"
+          data-feedback-choice="useful"
+          aria-pressed="${isUsefulSelected ? "true" : "false"}"
+        >
+          Useful
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline workflows-feedback-button ${isNotUsefulSelected ? "is-selected" : ""}"
+          data-feedback-choice="not_useful"
+          aria-pressed="${isNotUsefulSelected ? "true" : "false"}"
+        >
+          Not useful
+        </button>
+      </div>
+    </section>
+  `;
+}
+
 function renderResultCard(card, options) {
   const {
     statusLabel,
@@ -777,6 +811,7 @@ function renderSavedNote(payload, options = {}) {
       ${renderConfirmedThreadDisplay(payload)}
       ${renderSourceExcerpt(savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "")}
       ${renderSections(savedArtifact.sections || [])}
+      ${renderResultFeedback(payload, options)}
     `,
     actions: [
       { html: '<a class="btn btn-outline" href="/workflows/saved">View saved results</a>' },
@@ -787,6 +822,10 @@ function renderSavedNote(payload, options = {}) {
   sourcePanel.hidden = false;
   sourceText.textContent = payload.source_event.source_text;
   wireResultThreadControls(card, payload, {
+    activeThreads,
+    isImmediateResult: options.isImmediateResult,
+  });
+  wireResultFeedbackControls(card, payload, {
     activeThreads,
     isImmediateResult: options.isImmediateResult,
   });
@@ -807,6 +846,7 @@ function renderPrimaryArtifact(payload, options = {}) {
     ${renderConfirmedThreadDisplay(payload)}
     ${renderSourceExcerpt(artifact.source_excerpt)}
     ${renderSections(artifact.sections || [])}
+    ${renderResultFeedback(payload, options)}
   `;
 
   renderResultCard(card, {
@@ -833,6 +873,10 @@ function renderPrimaryArtifact(payload, options = {}) {
     setStatusTone("Copied note.");
   });
   wireResultThreadControls(card, payload, {
+    activeThreads,
+    isImmediateResult: options.isImmediateResult,
+  });
+  wireResultFeedbackControls(card, payload, {
     activeThreads,
     isImmediateResult: options.isImmediateResult,
   });
@@ -894,6 +938,15 @@ async function submitThreadDecision(captureId, action, options = {}) {
       action,
       context_id: options.contextId || null,
       new_context_title: options.newContextTitle || null,
+    }),
+  });
+}
+
+async function submitFeedbackChoice(captureId, feedbackChoice) {
+  return apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}/feedback`, {
+    method: "POST",
+    body: JSON.stringify({
+      feedback_choice: feedbackChoice,
     }),
   });
 }
@@ -1286,6 +1339,42 @@ function wireResultThreadControls(card, payload, options = {}) {
       setStatusTone("Something went wrong. Try again.", "error");
     }
   });
+}
+
+function wireResultFeedbackControls(card, payload, options = {}) {
+  if (!card || !options.isImmediateResult) {
+    return;
+  }
+  const captureId = payload?.capture_id;
+  if (!captureId) {
+    return;
+  }
+
+  for (const button of card.querySelectorAll("[data-feedback-choice]")) {
+    if (button.dataset.wired === "true") {
+      continue;
+    }
+    button.dataset.wired = "true";
+    button.addEventListener("click", async () => {
+      const feedbackChoice = button.getAttribute("data-feedback-choice");
+      if (!feedbackChoice) {
+        return;
+      }
+
+      setStatusTone("Saving feedback...", "working");
+      try {
+        const updated = await submitFeedbackChoice(captureId, feedbackChoice);
+        setStatusTone("Feedback saved.");
+        renderPayload(updated, {
+          activeThreads: options.activeThreads || [],
+          isImmediateResult: true,
+        });
+      } catch (error) {
+        console.error("[workflows] feedback submission failed", error);
+        setStatusTone("Could not save feedback. Try again.", "error");
+      }
+    });
+  }
 }
 
 async function maybeResumePendingCapture() {

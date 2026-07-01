@@ -82,6 +82,11 @@ class FakeRepository:
         record["threading"] = dict(threading)
         record["updated_at"] = threading.get("context_decision_at", record.get("updated_at"))
 
+    def update_capture_feedback(self, uid, capture_id, feedback_choice, feedback_updated_at):
+        record = self.records[(uid, capture_id)]
+        record["feedback_choice"] = feedback_choice
+        record["feedback_updated_at"] = feedback_updated_at
+
     def touch_context_activity(self, uid, context_id, now):
         context = self.contexts[(uid, context_id)]
         context["last_activity_at"] = now
@@ -234,6 +239,131 @@ class WorkflowServiceTests(unittest.TestCase):
         )
 
         self.assertNotIn("confirmed_context_id", updated["threading"])
+        self.assertEqual(updated["threading"]["context_decision"], "kept_separate")
+        self.assertNotIn("related_thread", updated["result"])
+
+    def test_feedback_choice_persists_without_mutating_result_or_threading(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+        original_result = capture.result.copy()
+        original_threading = capture.threading.copy()
+
+        updated = service.apply_feedback_choice(
+            "user-1",
+            capture.capture_id,
+            feedback_choice="useful",
+        )
+
+        self.assertEqual(updated["feedback_choice"], "useful")
+        self.assertEqual(updated["feedback_updated_at"], "2026-07-01T18:00:00Z")
+        self.assertEqual(updated["result"], original_result)
+        self.assertEqual(updated["threading"], original_threading)
+
+    def test_feedback_choice_can_be_replaced(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+
+        service.apply_feedback_choice(
+            "user-1",
+            capture.capture_id,
+            feedback_choice="useful",
+        )
+        updated = service.apply_feedback_choice(
+            "user-1",
+            capture.capture_id,
+            feedback_choice="not_useful",
+        )
+
+        self.assertEqual(updated["feedback_choice"], "not_useful")
+        self.assertEqual(updated["feedback_updated_at"], "2026-07-01T18:00:00Z")
+
+    def test_feedback_choice_rejects_invalid_value(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+
+        with self.assertRaises(ValueError):
+            service.apply_feedback_choice(
+                "user-1",
+                capture.capture_id,
+                feedback_choice="too_generic",
+            )
+
+    def test_feedback_choice_does_not_change_kept_separate_behavior(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workflows page conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result card still feels too generic.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+        service.apply_context_decision(
+            "user-1",
+            capture.capture_id,
+            action="kept_separate",
+        )
+
+        updated = service.apply_feedback_choice(
+            "user-1",
+            capture.capture_id,
+            feedback_choice="not_useful",
+        )
+
+        self.assertEqual(updated["feedback_choice"], "not_useful")
         self.assertEqual(updated["threading"]["context_decision"], "kept_separate")
         self.assertNotIn("related_thread", updated["result"])
 

@@ -142,6 +142,24 @@ def create_workflows_blueprint(
             return jsonify({"error": "not found"}), 404
         return jsonify(payload)
 
+    @blueprint.route("/captures/<capture_id>/feedback", methods=["POST"])
+    def apply_feedback_choice(capture_id: str):
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        service = service_provider()
+        try:
+            updated = service.apply_feedback_choice(
+                uid,
+                capture_id,
+                feedback_choice=(payload.get("feedback_choice") or "").strip(),
+            )
+        except (KeyError, ValueError) as error:
+            return _error_response(error)
+        return jsonify(updated)
+
     @blueprint.route("/captures/<capture_id>/context-decision", methods=["POST"])
     def apply_context_decision(capture_id: str):
         uid = verify_token(request)

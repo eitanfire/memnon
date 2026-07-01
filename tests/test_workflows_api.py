@@ -76,6 +76,12 @@ class FakeRepository:
         record["threading"] = dict(threading)
         return record
 
+    def update_capture_feedback(self, uid, capture_id, feedback_choice, feedback_updated_at):
+        record = self.records[(uid, capture_id)]
+        record["feedback_choice"] = feedback_choice
+        record["feedback_updated_at"] = feedback_updated_at
+        return record
+
 
 class WorkflowApiTests(unittest.TestCase):
     def test_create_and_fetch_capture(self):
@@ -639,6 +645,183 @@ class WorkflowApiTests(unittest.TestCase):
         created_context = repo.get_context("user-1", payload["threading"]["confirmed_context_id"])
         self.assertIsNotNone(created_context)
         self.assertEqual(created_context["seed_capture_id"], capture.capture_id)
+
+    def test_feedback_endpoint_records_choice(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Product direction conversation with Jordan",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "next_step": "Revise the result card before the next demo.",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+        original_threading = dict(capture.threading)
+        original_result = dict(capture.result)
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/feedback",
+            json={"feedback_choice": "useful"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["feedback_choice"], "useful")
+        self.assertEqual(payload["feedback_updated_at"], "2026-07-01T18:00:00Z")
+        self.assertEqual(payload["threading"], original_threading)
+        self.assertEqual(payload["result"], original_result)
+
+    def test_feedback_endpoint_replaces_existing_choice(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Product direction conversation with Jordan",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "next_step": "Revise the result card before the next demo.",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        first = client.post(
+            f"/workflows/captures/{capture.capture_id}/feedback",
+            json={"feedback_choice": "useful"},
+        )
+        self.assertEqual(first.status_code, 200)
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/feedback",
+            json={"feedback_choice": "not_useful"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["feedback_choice"], "not_useful")
+
+    def test_feedback_endpoint_rejects_invalid_choice(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Product direction conversation with Jordan",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "next_step": "Revise the result card before the next demo.",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/feedback",
+            json={"feedback_choice": "too_generic"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_feedback_endpoint_returns_not_found_for_missing_capture(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "key_point": "Unused",
+                "next_step": "Unused",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            "/workflows/captures/missing-capture/feedback",
+            json={"feedback_choice": "useful"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json(), {"error": "not found"})
+
+    def test_feedback_endpoint_returns_unauthorized_without_token(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "key_point": "Unused",
+                "next_step": "Unused",
+            },
+            now_provider=lambda: "2026-07-01T18:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: None,
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            "/workflows/captures/cap-1/feedback",
+            json={"feedback_choice": "useful"},
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.get_json(), {"error": "unauthorized"})
 
 
 if __name__ == "__main__":

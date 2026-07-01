@@ -49,6 +49,36 @@ class FirestoreWorkflowRepositoryTests(unittest.TestCase):
         self.assertIn("updated_at", payload)
         doc_ref.set.assert_not_called()
 
+    def test_update_capture_feedback_only_updates_feedback_fields(self):
+        doc_ref = Mock()
+        capture_collection = Mock()
+        capture_collection.document.return_value = doc_ref
+
+        user_doc = Mock()
+        user_doc.collection.return_value = capture_collection
+
+        users_collection = Mock()
+        users_collection.document.return_value = user_doc
+
+        db = Mock()
+        db.collection.return_value = users_collection
+
+        repo = FirestoreWorkflowRepository(db)
+
+        repo.update_capture_feedback(
+            "user-1",
+            "cap-1",
+            "useful",
+        )
+
+        doc_ref.update.assert_called_once()
+        payload = doc_ref.update.call_args.args[0]
+        self.assertEqual(payload["feedback_choice"], "useful")
+        self.assertIn("feedback_updated_at", payload)
+        self.assertNotIn("updated_at", payload)
+        self.assertNotIn("threading", payload)
+        doc_ref.set.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
