@@ -254,6 +254,18 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               { result: { related_thread: {} }, threading: {} },
               [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
             );
+            const staleRelatedThreadSignal = context.renderRelatedThreadSuggestion(
+              {
+                result: {
+                  related_thread: {
+                    suggested_title: "Workflows UI/UX",
+                    suggestion_active: true,
+                  },
+                },
+                threading: {},
+              },
+              [{ context_id: "ctx-1", title: "Workflows UI/UX" }],
+            );
             const immediateNavigation = context.isImmediateResultNavigation({
               result: { related_thread: { suggested_title: "Workflows UI/UX", suggestion_active: true } },
               threading: { suggestion_active: true },
@@ -276,13 +288,16 @@ class WorkflowsStaticContractTests(unittest.TestCase):
             const assertions = [
               immediateEligible.includes("This looks related to Workflows UI/UX.")
                 && immediateEligible.includes("Continue there")
-                && immediateEligible.includes("Keep separate")
-                && immediateEligible.includes("Choose another")
+                && immediateEligible.includes("Not this")
+                && immediateEligible.includes("workflows-related-thread-escape")
+                && immediateEligible.includes("hidden")
+                && !immediateEligible.includes("Choose another")
                 && !immediateEligible.includes("Create new thread"),
               chooserOnly.includes("Create new thread")
                 && chooserOnly.includes("Create")
                 && chooserOnly.includes("data-create-context"),
               reopenedNoControls.trim() === "",
+              staleRelatedThreadSignal.trim() === "",
               immediateNavigation === true,
               reopenedNavigation === false,
               reopenedConfirmed.includes("Workflows UI/UX")
@@ -294,6 +309,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               throw new Error(JSON.stringify({
                 immediateEligible,
                 reopenedNoControls,
+                staleRelatedThreadSignal,
                 reopenedConfirmed,
                 decidedSeparate,
               }));
@@ -307,6 +323,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+        self.assertIn("workflows-related-thread-escape", css)
 
 
 if __name__ == "__main__":

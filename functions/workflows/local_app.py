@@ -9,7 +9,13 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 
 from .blueprint import create_workflows_blueprint
-from .service import WorkflowService, derive_next_step, derive_specific_title
+from .service import (
+    WorkflowService,
+    _should_surface_next_step,
+    derive_key_point,
+    derive_next_step,
+    derive_specific_title,
+)
 
 DEFAULT_STORAGE_PATH = Path(__file__).resolve().parents[2] / ".local" / "workflow-captures.json"
 
@@ -89,14 +95,16 @@ def _verify_local_token(req) -> str | None:
 
 
 def _local_note_generator(source_text, context_hint, profile, api_key, allow_next_step=True):
-    title = derive_specific_title(source_text, context_hint, "", suffix="note")
     next_step = ""
     if allow_next_step:
-        next_step = derive_next_step(source_text) or "Clarify the single action this note is meant to support before expanding scope"
+        candidate_next_step = derive_next_step(source_text)
+        if _should_surface_next_step(source_text, context_hint, candidate_next_step, input_type="text"):
+            next_step = candidate_next_step
+
     return {
-        "title": title,
-        "framing_line": "Shaped from your note into one practical artifact to review.",
-        "key_point": "The note already points toward one useful direction and is worth shaping into a concrete next step.",
+        "title": derive_specific_title(source_text, context_hint, "Saved note"),
+        "framing_line": "Shaped from your note into one saved result worth reopening.",
+        "key_point": derive_key_point(source_text, context_hint, ""),
         "next_step": next_step,
     }
 

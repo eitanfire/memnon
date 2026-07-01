@@ -33,7 +33,9 @@ Return strict JSON with:
 Rules:
 - one note only
 - title should be specific enough to feel worth revisiting, but short enough to read like a saved note title rather than a headline
-- framing_line should explain what kind of saved object this is in content-aware language
+- prefer the concrete topic, person, product, or decision over generic role labels
+- if the source is not teacher-specific, do not inject teacher framing from the saved profile
+- framing_line should describe why this saved object is worth keeping, not just that it is professional
 - key_point should be one grounded, concrete takeaway
 - {next_step_rule}
 - if next_step is present, keep key_point distinct from the action; do not use the same sentence for both

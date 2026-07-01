@@ -83,7 +83,22 @@ EDUCATION_DOMAIN_MARKERS = (
     "curriculum",
     "gradebook",
     "district",
-    "principal",
+    "ap computer science",
+)
+
+PRINCIPAL_EDUCATION_CONTEXT_MARKERS = (
+    "school",
+    "schools",
+    "district",
+    "teacher",
+    "teachers",
+    "student",
+    "students",
+    "classroom",
+    "lesson",
+    "lessons",
+    "curriculum",
+    "gradebook",
     "ap computer science",
 )
 
@@ -93,6 +108,38 @@ EDUCATION_PROFESSIONS = {
     "education",
     "teacher leader",
     "computer science teacher",
+}
+
+EDUCATION_OUTPUT_MARKERS = (
+    "teacher",
+    "teachers",
+    "student",
+    "students",
+    "classroom",
+    "lesson",
+    "lessons",
+    "school",
+    "schools",
+    "curriculum",
+    "district",
+    "gradebook",
+    "principal",
+    "teaching",
+    "ap computer science",
+)
+
+NEXT_STEP_OVERLAP_STOPWORDS = {
+    "the",
+    "and",
+    "that",
+    "this",
+    "with",
+    "from",
+    "into",
+    "your",
+    "before",
+    "after",
+    "whether",
 }
 
 
@@ -261,7 +308,34 @@ def _looks_low_quality_title(value: str) -> bool:
 
 def _source_supports_education_context(source_text: str, context_hint: str) -> bool:
     lower = f"{_normalize_text(source_text)} {_normalize_text(context_hint)}".lower()
-    return any(marker in lower for marker in EDUCATION_DOMAIN_MARKERS)
+    if not lower:
+        return False
+    for marker in EDUCATION_DOMAIN_MARKERS:
+        if marker in {"class", "classes"}:
+            if re.search(rf"(?<!-)\b{re.escape(marker)}\b", lower):
+                return True
+            continue
+        if re.search(rf"\b{re.escape(marker)}\b", lower):
+            return True
+    if re.search(r"\bprincipal\b", lower):
+        if any(re.search(rf"\b{re.escape(marker)}\b", lower) for marker in PRINCIPAL_EDUCATION_CONTEXT_MARKERS):
+            return True
+        if re.search(r"\b(?:school|assistant|vice)\s+principal\b", lower):
+            return True
+    return False
+
+
+def _contains_any_marker(value: str, markers: tuple[str, ...]) -> bool:
+    lower = _normalize_text(value).lower()
+    if not lower:
+        return False
+    return any(re.search(rf"\b{re.escape(marker)}\b", lower) for marker in markers)
+
+
+def _generated_text_leaks_education_context(value: str, source_text: str, context_hint: str) -> bool:
+    if _source_supports_education_context(source_text, context_hint):
+        return False
+    return _contains_any_marker(value, EDUCATION_OUTPUT_MARKERS)
 
 
 def _profile_for_note_generation(profile: dict, source_text: str, context_hint: str) -> dict:
@@ -365,6 +439,8 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
 
 def derive_specific_title(source_text: str, context_hint: str, proposed_title: str, *, suffix: str = "") -> str:
     proposed = re.sub(r"\s+", " ", proposed_title or "").strip(" .")
+    if _generated_text_leaks_education_context(proposed, source_text, context_hint):
+        proposed = ""
     if proposed and proposed.lower() not in GENERIC_TITLES and not _looks_low_quality_title(proposed):
         return proposed
 
@@ -386,6 +462,8 @@ def derive_next_step(source_text: str) -> str:
     normalized = _normalize_text(source_text)
     patterns = [
         r"(?:action|next step)\s*:\s*([^.!?]+)",
+        r"^(send [^.?!]+)",
+        r"^(ask [^.?!]+)",
         r"(follow up with [^.?!]+)",
         r"(follow up [^.?!]+)",
         r"(need to [^.?!]+)",
@@ -586,6 +664,46 @@ def _looks_extractive_next_step(source_text: str, next_step: str) -> bool:
     return bool(normalized_step) and normalized_step in normalized_source
 
 
+def _next_step_overlap_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[A-Za-z0-9]+", (value or "").lower())
+        if len(token) >= 4 and token not in NEXT_STEP_OVERLAP_STOPWORDS
+    }
+
+
+def _looks_supported_specific_next_step_variant(grounded_next_step: str, proposed_next_step: str) -> bool:
+    grounded_tokens = _next_step_overlap_tokens(grounded_next_step)
+    proposed_tokens = _next_step_overlap_tokens(proposed_next_step)
+    if not grounded_tokens or not proposed_tokens:
+        return False
+    overlap = len(grounded_tokens & proposed_tokens)
+    return overlap >= max(3, (len(proposed_tokens) + 1) // 2)
+
+
+def _looks_mismatched_specific_next_step(
+    source_text: str,
+    grounded_next_step: str,
+    proposed_next_step: str,
+) -> bool:
+    normalized_proposed = _normalize_text(proposed_next_step)
+    if not normalized_proposed or _looks_extractive_next_step(source_text, normalized_proposed):
+        return False
+    if _looks_supported_specific_next_step_variant(grounded_next_step, normalized_proposed):
+        return False
+
+    proposed_named_terms = _thread_named_terms(normalized_proposed)
+    source_named_terms = _thread_named_terms(source_text)
+    if proposed_named_terms and not (proposed_named_terms & source_named_terms):
+        return True
+
+    proposed_tokens = _next_step_overlap_tokens(normalized_proposed)
+    source_tokens = _next_step_overlap_tokens(source_text)
+    overlap = len(proposed_tokens & source_tokens)
+    novel_tokens = proposed_tokens - source_tokens
+    return overlap <= 2 and len(novel_tokens) >= 2
+
+
 def _looks_generic_framing_line(value: str) -> bool:
     lowered = _normalize_text(value).lower()
     if not lowered:
@@ -607,6 +725,8 @@ def derive_framing_line(
     next_step: str,
     proposed_framing_line: str,
 ) -> str:
+    if _generated_text_leaks_education_context(proposed_framing_line, source_text, context_hint):
+        proposed_framing_line = ""
     if not _looks_generic_framing_line(proposed_framing_line):
         return _normalize_clause(proposed_framing_line)
 
@@ -639,6 +759,8 @@ def derive_framing_line(
 
 
 def derive_key_point(source_text: str, context_hint: str, proposed_key_point: str) -> str:
+    if _generated_text_leaks_education_context(proposed_key_point, source_text, context_hint):
+        proposed_key_point = ""
     document_point = _derive_document_key_point(source_text, context_hint)
     if document_point and _looks_generic_key_point(proposed_key_point):
         return document_point
@@ -656,20 +778,56 @@ def derive_key_point(source_text: str, context_hint: str, proposed_key_point: st
 
 
 def derive_artifact_next_step(source_text: str, context_hint: str, proposed_next_step: str) -> str:
+    if _generated_text_leaks_education_context(proposed_next_step, source_text, context_hint):
+        proposed_next_step = ""
     document_next_step = _derive_document_next_step(source_text, context_hint)
+    grounded = derive_next_step(source_text)
     if document_next_step and (
         _looks_generic_next_step(proposed_next_step)
         or (_looks_extractive_next_step(source_text, proposed_next_step) and not _has_explicit_action_marker(source_text))
     ):
         return document_next_step
     if not _looks_generic_next_step(proposed_next_step):
+        if grounded and _looks_mismatched_specific_next_step(source_text, grounded, proposed_next_step):
+            return grounded
         return _normalize_clause(proposed_next_step)
-    grounded = derive_next_step(source_text)
     if grounded:
         return grounded
     if document_next_step:
         return document_next_step
     return _normalize_clause(proposed_next_step)
+
+
+def _source_supports_next_step(source_text: str, context_hint: str, *, input_type: str) -> bool:
+    normalized = _normalize_text(source_text)
+    if not normalized:
+        return False
+    if _looks_like_document_text(source_text, context_hint):
+        return True
+    if _has_explicit_action_marker(source_text):
+        return True
+    if re.match(r"^(send|ask|revise|write|finalize|schedule|create)\b", normalized, flags=re.IGNORECASE):
+        return True
+    if re.match(r"^review\b(?!\s+of\b)", normalized, flags=re.IGNORECASE):
+        return True
+    if re.search(r"\bby (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b", normalized, flags=re.IGNORECASE):
+        return True
+    if input_type == "voice":
+        return has_explicit_action_signal(source_text)
+    return False
+
+
+def _should_surface_next_step(source_text: str, context_hint: str, next_step: str, *, input_type: str) -> bool:
+    if not _source_supports_next_step(source_text, context_hint, input_type=input_type):
+        return False
+    return bool(next_step.strip())
+
+
+def _build_primary_sections(key_point: str, next_step: str) -> list[WorkflowArtifactSection]:
+    sections = [WorkflowArtifactSection(label="Key point", text=key_point)]
+    if next_step:
+        sections.append(WorkflowArtifactSection(label="Next step", text=next_step))
+    return sections
 
 
 def _voice_quality_interpretation(quality: dict) -> str:
@@ -1196,9 +1354,9 @@ class WorkflowService:
                     context_hint,
                     generated.get("next_step") or derive_next_step(source_text),
                 ).strip()
-            sections = [WorkflowArtifactSection(label="Key point", text=key_point)]
-            if next_step:
-                sections.append(WorkflowArtifactSection(label="Next step", text=next_step))
+            if not _should_surface_next_step(source_text, context_hint, next_step, input_type=input_type):
+                next_step = ""
+            sections = _build_primary_sections(key_point, next_step)
             title = derive_specific_title(source_text, context_hint, generated.get("title", ""))
             if title.lower().endswith(" note"):
                 title = title[:-5].rstrip()
