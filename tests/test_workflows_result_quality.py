@@ -13,6 +13,7 @@ from workflows.service import WorkflowService
 from workflows.ai import generate_professional_note
 from workflows.local_app import _local_note_generator
 from workflows.service import derive_artifact_next_step
+from workflows.service import _source_supports_education_context
 
 
 MEETING_DEBRIEF = (
@@ -199,6 +200,34 @@ class WorkflowResultQualityTests(unittest.TestCase):
         artifact = record.result["primary_artifact"]
         self.assertEqual(artifact["sections"][-1]["label"], "Next step")
         self.assertTrue("Jordan" in artifact["sections"][-1]["text"] or "Thursday" in artifact["sections"][-1]["text"])
+
+    def test_non_teacher_follow_up_scrubs_teacher_coded_generated_next_step(self):
+        service = WorkflowService(
+            repository=FakeRepository(),
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Saved note",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "Jordan needs a clearer read on whether the result title is specific enough.",
+                "next_step": "Send Jordan the revised lesson plan by Thursday.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture("user-1", FOLLOW_UP_NOTE, "")
+        artifact = record.result["primary_artifact"]
+
+        self.assertEqual(artifact["sections"][-1]["label"], "Next step")
+        self.assertIn("result card", artifact["sections"][-1]["text"].lower())
+        self.assertNotIn("lesson", artifact["sections"][-1]["text"].lower())
+
+    def test_education_context_matching_ignores_embedded_class_substrings(self):
+        self.assertFalse(
+            _source_supports_education_context(
+                "World-class polish matters here because the title classification still feels too generic.",
+                "",
+            )
+        )
 
     def test_voice_reflection_stays_grounded_without_inventing_external_action(self):
         service = build_service()

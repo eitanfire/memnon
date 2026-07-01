@@ -293,7 +293,16 @@ def _looks_low_quality_title(value: str) -> bool:
 
 def _source_supports_education_context(source_text: str, context_hint: str) -> bool:
     lower = f"{_normalize_text(source_text)} {_normalize_text(context_hint)}".lower()
-    return any(marker in lower for marker in EDUCATION_DOMAIN_MARKERS)
+    if not lower:
+        return False
+    for marker in EDUCATION_DOMAIN_MARKERS:
+        if marker in {"class", "classes"}:
+            if re.search(rf"(?<!-)\b{re.escape(marker)}\b", lower):
+                return True
+            continue
+        if re.search(rf"\b{re.escape(marker)}\b", lower):
+            return True
+    return False
 
 
 def _contains_any_marker(value: str, markers: tuple[str, ...]) -> bool:
@@ -749,6 +758,8 @@ def derive_key_point(source_text: str, context_hint: str, proposed_key_point: st
 
 
 def derive_artifact_next_step(source_text: str, context_hint: str, proposed_next_step: str) -> str:
+    if _generated_text_leaks_education_context(proposed_next_step, source_text, context_hint):
+        proposed_next_step = ""
     document_next_step = _derive_document_next_step(source_text, context_hint)
     grounded = derive_next_step(source_text)
     if document_next_step and (
