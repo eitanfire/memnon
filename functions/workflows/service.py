@@ -95,6 +95,24 @@ EDUCATION_PROFESSIONS = {
     "computer science teacher",
 }
 
+EDUCATION_OUTPUT_MARKERS = (
+    "teacher",
+    "teachers",
+    "student",
+    "students",
+    "classroom",
+    "lesson",
+    "lessons",
+    "school",
+    "schools",
+    "curriculum",
+    "district",
+    "gradebook",
+    "principal",
+    "teaching",
+    "ap computer science",
+)
+
 NEXT_STEP_OVERLAP_STOPWORDS = {
     "the",
     "and",
@@ -278,6 +296,19 @@ def _source_supports_education_context(source_text: str, context_hint: str) -> b
     return any(marker in lower for marker in EDUCATION_DOMAIN_MARKERS)
 
 
+def _contains_any_marker(value: str, markers: tuple[str, ...]) -> bool:
+    lower = _normalize_text(value).lower()
+    if not lower:
+        return False
+    return any(re.search(rf"\b{re.escape(marker)}\b", lower) for marker in markers)
+
+
+def _generated_text_leaks_education_context(value: str, source_text: str, context_hint: str) -> bool:
+    if _source_supports_education_context(source_text, context_hint):
+        return False
+    return _contains_any_marker(value, EDUCATION_OUTPUT_MARKERS)
+
+
 def _profile_for_note_generation(profile: dict, source_text: str, context_hint: str) -> dict:
     sanitized = dict(profile or {})
     profession = _normalize_text(str(sanitized.get("profession") or "professional")).lower()
@@ -379,6 +410,8 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
 
 def derive_specific_title(source_text: str, context_hint: str, proposed_title: str, *, suffix: str = "") -> str:
     proposed = re.sub(r"\s+", " ", proposed_title or "").strip(" .")
+    if _generated_text_leaks_education_context(proposed, source_text, context_hint):
+        proposed = ""
     if proposed and proposed.lower() not in GENERIC_TITLES and not _looks_low_quality_title(proposed):
         return proposed
 
@@ -663,6 +696,8 @@ def derive_framing_line(
     next_step: str,
     proposed_framing_line: str,
 ) -> str:
+    if _generated_text_leaks_education_context(proposed_framing_line, source_text, context_hint):
+        proposed_framing_line = ""
     if not _looks_generic_framing_line(proposed_framing_line):
         return _normalize_clause(proposed_framing_line)
 
@@ -695,6 +730,8 @@ def derive_framing_line(
 
 
 def derive_key_point(source_text: str, context_hint: str, proposed_key_point: str) -> str:
+    if _generated_text_leaks_education_context(proposed_key_point, source_text, context_hint):
+        proposed_key_point = ""
     document_point = _derive_document_key_point(source_text, context_hint)
     if document_point and _looks_generic_key_point(proposed_key_point):
         return document_point
@@ -739,8 +776,6 @@ def _source_supports_next_step(source_text: str, context_hint: str, *, input_typ
     if _has_explicit_action_marker(source_text):
         return True
     if re.match(r"^(send|ask|revise|review|write|finalize|schedule|create)\b", normalized, flags=re.IGNORECASE):
-        return True
-    if re.search(r"\b(?:memnon|the product|this|it)\s+should\s+[^.?!]+", normalized, flags=re.IGNORECASE):
         return True
     if re.search(r"\bby (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b", normalized, flags=re.IGNORECASE):
         return True

@@ -35,6 +35,8 @@ VOICE_REFLECTION = (
     "If the input is weak, it should save it honestly instead of pretending it knows what to do."
 )
 
+PRINCIPLE_NOTE = "Memnon should save weak input honestly instead of pretending it knows what to do."
+
 
 class FakeRepository:
     def __init__(self):
@@ -74,6 +76,28 @@ def build_service():
 
 
 class WorkflowResultQualityTests(unittest.TestCase):
+    def test_non_teacher_capture_scrubs_teacher_coded_generated_output(self):
+        service = WorkflowService(
+            repository=FakeRepository(),
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Teacher Planning Note",
+                "framing_line": "A teacher note worth keeping for future lesson planning.",
+                "key_point": "This should help with classroom planning next week.",
+                "next_step": "Revise the result card before the next demo.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture("user-1", MEETING_DEBRIEF, "")
+        artifact = record.result["primary_artifact"]
+
+        self.assertNotEqual(artifact["title"], "Teacher Planning Note")
+        self.assertNotIn("teacher", artifact["framing_line"].lower())
+        self.assertNotIn("lesson", artifact["framing_line"].lower())
+        self.assertNotIn("classroom", artifact["sections"][0]["text"].lower())
+        self.assertTrue("workflows" in artifact["sections"][0]["text"].lower() or "result" in artifact["sections"][0]["text"].lower())
+
     def test_generated_output_does_not_default_to_professional_labeling(self):
         expected_guard = "if the source is not teacher-specific, do not inject teacher framing from the saved profile"
         expected_framing_rule = (
@@ -190,3 +214,22 @@ class WorkflowResultQualityTests(unittest.TestCase):
         artifact = record.result["primary_artifact"]
         labels = [section["label"] for section in artifact["sections"]]
         self.assertEqual(labels, ["Key point"])
+
+    def test_principle_style_should_statement_does_not_surface_next_step(self):
+        service = WorkflowService(
+            repository=FakeRepository(),
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Saved note",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "Memnon should save weak input honestly instead of pretending it knows what to do.",
+                "next_step": "Save weak input honestly instead of pretending it knows what to do.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture("user-1", PRINCIPLE_NOTE, "")
+        artifact = record.result["primary_artifact"]
+
+        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
+        self.assertNotIn("Next step", artifact["body"])

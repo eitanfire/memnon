@@ -608,7 +608,8 @@ class WorkflowServiceTests(unittest.TestCase):
             "splits smartness from durability",
             artifact["sections"][0]["text"].lower(),
         )
-        self.assertIn("saved artifact", artifact["sections"][1]["text"].lower())
+        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
+        self.assertNotIn("Next step", artifact["body"])
 
     def test_service_preserves_actual_ambiguity_for_saved_notes(self):
         repo = FakeRepository()
