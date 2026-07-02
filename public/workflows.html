@@ -41,6 +41,22 @@
             <button type="button" id="show-paste" class="workflows-mode-link">Paste text</button>
           </div>
 
+          <input
+            id="capture-file"
+            name="capture-file"
+            type="file"
+            accept=".txt,.md,text/plain,text/markdown"
+            class="workflows-visually-hidden"
+          />
+
+          <div id="file-selection-state" class="workflows-file-selection" hidden>
+            <div class="workflows-file-selection-row">
+              <p id="file-selection-name" class="workflows-file-selection-name"></p>
+              <button type="button" id="clear-upload" class="btn btn-quiet">Clear</button>
+            </div>
+            <p id="file-selection-copy" class="workflows-file-selection-copy"></p>
+          </div>
+
           <div id="paste-panel" class="workflows-paste-panel" hidden>
             <label class="workflows-visually-hidden" for="capture-text">Paste text</label>
             <textarea

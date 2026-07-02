@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from flask import Blueprint, jsonify, request
 
 
@@ -12,10 +14,20 @@ SUPPORTED_AUDIO_CONTENT_TYPES = {
 }
 
 MAX_INLINE_AUDIO_BYTES = 5 * 1024 * 1024
+MAX_TEXT_FILE_BYTES = 512 * 1024
+SUPPORTED_TEXT_FILE_EXTENSIONS = {".txt", ".md"}
+TEXT_FILE_CONTENT_TYPES = {
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+}
 
 
 def _is_multipart_request() -> bool:
     return (request.content_type or "").lower().startswith("multipart/form-data")
+
+
+def _text_file_extension(filename: str | None) -> str:
+    return Path(filename or "").suffix.lower()
 
 
 def create_workflows_blueprint(
@@ -86,7 +98,39 @@ def create_workflows_blueprint(
             if uploaded is None:
                 return jsonify({"error": "audio file is required"}), 400
 
+            filename = uploaded.filename or ""
+            extension = _text_file_extension(filename)
+            if extension in SUPPORTED_TEXT_FILE_EXTENSIONS:
+                file_bytes = uploaded.read()
+                if len(file_bytes) > MAX_TEXT_FILE_BYTES:
+                    return jsonify({"error": "File is too large. Maximum size is 512 KB."}), 413
+                try:
+                    text = file_bytes.decode("utf-8").strip()
+                except UnicodeDecodeError:
+                    return jsonify({"error": "We couldn’t read text from this file."}), 400
+                if not text:
+                    return jsonify({"error": "We couldn’t read text from this file."}), 400
+
+                record = service.create_text_capture(
+                    uid=uid,
+                    source_text=text,
+                    context_hint=context_hint,
+                    input_type="file",
+                    source_metadata={
+                        "source_filename": filename,
+                        "source_file_type": (uploaded.mimetype or uploaded.content_type or TEXT_FILE_CONTENT_TYPES[extension]).lower(),
+                        "source_file_extension": extension,
+                        "source_file_size_bytes": len(file_bytes),
+                    },
+                )
+                body = record.to_dict()
+                body["next_route"] = f"/workflows/result/{record.capture_id}"
+                return jsonify(body), 201
+
             content_type = (uploaded.mimetype or uploaded.content_type or "").lower()
+            if not content_type.startswith("audio/") and not content_type.startswith("video/"):
+                return jsonify({"error": "File must be .txt or .md."}), 400
+
             if content_type not in SUPPORTED_AUDIO_CONTENT_TYPES:
                 return jsonify({"error": "unsupported audio format"}), 400
 

@@ -29,6 +29,9 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn('id="capture-form"', html)
         self.assertIn('id="capture-surface"', html)
         self.assertIn('id="paste-panel"', html)
+        self.assertIn('id="capture-file"', html)
+        self.assertIn('id="file-selection-state"', html)
+        self.assertIn('id="clear-upload"', html)
         self.assertIn('id="result-view"', html)
         self.assertIn('id="loading-card"', html)
         self.assertIn('id="workflows-build-marker"', html)
@@ -193,6 +196,78 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               throw new Error(`missing confirmed thread copy: ${confirmedThread}`);
             }
             """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+    def test_uploaded_file_helpers_prefer_file_as_active_source_and_show_filename(self):
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              extractBetween("function formatLocalCaptureDate", "function describeSourceType"),
+              extractBetween("function normalizedUploadExtension", "function syncAuthPrompt"),
+              extractBetween("function describeSourceType", "function buildMetadataLine"),
+              extractBetween("function buildMetadataLine", "function renderSourceExcerpt"),
+              extractBetween("function renderSourceExcerpt", "function renderThreadChooser"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const metadata = context.buildMetadataLine({
+              input_type: "file",
+              created_at: "2026-06-27T16:00:00Z",
+              source_filename: "plan.md",
+            });
+            const label = context.buildSourceExcerptLabel({
+              input_type: "file",
+              source_filename: "plan.md",
+            });
+            const fileActive = context.resolveCaptureSource({
+              text: "This pasted text should stay quiet.",
+              selectedFile: { name: "plan.md", size: 120 },
+            });
+            const textActive = context.resolveCaptureSource({
+              text: "This pasted text should submit.",
+              selectedFile: null,
+            });
+
+            if (metadata !== "Uploaded file · plan.md · Jun 27, 2026") {
+              throw new Error(`unexpected file metadata: ${metadata}`);
+            }
+            if (label !== "From plan.md") {
+              throw new Error(`unexpected source excerpt label: ${label}`);
+            }
+            if (fileActive.activeSource !== "file" || !fileActive.message.includes("won't be submitted")) {
+              throw new Error(`unexpected file active state: ${JSON.stringify(fileActive)}`);
+            }
+            if (textActive.activeSource !== "text") {
+              throw new Error(`unexpected text active state: ${JSON.stringify(textActive)}`);
+            }
+          """
         )
         completed = subprocess.run(
             ["node", "-e", script],

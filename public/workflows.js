@@ -54,6 +54,8 @@ const SOURCE_EXCERPT_LABEL = "From your note";
 const KEY_POINT_LABEL = "Key point";
 const NEXT_STEP_LABEL = "Next step";
 const WHY_KEEP_THIS_LABEL = "Why keep this";
+const MAX_TEXT_FILE_BYTES = 512 * 1024;
+const SUPPORTED_TEXT_FILE_EXTENSIONS = new Set([".txt", ".md"]);
 const VOICE_MIME_CANDIDATES = ["audio/webm", "audio/mp4", "video/mp4"];
 const MIME_EXTENSION_MAP = {
   "audio/webm": "webm",
@@ -72,6 +74,7 @@ let mediaRecorder = null;
 let mediaStream = null;
 let recordingChunks = [];
 let activeRecordingMimeType = "";
+let selectedUploadFile = null;
 
 function buildDebugPayload(event, extra = {}) {
   return {
@@ -227,6 +230,63 @@ function setPastePanelVisible(visible, options = {}) {
   }
 }
 
+function normalizedUploadExtension(filename) {
+  const normalized = String(filename || "").toLowerCase();
+  const dotIndex = normalized.lastIndexOf(".");
+  return dotIndex >= 0 ? normalized.slice(dotIndex) : "";
+}
+
+function resolveCaptureSource({ text, selectedFile }) {
+  if (selectedFile) {
+    const hasPastedText = Boolean((text || "").trim());
+    return {
+      activeSource: "file",
+      message: hasPastedText
+        ? "File selected. Pasted text won't be submitted unless you clear the file."
+        : "File selected.",
+    };
+  }
+  if ((text || "").trim()) {
+    return {
+      activeSource: "text",
+      message: "",
+    };
+  }
+  return {
+    activeSource: "",
+    message: "",
+  };
+}
+
+function syncFileSelectionUi() {
+  const panel = document.getElementById("file-selection-state");
+  const name = document.getElementById("file-selection-name");
+  const copy = document.getElementById("file-selection-copy");
+  const text = document.getElementById("capture-text")?.value || "";
+  if (!panel || !name || !copy) {
+    return;
+  }
+  if (!selectedUploadFile) {
+    panel.hidden = true;
+    name.textContent = "";
+    copy.textContent = "";
+    return;
+  }
+  const source = resolveCaptureSource({ text, selectedFile: selectedUploadFile });
+  panel.hidden = false;
+  name.textContent = selectedUploadFile.name;
+  copy.textContent = source.message;
+}
+
+function clearSelectedUpload() {
+  selectedUploadFile = null;
+  const input = document.getElementById("capture-file");
+  if (input) {
+    input.value = "";
+  }
+  syncFileSelectionUi();
+}
+
 function syncAuthPrompt() {
   const prompt = document.getElementById("workflows-auth-prompt");
   const link = document.getElementById("workflows-signin");
@@ -264,6 +324,7 @@ function syncSavedResultsLink() {
 function syncSubmitState() {
   const input = document.getElementById("capture-text");
   const context = document.getElementById("capture-context");
+  const fileInput = document.getElementById("capture-file");
   const submit = document.getElementById("capture-submit");
   const form = document.getElementById("capture-form");
   const recordTrigger = document.getElementById("record-trigger");
@@ -275,7 +336,12 @@ function syncSubmitState() {
   if (!submit) {
     return;
   }
-  submit.disabled = submitInFlight || voiceBusy || !input || !input.value.trim();
+  const selectedFileError = validateSelectedFile(selectedUploadFile);
+  const sourceState = resolveCaptureSource({
+    text: input?.value || "",
+    selectedFile: selectedUploadFile,
+  });
+  submit.disabled = submitInFlight || voiceBusy || !sourceState.activeSource || Boolean(selectedFileError);
   const signedOutCaptureCta = !currentUser && !bypassRemoteAuth;
   submit.textContent = submitInFlight
     ? "Working..."
@@ -305,12 +371,16 @@ function syncSubmitState() {
   if (uploadTrigger) {
     uploadTrigger.disabled = submitInFlight || voiceBusy;
   }
+  if (fileInput) {
+    fileInput.disabled = submitInFlight || voiceBusy;
+  }
   if (context) {
     context.disabled = submitInFlight || blockingVoiceState;
   }
   if (form) {
     form.setAttribute("aria-busy", submitInFlight || voiceBusy ? "true" : "false");
   }
+  syncFileSelectionUi();
   syncAuthPrompt();
 }
 
@@ -418,6 +488,7 @@ function resetCaptureForm() {
   if (context) {
     context.value = "";
   }
+  clearSelectedUpload();
   setPastePanelVisible(false);
   clearPendingCapture();
 }
@@ -505,7 +576,21 @@ function describeSourceType(inputType) {
   if (inputType === "voice") {
     return "Voice note";
   }
+  if (inputType === "file") {
+    return "Uploaded file";
+  }
   return "Saved note";
+}
+
+function compactSourceFilename(filename, maxLength = 40) {
+  const normalized = String(filename || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 function buildMetadataLine(sourceEvent) {
@@ -514,6 +599,9 @@ function buildMetadataLine(sourceEvent) {
   if (sourceType) {
     parts.push(sourceType);
   }
+  if (sourceEvent?.input_type === "file" && sourceEvent?.source_filename) {
+    parts.push(compactSourceFilename(sourceEvent.source_filename));
+  }
   const captureDate = formatLocalCaptureDate(sourceEvent?.created_at);
   if (captureDate) {
     parts.push(captureDate);
@@ -521,13 +609,20 @@ function buildMetadataLine(sourceEvent) {
   return parts.join(" · ");
 }
 
-function renderSourceExcerpt(text) {
+function buildSourceExcerptLabel(sourceEvent) {
+  if (sourceEvent?.input_type === "file" && sourceEvent?.source_filename) {
+    return `From ${compactSourceFilename(sourceEvent.source_filename)}`;
+  }
+  return SOURCE_EXCERPT_LABEL;
+}
+
+function renderSourceExcerpt(text, sourceEvent) {
   if (!text) {
     return "";
   }
   return `
     <div class="workflows-source-excerpt">
-      <p class="workflows-source-label">${escapeHtml(SOURCE_EXCERPT_LABEL)}</p>
+      <p class="workflows-source-label">${escapeHtml(buildSourceExcerptLabel(sourceEvent))}</p>
       <p>${escapeHtml(text)}</p>
     </div>
   `;
@@ -809,7 +904,10 @@ function renderSavedNote(payload, options = {}) {
     bodyHtml: `
       ${renderRelatedThreadSuggestion(payload, activeThreads)}
       ${renderConfirmedThreadDisplay(payload)}
-      ${renderSourceExcerpt(savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "")}
+      ${renderSourceExcerpt(
+        savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "",
+        payload.source_event,
+      )}
       ${renderSections(savedArtifact.sections || [])}
       ${renderResultFeedback(payload, options)}
     `,
@@ -844,7 +942,7 @@ function renderPrimaryArtifact(payload, options = {}) {
   const bodyHtml = `
     ${renderRelatedThreadSuggestion(payload, activeThreads)}
     ${renderConfirmedThreadDisplay(payload)}
-    ${renderSourceExcerpt(artifact.source_excerpt)}
+    ${renderSourceExcerpt(artifact.source_excerpt, payload.source_event)}
     ${renderSections(artifact.sections || [])}
     ${renderResultFeedback(payload, options)}
   `;
@@ -917,6 +1015,18 @@ async function createCapture(text, contextHint) {
 async function createAudioCapture(audioBlob, filename, contextHint) {
   const formData = new FormData();
   formData.append("file", audioBlob, filename);
+  if (contextHint) {
+    formData.append("context_hint", contextHint);
+  }
+  return apiFetch(API_CAPTURES_PATH, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+async function createFileCapture(file, contextHint) {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
   if (contextHint) {
     formData.append("context_hint", contextHint);
   }
@@ -1018,6 +1128,33 @@ function getVoiceCaptureErrorMessage(error) {
   return "Could not save that voice note. Try again.";
 }
 
+function getFileCaptureErrorMessage(error) {
+  if (error?.message === "File must be .txt or .md.") {
+    return error.message;
+  }
+  if (error?.message === "File is too large. Maximum size is 512 KB.") {
+    return error.message;
+  }
+  if (error?.message === "We couldn’t read text from this file.") {
+    return error.message;
+  }
+  return "Something went wrong. Try again.";
+}
+
+function validateSelectedFile(file) {
+  if (!file) {
+    return "";
+  }
+  const extension = normalizedUploadExtension(file.name);
+  if (!SUPPORTED_TEXT_FILE_EXTENSIONS.has(extension)) {
+    return "File must be .txt or .md.";
+  }
+  if (file.size > MAX_TEXT_FILE_BYTES) {
+    return "File is too large. Maximum size is 512 KB.";
+  }
+  return "";
+}
+
 async function submitVoiceCapture(audioBlob, mimeType, contextHint) {
   submitInFlight = true;
   setVoiceCaptureState("uploading");
@@ -1058,6 +1195,37 @@ async function submitVoiceCapture(audioBlob, mimeType, contextHint) {
   } finally {
     submitInFlight = false;
     setVoiceCaptureState("idle");
+  }
+}
+
+async function submitFileCapture(file, contextHint) {
+  submitInFlight = true;
+  syncSubmitState();
+  renderLoadingState();
+  setStatusTone("Uploading file...", "working");
+
+  try {
+    const payload = await createFileCapture(file, contextHint);
+    clearPendingCapture();
+    const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
+    history.pushState({}, "", nextPath);
+    const activeThreads = payload?.threading?.confirmed_context_id
+      ? []
+      : await loadActiveThreads().catch(() => []);
+    setStatus("");
+    renderPayload(payload, { activeThreads, isImmediateResult: true });
+  } catch (error) {
+    console.error("[workflows] file capture submission failed", error);
+    logDebug("file_capture_submit_failed", {
+      errorMessage: error?.message || "unknown error",
+      filename: file?.name || "",
+    });
+    showCaptureScreen();
+    resetResultCards();
+    setStatusTone(getFileCaptureErrorMessage(error), "error");
+  } finally {
+    submitInFlight = false;
+    syncSubmitState();
   }
 }
 
@@ -1192,6 +1360,18 @@ async function handleRecordTrigger() {
     return;
   }
   await startVoiceRecording();
+}
+
+function handleFileSelection(event) {
+  const file = event?.target?.files?.[0] || null;
+  selectedUploadFile = file;
+  const validationError = validateSelectedFile(selectedUploadFile);
+  if (validationError) {
+    setStatusTone(validationError, "error");
+  } else if (selectedUploadFile) {
+    setStatus("");
+  }
+  syncSubmitState();
 }
 
 function restorePendingCaptureToForm() {
@@ -1411,7 +1591,32 @@ async function handleSubmit(event) {
   event.preventDefault();
   const text = document.getElementById("capture-text").value.trim();
   const contextHint = document.getElementById("capture-context").value.trim();
-  if (!text) {
+  const sourceState = resolveCaptureSource({
+    text,
+    selectedFile: selectedUploadFile,
+  });
+  if (!sourceState.activeSource) {
+    return;
+  }
+
+  if (sourceState.activeSource === "file" && selectedUploadFile) {
+    const fileValidationError = validateSelectedFile(selectedUploadFile);
+    if (fileValidationError) {
+      setStatusTone(fileValidationError, "error");
+      return;
+    }
+    if (!currentUser && !bypassRemoteAuth) {
+      setStatusTone("Sign in with Google to upload a file.", "error");
+      return;
+    }
+
+    logDebug("continue_clicked", {
+      activeSource: "file",
+      filename: selectedUploadFile.name,
+      fileSize: selectedUploadFile.size,
+      hasContextHint: Boolean(contextHint),
+    });
+    await submitFileCapture(selectedUploadFile, contextHint);
     return;
   }
 
@@ -1426,6 +1631,7 @@ async function handleSubmit(event) {
   }
 
   logDebug("continue_clicked", {
+    activeSource: "text",
     textLength: text.length,
     hasContextHint: Boolean(contextHint),
     nextAction: !currentUser && !bypassRemoteAuth ? "remote_auth_start" : "submit_capture",
@@ -1491,9 +1697,11 @@ async function handleCurrentRoute() {
 export function mountWorkflowsApp() {
   const input = document.getElementById("capture-text");
   const context = document.getElementById("capture-context");
+  const fileInput = document.getElementById("capture-file");
   const showPaste = document.getElementById("show-paste");
   const recordTrigger = document.getElementById("record-trigger");
   const uploadTrigger = document.getElementById("upload-trigger");
+  const clearUpload = document.getElementById("clear-upload");
   const form = document.getElementById("capture-form");
   const signInLink = document.getElementById("workflows-signin");
 
@@ -1513,7 +1721,12 @@ export function mountWorkflowsApp() {
     });
   });
   uploadTrigger?.addEventListener("click", () => {
-    setStatus("File upload is not available in this slice yet.");
+    fileInput?.click();
+  });
+  fileInput?.addEventListener("change", handleFileSelection);
+  clearUpload?.addEventListener("click", () => {
+    clearSelectedUpload();
+    syncSubmitState();
   });
   form?.addEventListener("submit", handleSubmit);
   if (!bypassRemoteAuth) {

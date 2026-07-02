@@ -152,6 +152,39 @@ body.workflows-page {
   width: min(100%, 460px);
 }
 
+.workflows-file-selection {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #faf6f1;
+  border: 1px solid #ece2d6;
+}
+
+.workflows-file-selection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workflows-file-selection-name,
+.workflows-file-selection-copy {
+  margin: 0;
+}
+
+.workflows-file-selection-name {
+  color: #2f2924;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.workflows-file-selection-copy {
+  color: #6a635d;
+  font-size: 0.9rem;
+}
+
 .workflows-paste-panel textarea,
 .workflows-footer-row input {
   width: 100%;

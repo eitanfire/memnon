@@ -230,6 +230,143 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(payload["result"]["route_kind"], "direct_professional_note")
         self.assertEqual(payload["result"]["primary_artifact"]["metadata_line"], "Voice note · Jun 27, 2026 · Product review")
 
+    def test_create_file_capture_from_multipart_preserves_file_source_metadata(self):
+        repo = FakeRepository()
+
+        def fake_ai(source_text, context_hint, profile, api_key):
+            return {
+                "title": "Workshop plan draft",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "next_step": "Tighten the opening before sharing it.",
+            }
+
+        service = WorkflowService(
+            repository=repo,
+            note_generator=fake_ai,
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        create_response = client.post(
+            "/workflows/captures",
+            data={
+                "context_hint": "product review",
+                "file": (
+                    io.BytesIO(
+                        (
+                            "# Workshop plan\n\n"
+                            "Draft the opening more tightly, then send the revision by Friday."
+                        ).encode("utf-8")
+                    ),
+                    "workshop-plan.md",
+                    "text/markdown",
+                ),
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        payload = create_response.get_json()
+        self.assertEqual(payload["input_type"], "file")
+        self.assertEqual(payload["source_event"]["input_type"], "file")
+        self.assertEqual(payload["source_event"]["source_filename"], "workshop-plan.md")
+        self.assertEqual(payload["source_event"]["source_file_type"], "text/markdown")
+        self.assertEqual(payload["source_event"]["source_file_extension"], ".md")
+        self.assertGreater(payload["source_event"]["source_file_size_bytes"], 0)
+        self.assertEqual(
+            payload["result"]["primary_artifact"]["metadata_line"],
+            "Uploaded file · Jun 27, 2026 · Product review",
+        )
+
+    def test_file_capture_rejects_unsupported_extension(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {},
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            "/workflows/captures",
+            data={
+                "file": (io.BytesIO(b"hello"), "notes.pdf", "application/pdf"),
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "File must be .txt or .md.")
+
+    def test_file_capture_rejects_oversized_file(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {},
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            "/workflows/captures",
+            data={
+                "file": (io.BytesIO(b"a" * (512 * 1024 + 1)), "notes.txt", "text/plain"),
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.get_json()["error"], "File is too large. Maximum size is 512 KB.")
+
+    def test_file_capture_rejects_unreadable_text(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {},
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            "/workflows/captures",
+            data={
+                "file": (io.BytesIO(b"\xff\xfe\x00"), "notes.txt", "text/plain"),
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "We couldn’t read text from this file.")
+
     def test_audio_capture_rejects_empty_file(self):
         repo = FakeRepository()
         service = WorkflowService(

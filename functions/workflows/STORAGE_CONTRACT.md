@@ -16,6 +16,12 @@ Required top-level fields:
 - `event_manifest: object`
 - `created_at: string | timestamp`
 - `updated_at: string | timestamp`
+- `feedback_choice: null | "useful" | "not_useful"`
+- `feedback_updated_at: null | string | timestamp`
+
+Legacy compatibility note:
+- Older persisted records may omit `feedback_choice` and `feedback_updated_at`.
+- Newly created records persist both fields as nullable top-level fields.
 
 Required `source_event` fields:
 - `capture_id: string`
@@ -25,6 +31,20 @@ Required `source_event` fields:
 - `context_hint: string`
 - `likely_themes: string[]`
 - `created_at: string | timestamp`
+
+Optional uploaded-file `source_event` fields:
+- `source_filename: string`
+- `source_file_type: string`
+- `source_file_extension: string`
+- `source_file_size_bytes: number`
+
+Uploaded-file metadata rules:
+- Uploaded-file metadata appears only for `input_type: "file"`.
+- `source_filename` is display text only.
+- `source_filename` must never be treated as HTML or as a filesystem path.
+- `source_file_extension` is normalized lowercase.
+- Valid File Upload v1 extensions are `.txt` and `.md`.
+- `source_file_size_bytes` records the uploaded file byte size.
 
 Required `routing` fields:
 - `route_kind: "direct_professional_note" | "saved_note"`

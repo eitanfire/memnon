@@ -496,6 +496,81 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertTrue(record.result["primary_artifact"]["source_excerpt"])
         self.assertIn("sections", record.result["primary_artifact"])
 
+    def test_service_can_record_uploaded_file_metadata(self):
+        repo = FakeRepository()
+
+        def fake_ai(source_text, context_hint, profile, api_key):
+            return {
+                "title": "Workshop plan draft",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "next_step": "Tighten the opening before sharing it.",
+            }
+
+        service = WorkflowService(
+            repository=repo,
+            note_generator=fake_ai,
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text="# Workshop plan\n\nDraft the opening more tightly, then send the revision by Friday.",
+            context_hint="product review",
+            input_type="file",
+            source_metadata={
+                "source_filename": "workshop-plan.md",
+                "source_file_type": "text/markdown",
+                "source_file_extension": ".md",
+                "source_file_size_bytes": 84,
+            },
+        )
+
+        self.assertEqual(record.input_type, "file")
+        self.assertEqual(record.source_event["input_type"], "file")
+        self.assertEqual(record.source_event["source_filename"], "workshop-plan.md")
+        self.assertEqual(record.source_event["source_file_type"], "text/markdown")
+        self.assertEqual(record.source_event["source_file_extension"], ".md")
+        self.assertEqual(record.source_event["source_file_size_bytes"], 84)
+        self.assertEqual(
+            record.result["primary_artifact"]["metadata_line"],
+            "Uploaded file · Jun 27, 2026 · Product review",
+        )
+        self.assertTrue(record.result["primary_artifact"]["source_excerpt"])
+
+    def test_service_capture_summary_can_include_short_uploaded_filename(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Workshop plan draft",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "next_step": "Tighten the opening before sharing it.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text="Draft the opening more tightly, then send the revision by Friday.",
+            context_hint="",
+            input_type="file",
+            source_metadata={
+                "source_filename": "plan.md",
+                "source_file_type": "text/markdown",
+                "source_file_extension": ".md",
+                "source_file_size_bytes": 64,
+            },
+        )
+
+        items = service.list_capture_summaries("user-1")
+
+        self.assertEqual(items[0]["capture_id"], record.capture_id)
+        self.assertEqual(items[0]["metadata_line"], "Uploaded file · plan.md · Jun 27, 2026")
+
     def test_service_creates_one_professional_note_record(self):
         repo = FakeRepository()
 
