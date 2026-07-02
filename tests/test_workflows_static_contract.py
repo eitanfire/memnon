@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import textwrap
 import unittest
@@ -390,6 +391,23 @@ class WorkflowsStaticContractTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+    def test_immediate_thread_decision_rerenders_preserve_feedback_state(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        thread_controls_start = js.index("function wireResultThreadControls")
+        feedback_controls_start = js.index("function wireResultFeedbackControls", thread_controls_start)
+        thread_controls = js[thread_controls_start:feedback_controls_start]
+
+        rerender_matches = re.findall(
+            r"renderPayload\(updated,\s*\{\s*activeThreads:\s*\[\],\s*isImmediateResult:\s*true,\s*\}\s*\);",
+            thread_controls,
+        )
+
+        self.assertGreaterEqual(
+            len(rerender_matches),
+            4,
+            "Immediate thread-decision rerenders should preserve isImmediateResult for feedback UI.",
+        )
 
 
 if __name__ == "__main__":

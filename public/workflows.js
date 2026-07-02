@@ -1250,7 +1250,10 @@ function wireResultThreadControls(card, payload, options = {}) {
             contextId,
           });
           setStatusTone("Saved with thread.");
-          renderPayload(updated, { activeThreads: [] });
+          renderPayload(updated, {
+            activeThreads: [],
+            isImmediateResult: true,
+          });
         } catch (error) {
           console.error("[workflows] thread confirmation failed", error);
           setStatusTone("Something went wrong. Try again.", "error");
@@ -1274,7 +1277,10 @@ function wireResultThreadControls(card, payload, options = {}) {
             newContextTitle,
           });
           setStatusTone("Saved with thread.");
-          renderPayload(updated, { activeThreads: [] });
+          renderPayload(updated, {
+            activeThreads: [],
+            isImmediateResult: true,
+          });
         } catch (error) {
           console.error("[workflows] thread creation failed", error);
           setStatusTone("Something went wrong. Try again.", "error");
@@ -1295,7 +1301,10 @@ function wireResultThreadControls(card, payload, options = {}) {
         contextId: suggestedContextId,
       });
       setStatusTone("Saved with thread.");
-      renderPayload(updated, { activeThreads: [] });
+      renderPayload(updated, {
+        activeThreads: [],
+        isImmediateResult: true,
+      });
     } catch (error) {
       console.error("[workflows] thread confirmation failed", error);
       setStatusTone("Something went wrong. Try again.", "error");
@@ -1333,7 +1342,10 @@ function wireResultThreadControls(card, payload, options = {}) {
     try {
       const updated = await submitThreadDecision(captureId, "kept_separate");
       setStatusTone("Kept separate.");
-      renderPayload(updated, { activeThreads: [] });
+      renderPayload(updated, {
+        activeThreads: [],
+        isImmediateResult: true,
+      });
     } catch (error) {
       console.error("[workflows] keep separate failed", error);
       setStatusTone("Something went wrong. Try again.", "error");
