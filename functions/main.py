@@ -1898,7 +1898,11 @@ def _build_daily_feed_prompt(
     day_anchor = _daily_feed_present_day_anchor(local_now)
     continuity_anchor = _daily_feed_continuity_anchor(notes)
     weather_block = ""
-    if weather_context:
+    weather_is_speakable = bool(weather_context) and (
+        "should_surface" not in weather_context
+        or _coerce_bool(weather_context.get("should_surface"), False)
+    )
+    if weather_is_speakable:
         weather_block = (
             "--- WEATHER CONTEXT ---\n"
             f"Day type: {_safe_string(weather_context.get('day_type'))}\n"
@@ -1948,13 +1952,95 @@ Rules:
 - The opening must contain a real present-day anchor.
 - The reflective grounding must contain a real continuity anchor drawn from reflection history.
 - For Phase 1, set calendar_today to an empty string unless true calendar context is provided.
-- Use weather only when it genuinely sharpens the practical orientation of the day.
-- Fold weather into practical_briefing when useful; do not create a standalone weather segment.
-- Do not use weather in reflective_grounding or meditative_close.
+- Do not create a weather segment.
+- If weather is relevant, treat it only as a short "Outside context" micro-cue near the opening.
+- Do not weave weather into practical_briefing, reflective_grounding, or meditative_close.
 - Keep meditative_close concise; it is the seed of a future optional meditative-only feed.
 - If there is too little specific material, be sparse rather than repetitive.
 """
 
+
+def _build_opening_weather_rewrite_prompt(
+    user_data: dict,
+    opening: str,
+    weather_context: dict,
+) -> str:
+    preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
+    spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
+    return f"""You are revising exactly one segment of a private daily audio briefing for {preferred_name}.
+
+Revise only the opening segment below. Keep the date anchor and tone intact. Add at most one short weather micro-cue near the end of the opening.
+
+Existing opening:
+{opening}
+
+Weather micro-cue label: {_safe_string(weather_context.get("micro_cue_label")) or "Outside context"}
+Weather micro-cue text: {_safe_string(weather_context.get("micro_cue_text"))}
+
+Return strict JSON only with this schema:
+{{
+  "opening": "Rewritten opening text only"
+}}
+
+Rules:
+- Rewrite only opening.
+- Preserve the existing date anchor.
+- Prefer the label "Outside context".
+- Keep the weather line short and spoken naturally.
+- Do not turn this into a forecast readout.
+- Do not mention calendar, tasks, classrooms, or students unless they were already present.
+- Use the spoken name "{spoken_name}" only if natural.
+"""
+
+
+def _rewrite_opening_with_weather_cue(
+    user_data: dict,
+    opening: str,
+    weather_context: dict | None,
+    api_key: str,
+) -> tuple[str, bool]:
+    original_text = _safe_string(opening)
+    if not original_text or not weather_context or not _coerce_bool(weather_context.get("should_surface"), False):
+        return original_text, False
+    prompt = _build_opening_weather_rewrite_prompt(user_data, original_text, weather_context)
+    result = _summarize(
+        prompt,
+        api_key,
+        json_mode=True,
+        timeout_seconds=60,
+        max_output_tokens=180,
+    )
+    rewritten = _safe_string((result or {}).get("opening"))
+    if not rewritten:
+        return original_text, False
+    return rewritten, rewritten != original_text
+
+
+def _build_daily_feed_generation_meta(
+    *,
+    recent_notes_available: bool,
+    generation_mode: str,
+    weather_context: dict | None,
+    weather_diagnostics: dict,
+    weather_applied: bool,
+) -> dict:
+    weather_context = weather_context or {}
+    weather_diagnostics = weather_diagnostics or {}
+    return {
+        "recent_notes_available": recent_notes_available,
+        "generation_mode": generation_mode,
+        "calendar_context_available": False,
+        "weather": {
+            "available": bool(weather_context) or _coerce_bool(weather_diagnostics.get("available"), False),
+            "applied": weather_applied,
+            "placement": "opening_micro_cue" if weather_applied else "",
+            "label": _safe_string(weather_context.get("micro_cue_label")) if weather_applied else "",
+            "source": _safe_string(weather_diagnostics.get("source")),
+            "day_type": _safe_string(weather_context.get("day_type")),
+            "omission_reason": "" if weather_applied else _safe_string(weather_context.get("omission_reason")),
+            "unavailable_reason": _safe_string(weather_diagnostics.get("unavailable_reason")),
+        },
+    }
 
 def _build_deterministic_daily_feed_result(
     user_data: dict,
@@ -1964,36 +2050,31 @@ def _build_deterministic_daily_feed_result(
     weather_context: dict | None = None,
 ) -> dict:
     latest_note = notes[0] if notes else {}
-    preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
-    latest_title = _safe_string(latest_note.get("title")) or "recent teaching reflection"
+    preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "listener").strip()
+    latest_title = _safe_string(latest_note.get("title")) or "recent reflection"
     latest_summary = _safe_string(latest_note.get("summary"))
     latest_insight = _safe_string(latest_note.get("insight"))
     continuity_anchor = _daily_feed_continuity_anchor(notes) or latest_title
     time_anchor = _daily_feed_present_day_anchor(local_now)
+    weather_micro_cue = ""
+    if weather_context and _coerce_bool(weather_context.get("should_surface"), False):
+        weather_micro_cue = _safe_string(weather_context.get("micro_cue_text"))
 
-    summary_line = latest_summary[:260].strip()
-    insight_line = latest_insight[:220].strip()
-    if summary_line and not re.search(r"[.!?]$", summary_line):
-        summary_line += "."
-    if insight_line and not re.search(r"[.!?]$", insight_line):
-        insight_line += "."
+    description = f"Grounded in {latest_title or 'your recent reflections'} and oriented to today."
 
-    description_seed = latest_title if latest_title else "your recent reflections"
-    description = f"Grounded in {description_seed} and the thread you have been carrying forward."
+    opening_parts = [f"{time_anchor} {preferred_name}, here is your Memnon briefing for the day."]
+    if weather_micro_cue:
+        opening_parts.append(weather_micro_cue)
+    opening = " ".join(part for part in opening_parts if part).strip()
 
-    opening = f"{time_anchor} {preferred_name}, here is your Memnon briefing for the day."
-
-    practical_parts = []
-    if summary_line:
-        practical_parts.append(f"One thread worth holding onto from your recent reflection is this: {summary_line}")
-    if insight_line:
-        practical_parts.append(f"The clearest underlying tension is this: {insight_line}")
-    orientation_cue = _safe_string((weather_context or {}).get("orientation_cue"))
-    if orientation_cue:
-        practical_parts.append(orientation_cue)
-    if not practical_parts:
-        practical_parts.append(f"Your recent reflections suggest that {preferred_name} is carrying an important thread that deserves steady attention today.")
-    practical_briefing = " ".join(practical_parts)
+    stance_seed = latest_insight or continuity_anchor or latest_summary
+    if stance_seed:
+        stance_text = stance_seed[:220].strip()
+        if not re.search(r"[.!?]$", stance_text):
+            stance_text += "."
+        practical_briefing = f"Let the day stay organized around one restrained stance: {stance_text}"
+    else:
+        practical_briefing = "Let the day stay organized around one restrained stance: protect one important thread and keep the pace simple."
 
     reflective_parts = [
         f"In {latest_title}, you named a pattern that still matters today."
@@ -2012,6 +2093,7 @@ def _build_deterministic_daily_feed_result(
         "description": description[:500],
         "time_anchor": time_anchor,
         "continuity_anchor": continuity_anchor[:240],
+        "_weather_applied": bool(weather_micro_cue),
         "segments": {
             "opening": opening,
             "practical_briefing": practical_briefing,
@@ -2063,17 +2145,29 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         raise RuntimeError("No reflections available to generate a daily feed episode")
 
     weather_context = None
+    weather_diagnostics = {
+        "available": False,
+        "source": "",
+        "unavailable_reason": "",
+    }
     try:
-        weather_context, weather_cache_updates = load_weather_context(user_data)
+        weather_context, weather_cache_updates, weather_diagnostics = load_weather_context(user_data)
         if weather_cache_updates:
             _get_db().collection("users").document(uid).set(weather_cache_updates, merge=True)
             user_data = {**user_data, **weather_cache_updates}
     except Exception as exc:
         print(f"[{uid}] Weather enrichment unavailable: {exc}")
+        weather_context = None
+        weather_diagnostics = {
+            "available": False,
+            "source": "",
+            "unavailable_reason": "unexpected_weather_exception",
+        }
 
-    episode_type = "standard" if _daily_feed_has_recent_reflection(notes, local_now) else "fallback"
+    recent_notes_available = _daily_feed_has_recent_reflection(notes, local_now)
+    episode_type = "standard" if recent_notes_available else "fallback"
 
-    def _save_episode_from_result(result: dict, selected_type: str) -> dict:
+    def _save_episode_from_result(result: dict, selected_type: str, weather_applied: bool = False) -> dict:
         time_anchor = _safe_string(result.get("time_anchor"))
         continuity_anchor = _safe_string(result.get("continuity_anchor"))
         if not time_anchor:
@@ -2120,7 +2214,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "audio_size_bytes": len(audio_bytes),
             "duration_seconds": duration_seconds,
             "segments_used": segments_used,
-            "context_sources_used": ["reflection_history"] + (["weather"] if weather_context else []),
+            "context_sources_used": ["reflection_history"] + (["weather"] if weather_applied else []),
             "script_text": script_text,
             "script_segments": {key: _safe_string(value) for key, value in (segments or {}).items() if _safe_string(value)},
             "audio_mix_meta": audio_mix_meta,
@@ -2130,6 +2224,13 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
                 "time_anchor": time_anchor[:240],
                 "continuity_anchor": continuity_anchor[:240],
             },
+            "generation_meta": _build_daily_feed_generation_meta(
+                recent_notes_available=recent_notes_available,
+                generation_mode=selected_type,
+                weather_context=weather_context,
+                weather_diagnostics=weather_diagnostics,
+                weather_applied=weather_applied,
+            ),
         }
         _daily_feed_episode_ref(uid, episode_id).set(episode_payload, merge=True)
         _get_db().collection("users").document(uid).set({
@@ -2157,7 +2258,11 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             episode_type="fallback",
             weather_context=weather_context,
         )
-        return _save_episode_from_result(result, "fallback")
+        return _save_episode_from_result(
+            result,
+            "fallback",
+            weather_applied=_coerce_bool(result.get("_weather_applied"), False),
+        )
 
     def _generate_for_type(selected_type: str) -> dict:
         if selected_type == "fallback":
@@ -2176,7 +2281,25 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             timeout_seconds=120,
             max_output_tokens=700,
         )
-        return _save_episode_from_result(result, selected_type)
+        segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
+        original_opening = _safe_string(segments.get("opening"))
+        weather_applied = False
+        if weather_context and _coerce_bool(weather_context.get("should_surface"), False) and original_opening:
+            try:
+                rewritten_opening, weather_applied = _rewrite_opening_with_weather_cue(
+                    user_data,
+                    original_opening,
+                    weather_context,
+                    api_key,
+                )
+                segments["opening"] = rewritten_opening
+                result["segments"] = segments
+            except Exception as exc:
+                print(f"[{uid}] Opening weather cue unavailable: {exc}")
+                if not _safe_string(weather_context.get("omission_reason")):
+                    weather_context["omission_reason"] = "rewrite_failed"
+        result["_weather_applied"] = weather_applied
+        return _save_episode_from_result(result, selected_type, weather_applied=weather_applied)
 
     try:
         return _generate_for_type(episode_type)

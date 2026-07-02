@@ -285,19 +285,35 @@ class DailyFeedSliceTests(unittest.TestCase):
         )
         self.assertIn("--- WEATHER CONTEXT ---", prompt)
         self.assertIn("stormy", prompt.lower())
-        self.assertIn("Fold weather into practical_briefing", prompt)
+        self.assertIn("Outside context", prompt)
+        self.assertIn("Do not create a weather segment", prompt)
 
-    def test_build_deterministic_daily_feed_result_uses_weather_orientation_cue(self):
+    def test_build_deterministic_daily_feed_result_puts_outside_context_in_opening(self):
         result = self.main._build_deterministic_daily_feed_result(
             user_data={"preferred_name": "Jordan"},
             notes=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}],
             local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
             weather_context={
+                "should_surface": True,
+                "micro_cue_text": "Outside context: A stormy afternoon may make transitions and end-of-day energy heavier than usual.",
                 "orientation_cue": "A stormy afternoon may make transitions and end-of-day energy heavier than usual.",
             },
         )
+        self.assertIn("Outside context:", result["segments"]["opening"])
+        self.assertEqual(result["_weather_applied"], True)
+
+    def test_build_deterministic_daily_feed_result_uses_restrained_practical_stance(self):
+        result = self.main._build_deterministic_daily_feed_result(
+            user_data={"preferred_name": "Jordan"},
+            notes=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning."}],
+            local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
+            weather_context=None,
+        )
         practical = result["segments"]["practical_briefing"]
-        self.assertIn("stormy afternoon", practical.lower())
+        self.assertNotIn("One thread worth holding onto", practical)
+        self.assertIn("restrained stance", practical.lower())
+        self.assertNotIn("..", practical)
+        self.assertEqual(result["segments"]["calendar_today"], "")
 
     def test_build_daily_feed_episode_attempts_weather_enrichment_and_continues_on_failure(self):
         user_ref = FakeUserRef({
@@ -355,6 +371,239 @@ class DailyFeedSliceTests(unittest.TestCase):
 
         self.assertEqual(result["id"], "2026-06-24")
         load_weather.assert_called_once()
+        self.assertEqual(result["generation_meta"]["weather"]["available"], False)
+        self.assertEqual(result["generation_meta"]["weather"]["unavailable_reason"], "unexpected_weather_exception")
+
+    def test_build_daily_feed_episode_inserts_outside_context_micro_cue_into_opening(self):
+        user_ref = FakeUserRef({
+            "email": "eitanfire@gmail.com",
+            "preferred_name": "Jordan",
+            "spoken_name": "Jordan",
+            "reflection_style": "complete",
+            "school_name": "Jefferson Academy",
+            "school_state": "CO",
+        })
+
+        class EpisodeRef:
+            def __init__(self):
+                self.saved = {}
+
+            def get(self):
+                if self.saved:
+                    return FakeDoc(self.saved, True, "2026-06-24")
+                return FakeDoc({}, False, "2026-06-24")
+
+            def set(self, payload, merge=False):
+                self.saved.update(payload)
+
+        episode_ref = EpisodeRef()
+        weather_context = {
+            "day_type": "stormy",
+            "temperature_summary": "High 85F, low 62F",
+            "precipitation_summary": "30% precipitation risk, 0.0 mm expected",
+            "orientation_cue": "A stormy afternoon may make transitions and end-of-day energy heavier than usual.",
+            "micro_cue_label": "Outside context",
+            "micro_cue_text": "Outside context: A stormy afternoon may make transitions and end-of-day energy heavier than usual.",
+            "should_surface": True,
+            "omission_reason": "",
+        }
+        weather_diagnostics = {
+            "available": True,
+            "source": "cached_coordinates",
+            "unavailable_reason": "",
+        }
+        summarize_results = [
+            {
+                "title": "June 24",
+                "description": "desc",
+                "time_anchor": "Today is Tuesday, June 24th.",
+                "continuity_anchor": "Protect the morning",
+                "segments": {
+                    "opening": "Today is Tuesday, June 24th.",
+                    "practical_briefing": "Protect the morning and keep transitions simple.",
+                    "calendar_today": "",
+                    "reflective_grounding": "This still matters today.",
+                    "meditative_close": "One next step is enough.",
+                },
+            },
+            {
+                "opening": "Today is Tuesday, June 24th. Outside context: A stormy afternoon may make transitions and end-of-day energy heavier than usual.",
+            },
+        ]
+
+        with (
+            patch.dict(self.main.os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False),
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+            patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}]),
+            patch.object(self.main, "_daily_feed_has_recent_reflection", return_value=True),
+            patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
+            patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
+            patch.object(self.main, "load_weather_context", return_value=(weather_context, {"weather_geocoded_from": "Jefferson Academy, CO"}, weather_diagnostics), create=True),
+            patch.object(self.main, "_summarize", side_effect=summarize_results) as summarize,
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            result = self.main._build_daily_feed_episode(
+                "user123",
+                user_ref.data,
+                now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
+                force=True,
+            )
+
+        self.assertEqual(
+            result["script_segments"]["opening"],
+            "Today is Tuesday, June 24th. Outside context: A stormy afternoon may make transitions and end-of-day energy heavier than usual.",
+        )
+        self.assertEqual(result["script_segments"]["reflective_grounding"], "This still matters today.")
+        self.assertEqual(result["script_segments"]["meditative_close"], "One next step is enough.")
+        self.assertIn("Outside context:", result["script_segments"]["opening"])
+        self.assertEqual(result["script_segments"]["practical_briefing"], "Protect the morning and keep transitions simple.")
+        self.assertEqual(result["generation_meta"]["weather"]["applied"], True)
+        self.assertEqual(result["generation_meta"]["weather"]["placement"], "opening_micro_cue")
+        self.assertEqual(summarize.call_count, 2)
+        base_prompt = summarize.call_args_list[0].args[0]
+        rewrite_prompt = summarize.call_args_list[1].args[0]
+        self.assertIn("--- WEATHER CONTEXT ---", base_prompt)
+        self.assertIn("Today is Tuesday, June 24th.", rewrite_prompt)
+        self.assertIn("A stormy afternoon may make transitions and end-of-day energy heavier than usual.", rewrite_prompt)
+
+    def test_build_daily_feed_episode_records_mild_weather_omission_metadata(self):
+        user_ref = FakeUserRef({
+            "email": "eitanfire@gmail.com",
+            "preferred_name": "Jordan",
+            "spoken_name": "Jordan",
+            "reflection_style": "complete",
+            "school_name": "Jefferson Academy",
+            "school_state": "CO",
+        })
+
+        class EpisodeRef:
+            def __init__(self):
+                self.saved = {}
+
+            def get(self):
+                if self.saved:
+                    return FakeDoc(self.saved, True, "2026-06-24")
+                return FakeDoc({}, False, "2026-06-24")
+
+            def set(self, payload, merge=False):
+                self.saved.update(payload)
+
+        episode_ref = EpisodeRef()
+        weather_context = {
+            "day_type": "clear",
+            "orientation_cue": "The weather looks steady enough to support a more open, straightforward day.",
+            "micro_cue_label": "Outside context",
+            "micro_cue_text": "Outside context: The weather looks steady enough to support a more open, straightforward day.",
+            "should_surface": False,
+            "omission_reason": "mild_conditions",
+        }
+        weather_diagnostics = {
+            "available": True,
+            "source": "cached_coordinates",
+            "unavailable_reason": "",
+        }
+
+        with (
+            patch.dict(self.main.os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False),
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+            patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}]),
+            patch.object(self.main, "_daily_feed_has_recent_reflection", return_value=True),
+            patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
+            patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
+            patch.object(self.main, "load_weather_context", return_value=(weather_context, {}, weather_diagnostics), create=True),
+            patch.object(self.main, "_summarize", return_value={
+                "title": "June 24",
+                "description": "desc",
+                "time_anchor": "Today is Tuesday, June 24th.",
+                "continuity_anchor": "Protect the morning",
+                "segments": {
+                    "opening": "Today is Tuesday, June 24th.",
+                    "practical_briefing": "Protect the morning and keep transitions simple.",
+                    "calendar_today": "",
+                    "reflective_grounding": "This still matters today.",
+                    "meditative_close": "One next step is enough.",
+                },
+            }) as summarize,
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            result = self.main._build_daily_feed_episode(
+                "user123",
+                user_ref.data,
+                now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
+                force=True,
+            )
+
+        self.assertEqual(summarize.call_count, 1)
+        self.assertNotIn("Outside context:", result["script_segments"]["opening"])
+        self.assertEqual(result["generation_meta"]["weather"]["available"], True)
+        self.assertEqual(result["generation_meta"]["weather"]["applied"], False)
+        self.assertEqual(result["generation_meta"]["weather"]["omission_reason"], "mild_conditions")
+
+    def test_build_daily_feed_episode_records_weather_unavailable_reason(self):
+        user_ref = FakeUserRef({
+            "email": "eitanfire@gmail.com",
+            "preferred_name": "Jordan",
+            "spoken_name": "Jordan",
+            "reflection_style": "complete",
+            "school_name": "Jefferson Academy",
+            "school_state": "CO",
+        })
+
+        class EpisodeRef:
+            def __init__(self):
+                self.saved = {}
+
+            def get(self):
+                if self.saved:
+                    return FakeDoc(self.saved, True, "2026-06-24")
+                return FakeDoc({}, False, "2026-06-24")
+
+            def set(self, payload, merge=False):
+                self.saved.update(payload)
+
+        episode_ref = EpisodeRef()
+        weather_diagnostics = {
+            "available": False,
+            "source": "",
+            "unavailable_reason": "forecast_failed",
+        }
+
+        with (
+            patch.dict(self.main.os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False),
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+            patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}]),
+            patch.object(self.main, "_daily_feed_has_recent_reflection", return_value=True),
+            patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
+            patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
+            patch.object(self.main, "load_weather_context", return_value=(None, {}, weather_diagnostics), create=True),
+            patch.object(self.main, "_summarize", return_value={
+                "title": "June 24",
+                "description": "desc",
+                "time_anchor": "Today is Tuesday, June 24th.",
+                "continuity_anchor": "Protect the morning",
+                "segments": {
+                    "opening": "Today is Tuesday, June 24th.",
+                    "practical_briefing": "Protect the morning and keep transitions simple.",
+                    "calendar_today": "",
+                    "reflective_grounding": "This still matters today.",
+                    "meditative_close": "One next step is enough.",
+                },
+            }),
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            result = self.main._build_daily_feed_episode(
+                "user123",
+                user_ref.data,
+                now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
+                force=True,
+            )
+
+        self.assertEqual(result["generation_meta"]["weather"]["available"], False)
+        self.assertEqual(result["generation_meta"]["weather"]["applied"], False)
+        self.assertEqual(result["generation_meta"]["weather"]["unavailable_reason"], "forecast_failed")
 
     def test_dashboard_includes_admin_regenerate_controls(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")
