@@ -2069,7 +2069,10 @@ def _build_deterministic_daily_feed_result(
 
     stance_seed = latest_insight or continuity_anchor or latest_summary
     if stance_seed:
-        practical_briefing = f"Let the day stay organized around one restrained stance: {stance_seed[:220].strip()}."
+        stance_text = stance_seed[:220].strip()
+        if not re.search(r"[.!?]$", stance_text):
+            stance_text += "."
+        practical_briefing = f"Let the day stay organized around one restrained stance: {stance_text}"
     else:
         practical_briefing = "Let the day stay organized around one restrained stance: protect one important thread and keep the pace simple."
 

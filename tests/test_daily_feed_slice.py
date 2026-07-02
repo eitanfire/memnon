@@ -340,13 +340,14 @@ class DailyFeedSliceTests(unittest.TestCase):
     def test_build_deterministic_daily_feed_result_uses_restrained_practical_stance(self):
         result = self.main._build_deterministic_daily_feed_result(
             user_data={"preferred_name": "Jordan"},
-            notes=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}],
+            notes=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning."}],
             local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
             weather_context=None,
         )
         practical = result["segments"]["practical_briefing"]
         self.assertNotIn("One thread worth holding onto", practical)
         self.assertIn("restrained stance", practical.lower())
+        self.assertNotIn("..", practical)
         self.assertEqual(result["segments"]["calendar_today"], "")
 
     def test_build_daily_feed_episode_attempts_weather_enrichment_and_continues_on_failure(self):
