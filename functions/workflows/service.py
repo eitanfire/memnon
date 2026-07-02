@@ -218,6 +218,8 @@ def _describe_source_type(input_type: str) -> str:
         return "Pasted note"
     if input_type == "voice":
         return "Voice note"
+    if input_type == "file":
+        return "Uploaded file"
     return "Saved note"
 
 
@@ -245,6 +247,20 @@ def _build_metadata_line(input_type: str, created_at: str, context_hint: str) ->
         normalized_context = normalized_context[0].upper() + normalized_context[1:]
     if normalized_context:
         parts.append(normalized_context)
+    return " · ".join(parts)
+
+
+def _build_compact_file_metadata_line(source_event: dict[str, object], created_at: str) -> str:
+    parts = []
+    source_type = _describe_source_type(str(source_event.get("input_type") or ""))
+    if source_type:
+        parts.append(source_type)
+    filename = _normalize_text(str(source_event.get("source_filename") or ""))
+    if filename and len(filename) <= 24:
+        parts.append(filename)
+    formatted_date = _format_capture_date(created_at)
+    if formatted_date:
+        parts.append(formatted_date)
     return " · ".join(parts)
 
 
@@ -1400,7 +1416,15 @@ class WorkflowService:
             "suggested_at": self.now_provider(),
         }
 
-    def create_text_capture(self, uid: str, source_text: str, context_hint: str, *, input_type: str = "text"):
+    def create_text_capture(
+        self,
+        uid: str,
+        source_text: str,
+        context_hint: str,
+        *,
+        input_type: str = "text",
+        source_metadata: dict[str, object] | None = None,
+    ):
         capture_id = f"cap-{secrets.token_hex(6)}"
         now = self.now_provider()
         profile = self.repository.load_user_profile(uid)
@@ -1411,6 +1435,16 @@ class WorkflowService:
             now,
             input_type=input_type,
         )
+        if source_metadata:
+            for key in (
+                "source_filename",
+                "source_file_type",
+                "source_file_extension",
+                "source_file_size_bytes",
+            ):
+                value = source_metadata.get(key)
+                if value not in (None, ""):
+                    source_event[key] = value
         source_event["profile_snapshot"] = profile
         decision = route_text_capture(source_text, context_hint, profile)
         voice_quality = None
@@ -1602,10 +1636,14 @@ class WorkflowService:
         result = record.get("result") or {}
         artifact = result.get("primary_artifact") or result.get("saved_note_artifact") or {}
         capture_id = record.get("capture_id", "")
+        source_event = record.get("source_event") or {}
+        metadata_line = artifact.get("metadata_line") or ""
+        if source_event.get("input_type") == "file":
+            metadata_line = _build_compact_file_metadata_line(source_event, str(record.get("created_at") or ""))
         return {
             "capture_id": capture_id,
             "title": artifact.get("title") or "Saved note",
-            "metadata_line": artifact.get("metadata_line") or "",
+            "metadata_line": metadata_line,
             "status": artifact.get("status") or "",
             "route_kind": result.get("route_kind") or "",
             "created_at": record.get("created_at"),

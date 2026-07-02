@@ -26,6 +26,12 @@ Required `source_event` fields:
 - `likely_themes: string[]`
 - `created_at: string | timestamp`
 
+Optional uploaded-file `source_event` fields:
+- `source_filename: string`
+- `source_file_type: string`
+- `source_file_extension: string`
+- `source_file_size_bytes: number`
+
 Required `routing` fields:
 - `route_kind: "direct_professional_note" | "saved_note"`
 - `interpretation_line: string`
