@@ -235,7 +235,6 @@ class DailyFeedSliceTests(unittest.TestCase):
     def test_save_setup_clears_weather_cache_when_school_anchor_changes(self):
         existing_user = {
             "school_name": "Jefferson Academy",
-            "school_city": "BROOMFIELD",
             "school_state": "CO",
             "weather_location_label": "Jefferson Academy Colorado",
             "weather_latitude": 39.7392,
@@ -255,40 +254,6 @@ class DailyFeedSliceTests(unittest.TestCase):
                 "profession": "teacher",
                 "reflection_style": "complete",
                 "school_name": "Arapahoe Ridge",
-                "school_state": "CO",
-            })
-
-        self.assertEqual(response.status_code, 200)
-        saved_payload, merge_flag = user_ref.set_calls[-1]
-        self.assertTrue(merge_flag)
-        self.assertIsNone(saved_payload["weather_latitude"])
-        self.assertIsNone(saved_payload["weather_longitude"])
-        self.assertEqual(saved_payload["weather_geocoded_from"], "")
-
-    def test_save_setup_clears_weather_cache_when_school_city_changes(self):
-        existing_user = {
-            "school_name": "Jefferson Academy",
-            "school_city": "BROOMFIELD",
-            "school_state": "CO",
-            "weather_location_label": "Broomfield Colorado",
-            "weather_latitude": 39.92054,
-            "weather_longitude": -105.08665,
-            "weather_timezone": "America/Denver",
-            "weather_geocoded_from": "BROOMFIELD",
-        }
-        user_ref = FakeUserRef(existing_user)
-        client = self.main.flask_app.test_client()
-
-        with (
-            patch.object(self.main, "_verify_firebase_token", return_value="user123"),
-            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
-        ):
-            response = client.post("/setup", json={
-                "lane": "professional",
-                "profession": "teacher",
-                "reflection_style": "complete",
-                "school_name": "Jefferson Academy",
-                "school_city": "LAFAYETTE",
                 "school_state": "CO",
             })
 
@@ -416,7 +381,6 @@ class DailyFeedSliceTests(unittest.TestCase):
             "spoken_name": "Jordan",
             "reflection_style": "complete",
             "school_name": "Jefferson Academy",
-            "school_city": "BROOMFIELD",
             "school_state": "CO",
         })
 
@@ -475,7 +439,7 @@ class DailyFeedSliceTests(unittest.TestCase):
             patch.object(self.main, "_daily_feed_has_recent_reflection", return_value=True),
             patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
             patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
-            patch.object(self.main, "load_weather_context", return_value=(weather_context, {"weather_geocoded_from": "BROOMFIELD"}, weather_diagnostics), create=True),
+            patch.object(self.main, "load_weather_context", return_value=(weather_context, {"weather_geocoded_from": "Jefferson Academy, CO"}, weather_diagnostics), create=True),
             patch.object(self.main, "_summarize", side_effect=summarize_results) as summarize,
             patch.object(self.main, "_log_usage_event"),
         ):
