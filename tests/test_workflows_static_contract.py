@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import textwrap
 import unittest
@@ -324,6 +325,89 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
         self.assertIn("workflows-related-thread-escape", css)
+
+    def test_feedback_prompt_is_immediate_only_and_binary(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        self.assertIn("How was this result?", js)
+        self.assertIn("Useful", js)
+        self.assertIn("Not useful", js)
+
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              extractBetween("function escapeHtml", "function setStatus"),
+              extractBetween("function renderResultFeedback", "function renderResultCard"),
+              extractBetween("function renderSavedResultsBody", "function renderSavedResultsList"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const immediate = context.renderResultFeedback(
+              { capture_id: "cap-1", feedback_choice: null },
+              { isImmediateResult: true },
+            );
+            const reopened = context.renderResultFeedback(
+              { capture_id: "cap-1", feedback_choice: null },
+              { isImmediateResult: false },
+            );
+            const savedList = context.renderSavedResultsBody([
+              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note" },
+            ]);
+
+            if (!immediate.includes("How was this result?") || !immediate.includes("Useful") || !immediate.includes("Not useful")) {
+              throw new Error(`immediate feedback missing: ${immediate}`);
+            }
+            if (reopened.trim() !== "") {
+              throw new Error(`reopened feedback should be hidden: ${reopened}`);
+            }
+            if (savedList.includes("How was this result?")) {
+              throw new Error(`saved results list should not include feedback prompt: ${savedList}`);
+            }
+            """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+    def test_immediate_thread_decision_rerenders_preserve_feedback_state(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        thread_controls_start = js.index("function wireResultThreadControls")
+        feedback_controls_start = js.index("function wireResultFeedbackControls", thread_controls_start)
+        thread_controls = js[thread_controls_start:feedback_controls_start]
+
+        rerender_matches = re.findall(
+            r"renderPayload\(updated,\s*\{\s*activeThreads:\s*\[\],\s*isImmediateResult:\s*true,\s*\}\s*\);",
+            thread_controls,
+        )
+
+        self.assertGreaterEqual(
+            len(rerender_matches),
+            4,
+            "Immediate thread-decision rerenders should preserve isImmediateResult for feedback UI.",
+        )
 
 
 if __name__ == "__main__":

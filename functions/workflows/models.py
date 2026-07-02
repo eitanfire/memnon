@@ -78,6 +78,8 @@ class WorkflowCaptureRecord:
     created_at: str
     updated_at: str
     threading: dict[str, Any] = field(default_factory=dict)
+    feedback_choice: str | None = None
+    feedback_updated_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

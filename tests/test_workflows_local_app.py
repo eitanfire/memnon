@@ -143,6 +143,49 @@ class WorkflowsLocalAppTests(unittest.TestCase):
         )
         self.assertIn("source_excerpt", fetched["result"]["primary_artifact"])
 
+    def test_local_app_feedback_persists_when_saved_result_is_fetched(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "workflow-captures.json"
+            app = create_local_app(storage_path=str(storage_path))
+            client = app.test_client()
+            headers = {"Authorization": "Bearer dev-local-token"}
+
+            create_response = client.post(
+                "/api/workflows/captures",
+                headers=headers,
+                json={
+                    "text": (
+                        "I want to turn this messy product reflection into one useful professional note for the next build step. "
+                        "Action: revise the summary before tomorrow's review."
+                    ),
+                    "context_hint": "product review",
+                },
+            )
+
+            self.assertEqual(create_response.status_code, 201)
+            payload = create_response.get_json()
+            capture_id = payload["capture_id"]
+
+            feedback_response = client.post(
+                f"/api/workflows/captures/{capture_id}/feedback",
+                headers=headers,
+                json={"feedback_choice": "useful"},
+            )
+            self.assertEqual(feedback_response.status_code, 200)
+            self.assertEqual(feedback_response.get_json()["feedback_choice"], "useful")
+
+            reopened_app = create_local_app(storage_path=str(storage_path))
+            reopened_client = reopened_app.test_client()
+            fetch_response = reopened_client.get(
+                f"/api/workflows/captures/{capture_id}",
+                headers=headers,
+            )
+
+            self.assertEqual(fetch_response.status_code, 200)
+            fetched = fetch_response.get_json()
+            self.assertEqual(fetched["feedback_choice"], "useful")
+            self.assertIn("feedback_updated_at", fetched)
+
     def test_local_app_returns_distinct_saved_note_states(self):
         app = create_local_app()
         client = app.test_client()

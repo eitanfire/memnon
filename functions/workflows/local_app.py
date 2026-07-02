@@ -51,6 +51,11 @@ class InMemoryWorkflowRepository:
         items.sort(key=lambda item: item.get("created_at", ""), reverse=True)
         return items[:limit]
 
+    def update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str, feedback_updated_at: str):
+        record = self.records[(uid, capture_id)]
+        record["feedback_choice"] = feedback_choice
+        record["feedback_updated_at"] = feedback_updated_at
+
 
 class FileBackedWorkflowRepository(InMemoryWorkflowRepository):
     def __init__(self, storage_path: str):
@@ -85,6 +90,10 @@ class FileBackedWorkflowRepository(InMemoryWorkflowRepository):
         capture_id = super().save_capture(uid, record)
         self._persist()
         return capture_id
+
+    def update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str, feedback_updated_at: str):
+        super().update_capture_feedback(uid, capture_id, feedback_choice, feedback_updated_at)
+        self._persist()
 
 
 def _verify_local_token(req) -> str | None:
