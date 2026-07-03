@@ -611,6 +611,16 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertIn("daily_feed_can_regenerate", html)
         self.assertIn("Last generated", html)
 
+    def test_dashboard_capture_copy_uses_neutral_saved_result_language(self):
+        html = DASHBOARD_PATH.read_text(encoding="utf-8")
+        self.assertIn("Capture anything", html)
+        self.assertIn("Memnon will turn it into a useful saved result.", html)
+        self.assertIn("Short or rough is fine. Memnon will save it and shape the result.", html)
+        self.assertNotIn("What is on your mind?", html)
+        self.assertNotIn("grounded reflection you can revisit later", html)
+        self.assertNotIn("full reflection entry", html)
+        self.assertNotIn("secondary note", html)
+
 
 if __name__ == "__main__":
     unittest.main()

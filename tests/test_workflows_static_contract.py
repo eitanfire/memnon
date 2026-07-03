@@ -38,6 +38,14 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn('id="workflows-debug-state"', html)
         self.assertIn('type="module" src="/workflows.js"', html)
 
+    def test_saved_results_copy_uses_neutral_result_language(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+
+        self.assertIn("Saved results", js)
+        self.assertIn("Reopen a saved result.", js)
+        self.assertNotIn("Saved workflow results", js)
+        self.assertNotIn("saved workflow artifact", js)
+
     def test_workflows_js_contains_capture_and_result_api_paths(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
         helper = Path("public/workflows_url_helpers.js").read_text(encoding="utf-8")

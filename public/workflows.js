@@ -884,8 +884,8 @@ function renderSavedResultsList(items) {
     statusLabel: "Saved results",
     statusTone: "saved",
     kicker: "History",
-    title: "Saved workflow results",
-    framingLine: "Reopen any saved workflow artifact.",
+    title: "Saved results",
+    framingLine: "Reopen a saved result.",
     bodyHtml: renderSavedResultsBody(items),
     actions: [
       { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
