@@ -61,6 +61,8 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn('"127.0.0.1"', helper)
         self.assertIn('"localhost"', helper)
         self.assertIn("getIdToken", js)
+        self.assertIn("response.blob()", js)
+        self.assertIn("URL.createObjectURL", js)
         self.assertIn("View source text", html)
 
     def test_workflows_js_includes_voice_capture_flow(self):
@@ -454,6 +456,12 @@ class WorkflowsStaticContractTests(unittest.TestCase):
 
             if (!voiceHtml.includes("<audio") || !voiceHtml.includes("/api/workflows/captures/cap-voice/source-audio")) {
               throw new Error(`unexpected voice review html: ${voiceHtml}`);
+            }
+            if (!voiceHtml.includes("data-source-audio-endpoint=")) {
+              throw new Error(`voice review should use data-source-audio-endpoint: ${voiceHtml}`);
+            }
+            if (voiceHtml.includes(" src=")) {
+              throw new Error(`voice review should not embed an unauthenticated audio src: ${voiceHtml}`);
             }
             if (!voiceHtml.includes("Review captured audio")) {
               throw new Error(`missing voice review label: ${voiceHtml}`);

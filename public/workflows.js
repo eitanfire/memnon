@@ -75,6 +75,7 @@ let mediaStream = null;
 let recordingChunks = [];
 let activeRecordingMimeType = "";
 let selectedUploadFile = null;
+const activeVoiceReviewObjectUrls = new Set();
 
 function buildDebugPayload(event, extra = {}) {
   return {
@@ -459,7 +460,35 @@ async function apiFetch(path, init = {}) {
   return payload;
 }
 
+async function apiFetchBlob(path, init = {}) {
+  const token = await getToken();
+  const headers = new Headers(init.headers || {});
+  headers.set("Authorization", `Bearer ${token}`);
+
+  logDebug("api_fetch", {
+    method: init.method || "GET",
+    target: `${API_ORIGIN}${path}`,
+  });
+
+  const response = await fetch(`${API_ORIGIN}${path}`, {
+    ...init,
+    headers,
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || `Request failed: ${response.status}`);
+  }
+  return response.blob();
+}
+
+function releaseVoiceReviewObjectUrls() {
+  activeVoiceReviewObjectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+  activeVoiceReviewObjectUrls.clear();
+}
+
 function resetResultCards() {
+  releaseVoiceReviewObjectUrls();
   for (const cardId of ["loading-card", "primary-artifact-card", "saved-note-card"]) {
     const card = document.getElementById(cardId);
     if (!card) {
@@ -635,13 +664,45 @@ function renderVoiceReview(sourceEvent) {
     return "";
   }
   const apiOriginPrefix = typeof API_ORIGIN === "string" ? API_ORIGIN : "";
-  const audioSrc = `${apiOriginPrefix}${API_CAPTURES_PATH}/${encodeURIComponent(sourceEvent.capture_id)}/source-audio`;
+  const audioEndpoint = `${apiOriginPrefix}${API_CAPTURES_PATH}/${encodeURIComponent(sourceEvent.capture_id)}/source-audio`;
   return `
     <div class="workflows-voice-review">
       <p class="workflows-source-label">Review captured audio</p>
-      <audio controls preload="none" src="${escapeHtml(audioSrc)}"></audio>
+      <audio controls preload="none" data-source-audio-endpoint="${escapeHtml(audioEndpoint)}"></audio>
     </div>
   `;
+}
+
+async function wireVoiceReviewAudio(card) {
+  const sourceAudioElement = card?.querySelector("audio[data-source-audio-endpoint]");
+  if (!sourceAudioElement) {
+    return;
+  }
+  if (
+    sourceAudioElement.dataset.sourceAudioLoaded === "true"
+    || sourceAudioElement.dataset.sourceAudioLoading === "true"
+  ) {
+    return;
+  }
+
+  sourceAudioElement.dataset.sourceAudioLoading = "true";
+  try {
+    const blob = await apiFetchBlob(sourceAudioElement.dataset.sourceAudioEndpoint);
+    const objectUrl = URL.createObjectURL(blob);
+    if (!document.contains(sourceAudioElement)) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    activeVoiceReviewObjectUrls.add(objectUrl);
+    sourceAudioElement.src = objectUrl;
+    sourceAudioElement.dataset.sourceAudioLoaded = "true";
+    sourceAudioElement.load();
+  } catch (error) {
+    console.error("[workflows] voice review audio load failed", error);
+    sourceAudioElement.closest(".workflows-voice-review")?.setAttribute("hidden", "");
+  } finally {
+    delete sourceAudioElement.dataset.sourceAudioLoading;
+  }
 }
 
 function buildSourceExcerptLabel(sourceEvent) {
@@ -964,6 +1025,7 @@ function renderSavedNote(payload, options = {}) {
     activeThreads,
     isImmediateResult: options.isImmediateResult,
   });
+  void wireVoiceReviewAudio(card);
   wireReturnToCapture();
 }
 
@@ -1017,6 +1079,7 @@ function renderPrimaryArtifact(payload, options = {}) {
     activeThreads,
     isImmediateResult: options.isImmediateResult,
   });
+  void wireVoiceReviewAudio(card);
   wireReturnToCapture();
 }
 
