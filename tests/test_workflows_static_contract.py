@@ -19,6 +19,38 @@ class WorkflowsStaticContractTests(unittest.TestCase):
             rewrites,
         )
 
+    def test_hosting_cache_headers_force_revalidation_for_dashboard_and_workflows_assets(self):
+        payload = json.loads(Path("firebase.json").read_text(encoding="utf-8"))
+        header_rules = payload["hosting"].get("headers", [])
+
+        actual = {
+            rule["source"]: {
+                header["key"]: header["value"]
+                for header in rule.get("headers", [])
+            }
+            for rule in header_rules
+        }
+
+        expected = {
+            "dashboard": "no-cache, max-age=0, must-revalidate",
+            "dashboard.html": "no-cache, max-age=0, must-revalidate",
+            "workflows{,/**}": "no-cache, max-age=0, must-revalidate",
+            "workflows.html": "no-cache, max-age=0, must-revalidate",
+            "workflows.js": "no-cache, max-age=0, must-revalidate",
+            "workflows_url_helpers.js": "no-cache, max-age=0, must-revalidate",
+            "workflows.css": "no-cache, max-age=0, must-revalidate",
+            "manifest.json": "no-cache, no-store, must-revalidate",
+            "sw.js": "no-cache, no-store, must-revalidate",
+        }
+
+        for source, cache_control in expected.items():
+            self.assertIn(source, actual, f"missing hosting header rule for {source}")
+            self.assertEqual(
+                actual[source].get("Cache-Control"),
+                cache_control,
+                f"unexpected Cache-Control for {source}",
+            )
+
     def test_workflows_shell_has_required_copy_and_mount_points(self):
         html = Path("public/workflows.html").read_text(encoding="utf-8")
 

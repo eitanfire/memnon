@@ -8,6 +8,13 @@ DASHBOARD_PATH = REPO_ROOT / "public" / "dashboard.html"
 
 
 class DashboardStaticContractTests(unittest.TestCase):
+    def test_service_worker_only_intercepts_share_target_posts(self):
+        sw = (REPO_ROOT / "public" / "sw.js").read_text(encoding="utf-8")
+
+        self.assertIn('url.pathname !== "/share-target" || event.request.method !== "POST"', sw)
+        self.assertIn("event.respondWith(handleShareTarget(event.request));", sw)
+        self.assertNotIn("event.respondWith(fetch(event.request))", sw)
+
     def test_dashboard_capture_posts_to_workflows_capture_endpoint(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")
 
