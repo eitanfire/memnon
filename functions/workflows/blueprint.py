@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import secrets
 
 from flask import Blueprint, jsonify, request
 
@@ -49,6 +50,8 @@ def create_workflows_blueprint(
     *,
     transcribe_audio=None,
     transcription_api_key_provider=None,
+    archive_voice_capture_audio=None,
+    download_voice_capture_audio=None,
 ):
     blueprint = Blueprint("workflows", __name__)
 
@@ -172,12 +175,32 @@ def create_workflows_blueprint(
             if len(text.split()) < 3:
                 return jsonify({"error": "text too short"}), 400
 
+            capture_id = f"cap-{secrets.token_hex(6)}"
+            source_metadata = None
+            if archive_voice_capture_audio is not None:
+                storage_path = archive_voice_capture_audio(
+                    uid=uid,
+                    capture_id=capture_id,
+                    audio_bytes=audio_bytes,
+                    filename=uploaded.filename or "voice-note.webm",
+                    content_type=content_type,
+                )
+                if storage_path:
+                    source_metadata = {
+                        "source_audio_storage_path": storage_path,
+                        "source_audio_content_type": content_type,
+                        "source_audio_filename": uploaded.filename or "voice-note.webm",
+                        "source_audio_size_bytes": len(audio_bytes),
+                    }
+
             record = service.create_text_capture(
                 uid=uid,
+                capture_id=capture_id,
                 source_text=text,
                 context_hint=context_hint,
                 input_type="voice",
                 include_teaching_context=include_teaching_context,
+                source_metadata=source_metadata,
             )
         else:
             payload = request.get_json(silent=True) or {}
@@ -211,6 +234,37 @@ def create_workflows_blueprint(
         if payload is None:
             return jsonify({"error": "not found"}), 404
         return jsonify(payload)
+
+    @blueprint.route("/captures/<capture_id>/source-audio", methods=["GET"])
+    def get_capture_source_audio(capture_id: str):
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        if download_voice_capture_audio is None:
+            return jsonify({"error": "not found"}), 404
+
+        service = service_provider()
+        payload = service.get_capture(uid, capture_id)
+        if payload is None:
+            return jsonify({"error": "not found"}), 404
+
+        source_event = payload.get("source_event") or {}
+        if source_event.get("input_type") != "voice":
+            return jsonify({"error": "not found"}), 404
+
+        storage_path = (source_event.get("source_audio_storage_path") or "").strip()
+        if not storage_path:
+            return jsonify({"error": "not found"}), 404
+
+        return (
+            download_voice_capture_audio(storage_path),
+            200,
+            {
+                "Content-Type": (source_event.get("source_audio_content_type") or "audio/webm"),
+                "Cache-Control": "private, max-age=300",
+            },
+        )
 
     @blueprint.route("/captures/<capture_id>/feedback", methods=["POST"])
     def apply_feedback_choice(capture_id: str):

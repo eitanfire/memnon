@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+import subprocess
 
 
 REPO_ROOT = Path("/Users/eitan/memnon")
@@ -27,6 +28,49 @@ class DashboardStaticContractTests(unittest.TestCase):
         self.assertNotIn("Choose a workflow", html)
         self.assertNotIn("Choose a note type", html)
         self.assertNotIn("reflection or workflow", html)
+
+    def test_share_target_audio_falls_back_to_upload_status_when_share_status_is_hidden(self):
+        html = DASHBOARD_PATH.read_text(encoding="utf-8")
+        start = html.index("async function checkSharedFile()")
+        end = html.index("function getSharedFileFromIDB()", start)
+        snippet = html[start:end]
+
+        script = f"""
+const vm = require("vm");
+const uploadStatus = {{ style: {{}}, textContent: "" }};
+const context = {{
+  window: {{ location: {{ search: "?shared=1" }} }},
+  history: {{ replaceState: () => {{}} }},
+  routes: {{ dashboard: "/dashboard" }},
+  document: {{
+    getElementById(id) {{
+      if (id === "share-status") return null;
+      if (id === "upload-status") return uploadStatus;
+      return null;
+    }},
+  }},
+  getSharedFileFromIDB: async () => null,
+  uploadAudio: async () => {{}},
+}};
+vm.createContext(context);
+vm.runInContext({snippet!r}, context);
+(async () => {{
+  await context.checkSharedFile();
+  if (uploadStatus.textContent !== "⚠️ No shared file found.") {{
+    throw new Error(`unexpected status text: ${{uploadStatus.textContent}}`);
+  }}
+}})().catch((error) => {{
+  console.error(error);
+  process.exit(1);
+}});
+"""
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
 
 
 if __name__ == "__main__":

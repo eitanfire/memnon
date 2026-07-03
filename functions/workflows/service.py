@@ -143,6 +143,16 @@ NEXT_STEP_OVERLAP_STOPWORDS = {
 }
 
 VALID_FEEDBACK_CHOICES = {"useful", "not_useful"}
+SOURCE_METADATA_FIELDS = (
+    "source_filename",
+    "source_file_type",
+    "source_file_extension",
+    "source_file_size_bytes",
+    "source_audio_storage_path",
+    "source_audio_content_type",
+    "source_audio_filename",
+    "source_audio_size_bytes",
+)
 
 
 def _title_case_phrase(value: str) -> str:
@@ -1430,11 +1440,12 @@ class WorkflowService:
         source_text: str,
         context_hint: str,
         *,
+        capture_id: str | None = None,
         input_type: str = "text",
         source_metadata: dict[str, object] | None = None,
         include_teaching_context: bool | None = None,
     ):
-        capture_id = f"cap-{secrets.token_hex(6)}"
+        capture_id = capture_id or f"cap-{secrets.token_hex(6)}"
         now = self.now_provider()
         profile = self.repository.load_user_profile(uid)
         source_event = build_source_event(
@@ -1445,12 +1456,7 @@ class WorkflowService:
             input_type=input_type,
         )
         if source_metadata:
-            for key in (
-                "source_filename",
-                "source_file_type",
-                "source_file_extension",
-                "source_file_size_bytes",
-            ):
+            for key in SOURCE_METADATA_FIELDS:
                 value = source_metadata.get(key)
                 if value not in (None, ""):
                     source_event[key] = value

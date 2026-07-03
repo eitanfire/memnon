@@ -572,6 +572,41 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertTrue(record.result["primary_artifact"]["source_excerpt"])
         self.assertIn("sections", record.result["primary_artifact"])
 
+    def test_service_preserves_voice_audio_review_metadata_when_present(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Voice capture follow-up",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "key_point": "The result needs to preserve a trustworthy review path.",
+                "next_step": "Keep the audio review affordance on the result page.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Talked through the dashboard voice flow. "
+                "Action: keep the audio review affordance on the result page."
+            ),
+            context_hint="voice QA",
+            input_type="voice",
+            source_metadata={
+                "source_audio_storage_path": "workflow-voice-audio/user-1/cap-voice.webm",
+                "source_audio_content_type": "audio/webm",
+                "source_audio_filename": "voice-note.webm",
+                "source_audio_size_bytes": 2048,
+            },
+        )
+
+        self.assertEqual(record.source_event["source_audio_storage_path"], "workflow-voice-audio/user-1/cap-voice.webm")
+        self.assertEqual(record.source_event["source_audio_content_type"], "audio/webm")
+        self.assertEqual(record.source_event["source_audio_filename"], "voice-note.webm")
+        self.assertEqual(record.source_event["source_audio_size_bytes"], 2048)
+
     def test_service_can_record_uploaded_file_metadata(self):
         repo = FakeRepository()
 

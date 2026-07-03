@@ -2448,7 +2448,8 @@
       if (!window.location.search.includes("shared=1")) return;
       history.replaceState({}, "", routes.dashboard);
 
-      const statusEl = document.getElementById("share-status");
+      const statusEl = document.getElementById("share-status") || document.getElementById("upload-status");
+      if (!statusEl) return;
       statusEl.style.display = "block";
       statusEl.textContent = "⏳ Processing your shared audio…";
 

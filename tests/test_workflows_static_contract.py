@@ -394,6 +394,86 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
 
+    def test_result_route_renders_voice_audio_review_only_for_voice_captures(self):
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              "const API_CAPTURES_PATH = '/api/workflows/captures';",
+              extractBetween("function escapeHtml", "function setStatus"),
+              extractBetween("function resolveResultSourceEvent", "function resolveResultMetadataLine"),
+              extractBetween("function resolveResultMetadataLine", "function buildSourceExcerptLabel"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const voiceSourceEvent = context.resolveResultSourceEvent({
+              capture_id: "cap-voice",
+              input_type: "voice",
+              source_event: {
+                input_type: "voice",
+                source_audio_storage_path: "workflow-voice-audio/user-1/cap-voice/voice-note.webm",
+              },
+            });
+            const textSourceEvent = context.resolveResultSourceEvent({
+              capture_id: "cap-text",
+              input_type: "text",
+              source_event: {
+                input_type: "text",
+              },
+            });
+            const fileSourceEvent = context.resolveResultSourceEvent({
+              capture_id: "cap-file",
+              input_type: "file",
+              source_event: {
+                input_type: "file",
+              },
+            });
+
+            const voiceHtml = context.renderVoiceReview(voiceSourceEvent);
+            const textHtml = context.renderVoiceReview(textSourceEvent);
+            const fileHtml = context.renderVoiceReview(fileSourceEvent);
+
+            if (!voiceHtml.includes("<audio") || !voiceHtml.includes("/api/workflows/captures/cap-voice/source-audio")) {
+              throw new Error(`unexpected voice review html: ${voiceHtml}`);
+            }
+            if (!voiceHtml.includes("Review captured audio")) {
+              throw new Error(`missing voice review label: ${voiceHtml}`);
+            }
+            if (textHtml.trim() !== "") {
+              throw new Error(`text capture should not render voice review: ${textHtml}`);
+            }
+            if (fileHtml.trim() !== "") {
+              throw new Error(`file capture should not render voice review: ${fileHtml}`);
+            }
+            """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
     def test_result_route_thread_controls_follow_immediate_result_rules(self):
         css = Path("public/workflows.css").read_text(encoding="utf-8")
         self.assertIn("workflows-thread-chooser", css)

@@ -193,6 +193,15 @@ class WorkflowApiTests(unittest.TestCase):
     def test_create_audio_capture_from_multipart_uses_voice_source_type(self):
         repo = FakeRepository()
         bridge_calls = []
+        archived_audio = {}
+
+        def archive_voice_capture_audio(*, uid, capture_id, audio_bytes, filename, content_type):
+            storage_path = f"workflow-voice-audio/{uid}/{capture_id}/{filename}"
+            archived_audio[storage_path] = {
+                "bytes": audio_bytes,
+                "content_type": content_type,
+            }
+            return storage_path
 
         def fake_ai(source_text, context_hint, profile, api_key):
             return {
@@ -217,6 +226,8 @@ class WorkflowApiTests(unittest.TestCase):
                 "Action: revise the result card before the next demo."
             ),
             transcription_api_key_provider=lambda: "test-key",
+            archive_voice_capture_audio=archive_voice_capture_audio,
+            download_voice_capture_audio=lambda storage_path: archived_audio[storage_path]["bytes"],
         )
         app = Flask(__name__)
         app.register_blueprint(blueprint, url_prefix="/workflows")
@@ -234,11 +245,18 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(create_response.status_code, 201)
         payload = create_response.get_json()
         self.assertEqual(payload["source_event"]["input_type"], "voice")
+        self.assertIn("source_audio_storage_path", payload["source_event"])
+        self.assertEqual(payload["source_event"]["source_audio_content_type"], "audio/webm")
         self.assertEqual(payload["result"]["route_kind"], "direct_professional_note")
         self.assertEqual(payload["result"]["primary_artifact"]["metadata_line"], "Voice note · Jun 27, 2026 · Product review")
         self.assertEqual(len(bridge_calls), 1)
         self.assertEqual(bridge_calls[0]["capture_record"]["source_event"]["input_type"], "voice")
         self.assertEqual(bridge_calls[0]["include_teaching_context"], True)
+
+        audio_response = client.get(f"/workflows/captures/{payload['capture_id']}/source-audio")
+        self.assertEqual(audio_response.status_code, 200)
+        self.assertEqual(audio_response.data, b"fake-audio-bytes-that-are-not-empty")
+        self.assertEqual(audio_response.headers["Content-Type"], "audio/webm")
 
     def test_create_file_capture_from_multipart_preserves_file_source_metadata(self):
         repo = FakeRepository()

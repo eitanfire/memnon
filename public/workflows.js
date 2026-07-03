@@ -615,16 +615,33 @@ function resolveResultSourceEvent(payload) {
   return {
     ...manifestSourceEvent,
     ...payloadSourceEvent,
+    capture_id: payloadSourceEvent.capture_id || payload?.capture_id || manifestSourceEvent.capture_id || "",
     input_type: payloadSourceEvent.input_type || payload?.input_type || manifestSourceEvent.input_type || "",
     created_at: payloadSourceEvent.created_at || payload?.created_at || manifestSourceEvent.created_at || "",
     source_filename: payloadSourceEvent.source_filename || manifestSourceEvent.source_filename || "",
     source_text: payloadSourceEvent.source_text || manifestSourceEvent.source_text || "",
     source_preview: payloadSourceEvent.source_preview || manifestSourceEvent.source_preview || "",
+    source_audio_storage_path: payloadSourceEvent.source_audio_storage_path || manifestSourceEvent.source_audio_storage_path || "",
+    source_audio_content_type: payloadSourceEvent.source_audio_content_type || manifestSourceEvent.source_audio_content_type || "",
   };
 }
 
 function resolveResultMetadataLine(payload, artifact = {}) {
   return buildMetadataLine(resolveResultSourceEvent(payload)) || artifact.metadata_line || "";
+}
+
+function renderVoiceReview(sourceEvent) {
+  if (sourceEvent?.input_type !== "voice" || !sourceEvent?.capture_id || !sourceEvent?.source_audio_storage_path) {
+    return "";
+  }
+  const apiOriginPrefix = typeof API_ORIGIN === "string" ? API_ORIGIN : "";
+  const audioSrc = `${apiOriginPrefix}${API_CAPTURES_PATH}/${encodeURIComponent(sourceEvent.capture_id)}/source-audio`;
+  return `
+    <div class="workflows-voice-review">
+      <p class="workflows-source-label">Review captured audio</p>
+      <audio controls preload="none" src="${escapeHtml(audioSrc)}"></audio>
+    </div>
+  `;
 }
 
 function buildSourceExcerptLabel(sourceEvent) {
@@ -923,6 +940,7 @@ function renderSavedNote(payload, options = {}) {
     bodyHtml: `
       ${renderRelatedThreadSuggestion(payload, activeThreads)}
       ${renderConfirmedThreadDisplay(payload)}
+      ${renderVoiceReview(sourceEvent)}
       ${renderSourceExcerpt(
         savedArtifact.source_excerpt || payload.result.source_preview || sourceEvent.source_preview || "",
         sourceEvent,
@@ -962,6 +980,7 @@ function renderPrimaryArtifact(payload, options = {}) {
   const bodyHtml = `
     ${renderRelatedThreadSuggestion(payload, activeThreads)}
     ${renderConfirmedThreadDisplay(payload)}
+    ${renderVoiceReview(sourceEvent)}
     ${renderSourceExcerpt(artifact.source_excerpt, sourceEvent)}
     ${renderSections(artifact.sections || [])}
     ${renderResultFeedback(payload, options)}

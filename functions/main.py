@@ -870,6 +870,8 @@ flask_app.register_blueprint(
         service_provider=_workflow_service,
         transcribe_audio=transcribe_audio_bytes,
         transcription_api_key_provider=load_openai_api_key,
+        archive_voice_capture_audio=lambda **kwargs: _upload_workflow_voice_audio(**kwargs),
+        download_voice_capture_audio=lambda storage_path: _download_workflow_voice_audio(storage_path),
     ),
     url_prefix="/workflows",
 )
@@ -1819,6 +1821,58 @@ def _upload_daily_feed_audio(uid: str, episode_id: str, audio_bytes: bytes) -> s
 def _download_daily_feed_audio(storage_path: str) -> bytes:
     blob = _get_storage_bucket().blob(storage_path)
     return blob.download_as_bytes()
+
+
+WORKFLOW_VOICE_AUDIO_PREFIX = "workflow-voice-audio"
+
+
+def _workflow_voice_audio_storage_path(uid: str, capture_id: str, filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower() or ".webm"
+    return f"{WORKFLOW_VOICE_AUDIO_PREFIX}/{uid}/{capture_id}{suffix}"
+
+
+def _upload_workflow_voice_audio(
+    uid: str,
+    capture_id: str,
+    audio_bytes: bytes,
+    filename: str,
+    content_type: str,
+) -> str:
+    path = _workflow_voice_audio_storage_path(uid, capture_id, filename)
+    blob = _get_storage_bucket().blob(path)
+    blob.upload_from_string(audio_bytes, content_type=content_type or "audio/webm")
+    return path
+
+
+def _download_workflow_voice_audio(storage_path: str) -> bytes:
+    blob = _get_storage_bucket().blob(storage_path)
+    return blob.download_as_bytes()
+
+
+def _maybe_archive_workflow_voice_audio(
+    uid: str,
+    capture_id: str,
+    audio_bytes: bytes,
+    filename: str,
+    content_type: str,
+) -> dict[str, object] | None:
+    try:
+        storage_path = _upload_workflow_voice_audio(
+            uid,
+            capture_id,
+            audio_bytes,
+            filename,
+            content_type,
+        )
+    except Exception as exc:
+        print(f"[{uid}] Warning: workflow voice audio archive failed: {exc}")
+        return None
+    return {
+        "source_audio_storage_path": storage_path,
+        "source_audio_content_type": content_type,
+        "source_audio_filename": filename,
+        "source_audio_size_bytes": len(audio_bytes),
+    }
 
 
 def _estimate_audio_duration_seconds(text: str) -> int:
@@ -3939,12 +3993,22 @@ def upload_audio():
     if len(transcript.split()) < 3:
         return jsonify({"error": "transcript too short"}), 400
 
+    capture_id = f"cap-{secrets.token_hex(6)}"
+    source_metadata = _maybe_archive_workflow_voice_audio(
+        uid,
+        capture_id,
+        audio_bytes,
+        filename,
+        upload_mime_type,
+    )
     record = _workflow_service().create_text_capture(
         uid=uid,
+        capture_id=capture_id,
         source_text=transcript,
         context_hint="",
         input_type="voice",
         include_teaching_context=include_teaching_context,
+        source_metadata=source_metadata,
     )
 
     _log_usage_event(uid, "captured_reflection_audio", {
