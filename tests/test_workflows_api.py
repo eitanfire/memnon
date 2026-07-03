@@ -86,6 +86,7 @@ class FakeRepository:
 class WorkflowApiTests(unittest.TestCase):
     def test_create_and_fetch_capture(self):
         repo = FakeRepository()
+        bridge_calls = []
 
         def fake_ai(source_text, context_hint, profile, api_key):
             return {
@@ -100,6 +101,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=fake_ai,
             now_provider=lambda: "2026-06-27T16:00:00Z",
             api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
         )
         blueprint = create_workflows_blueprint(
             verify_token=lambda _request: "user-1",
@@ -142,6 +144,9 @@ class WorkflowApiTests(unittest.TestCase):
             ["Key point", "Next step"],
         )
         self.assertEqual(fetched["source_event"]["input_type"], "text")
+        self.assertEqual(len(bridge_calls), 1)
+        self.assertEqual(bridge_calls[0]["capture_record"]["capture_id"], capture_id)
+        self.assertEqual(bridge_calls[0]["include_teaching_context"], True)
 
     def test_api_primary_artifact_keeps_source_excerpt_and_sections(self):
         repo = FakeRepository()
@@ -187,6 +192,7 @@ class WorkflowApiTests(unittest.TestCase):
 
     def test_create_audio_capture_from_multipart_uses_voice_source_type(self):
         repo = FakeRepository()
+        bridge_calls = []
 
         def fake_ai(source_text, context_hint, profile, api_key):
             return {
@@ -201,6 +207,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=fake_ai,
             now_provider=lambda: "2026-06-27T16:00:00Z",
             api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
         )
         blueprint = create_workflows_blueprint(
             verify_token=lambda _request: "user-1",
@@ -229,9 +236,13 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(payload["source_event"]["input_type"], "voice")
         self.assertEqual(payload["result"]["route_kind"], "direct_professional_note")
         self.assertEqual(payload["result"]["primary_artifact"]["metadata_line"], "Voice note · Jun 27, 2026 · Product review")
+        self.assertEqual(len(bridge_calls), 1)
+        self.assertEqual(bridge_calls[0]["capture_record"]["source_event"]["input_type"], "voice")
+        self.assertEqual(bridge_calls[0]["include_teaching_context"], True)
 
     def test_create_file_capture_from_multipart_preserves_file_source_metadata(self):
         repo = FakeRepository()
+        bridge_calls = []
 
         def fake_ai(source_text, context_hint, profile, api_key):
             return {
@@ -246,6 +257,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=fake_ai,
             now_provider=lambda: "2026-06-27T16:00:00Z",
             api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
         )
         blueprint = create_workflows_blueprint(
             verify_token=lambda _request: "user-1",
@@ -285,6 +297,9 @@ class WorkflowApiTests(unittest.TestCase):
             payload["result"]["primary_artifact"]["metadata_line"],
             "Uploaded file · Jun 27, 2026 · Product review",
         )
+        self.assertEqual(len(bridge_calls), 1)
+        self.assertEqual(bridge_calls[0]["capture_record"]["source_event"]["input_type"], "file")
+        self.assertEqual(bridge_calls[0]["include_teaching_context"], True)
 
     def test_file_capture_rejects_unsupported_extension(self):
         repo = FakeRepository()

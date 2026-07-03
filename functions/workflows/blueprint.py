@@ -30,6 +30,19 @@ def _text_file_extension(filename: str | None) -> str:
     return Path(filename or "").suffix.lower()
 
 
+def _coerce_optional_bool(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
 def create_workflows_blueprint(
     verify_token,
     service_provider,
@@ -95,6 +108,9 @@ def create_workflows_blueprint(
         if _is_multipart_request():
             uploaded = request.files.get("file")
             context_hint = (request.form.get("context_hint") or "").strip()
+            include_teaching_context = _coerce_optional_bool(
+                request.form.get("include_teaching_context")
+            )
             if uploaded is None:
                 return jsonify({"error": "audio file is required"}), 400
 
@@ -116,6 +132,7 @@ def create_workflows_blueprint(
                     source_text=text,
                     context_hint=context_hint,
                     input_type="file",
+                    include_teaching_context=include_teaching_context,
                     source_metadata={
                         "source_filename": filename,
                         "source_file_type": (uploaded.mimetype or uploaded.content_type or TEXT_FILE_CONTENT_TYPES[extension]).lower(),
@@ -160,15 +177,24 @@ def create_workflows_blueprint(
                 source_text=text,
                 context_hint=context_hint,
                 input_type="voice",
+                include_teaching_context=include_teaching_context,
             )
         else:
             payload = request.get_json(silent=True) or {}
             text = (payload.get("text") or "").strip()
             context_hint = (payload.get("context_hint") or "").strip()
+            include_teaching_context = _coerce_optional_bool(
+                payload.get("include_teaching_context")
+            )
             if len(text.split()) < 3:
                 return jsonify({"error": "text too short"}), 400
 
-            record = service.create_text_capture(uid=uid, source_text=text, context_hint=context_hint)
+            record = service.create_text_capture(
+                uid=uid,
+                source_text=text,
+                context_hint=context_hint,
+                include_teaching_context=include_teaching_context,
+            )
 
         body = record.to_dict()
         body["next_route"] = f"/workflows/result/{record.capture_id}"

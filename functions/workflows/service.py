@@ -1060,11 +1060,19 @@ def _should_suppress_thread_suggestion(record: dict) -> bool:
 
 
 class WorkflowService:
-    def __init__(self, repository, note_generator, now_provider, api_key_provider):
+    def __init__(
+        self,
+        repository,
+        note_generator,
+        now_provider,
+        api_key_provider,
+        continuity_bridge_writer=None,
+    ):
         self.repository = repository
         self.note_generator = note_generator
         self.now_provider = now_provider
         self.api_key_provider = api_key_provider
+        self.continuity_bridge_writer = continuity_bridge_writer
 
     def _call_note_generator(self, source_text: str, context_hint: str, profile: dict, *, allow_next_step: bool) -> dict:
         api_key = self.api_key_provider()
@@ -1424,6 +1432,7 @@ class WorkflowService:
         *,
         input_type: str = "text",
         source_metadata: dict[str, object] | None = None,
+        include_teaching_context: bool | None = None,
     ):
         capture_id = f"cap-{secrets.token_hex(6)}"
         now = self.now_provider()
@@ -1612,6 +1621,24 @@ class WorkflowService:
                 "suggestion_active": True,
             }
         self.repository.save_capture(uid, record)
+        if self.continuity_bridge_writer is not None:
+            effective_include_teaching_context = include_teaching_context
+            if effective_include_teaching_context is None:
+                persisted_context_value = profile.get("include_teaching_context")
+                effective_include_teaching_context = (
+                    persisted_context_value
+                    if isinstance(persisted_context_value, bool)
+                    else True
+                )
+            try:
+                self.continuity_bridge_writer(
+                    uid=uid,
+                    profile=profile,
+                    capture_record=record.to_dict(),
+                    include_teaching_context=effective_include_teaching_context,
+                )
+            except Exception as exc:
+                print(f"[{uid}] Warning: continuity bridge write failed: {exc}")
         return record
 
     def get_capture(self, uid: str, capture_id: str):

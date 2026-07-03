@@ -1205,6 +1205,9 @@
       window.location.hostname === "localhost" &&
       (window.location.port === "8000" || window.location.port === "8080");
     const API = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "/api";
+    const WORKFLOW_CAPTURES_ENDPOINT = isStaticLocalhost
+      ? "https://api-4hth6oktaa-uc.a.run.app/workflows/captures"
+      : "/api/workflows/captures";
     const routes = {
       home: isStaticLocalhost ? "/index.html" : "/",
       dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
@@ -1993,20 +1996,23 @@
         saveBtn.disabled = true;
         saveBtn.setAttribute("aria-disabled", "true");
         const token = await getToken();
-        const res = await fetch(`${API}/text-reflection`, {
+        const res = await fetch(WORKFLOW_CAPTURES_ENDPOINT, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ text, include_teaching_context: includeTeachingContext }),
+          body: JSON.stringify({
+            text,
+            include_teaching_context: includeTeachingContext,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data.error || "Could not capture text reflection");
+          throw new Error(data.error || "Could not capture this note");
         }
         renderCaptureTextPanel(true, {
-          statusText: `Saved. ${data.note || "Your written reflection is processing."}`,
+          statusText: "Saved. Opening your result…",
           statusClass: "is-success",
           clearInput: true,
         });
@@ -2014,22 +2020,12 @@
           include_teaching_context: includeTeachingContext,
           word_count: text.split(/\s+/).filter(Boolean).length,
         });
-        const refreshedToken = await getToken(true);
-        await loadLatestAudio(refreshedToken, {
-          listPath: "/reflections",
-          streamPath: "/reflection",
-          containerId: "reflection-player-container",
-          emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[currentReflectionStyle] || "Complete").toLowerCase()} reflection will appear here after processing.`,
-          errorMessage: "The latest reflection could not be loaded.",
-          fallbackName: "Latest reflection",
-          cache: reflectionObjectUrls,
-        });
-        await loadRecentNotes(auth.currentUser.uid);
-        setReflectionView("read");
+        const nextRoute = data.next_route || `/workflows/result/${data.capture_id || ""}`;
+        window.location.assign(nextRoute);
       } catch (e) {
         console.error("Could not save written reflection:", e);
         renderCaptureTextPanel(true, {
-          statusText: "That written reflection could not be captured right now.",
+          statusText: "That capture could not be saved right now.",
           statusClass: "is-error",
         });
       } finally {
@@ -2394,7 +2390,7 @@
       }
     }
 
-    // ── Upload audio to /upload endpoint ──
+    // ── Upload audio into the workflows capture pipeline ──
     async function uploadAudio(blob, filename) {
       const statusEl = document.getElementById("upload-status");
       statusEl.style.display = "block";
@@ -2407,7 +2403,7 @@
           const form = new FormData();
           form.append("file", blob, filename);
           form.append("include_teaching_context", includeTeachingContext ? "true" : "false");
-          return fetch(`${API}/upload`, {
+          return fetch(WORKFLOW_CAPTURES_ENDPOINT, {
             method: "POST",
             headers: { "Authorization": `Bearer ${token}` },
             body: form,
@@ -2423,11 +2419,13 @@
           const data = await res.json();
           statusEl.style.background = "#f0fdf4";
           statusEl.style.color = "#15803d";
-          statusEl.textContent = `✅ Note saved: ${data.note}`;
+          statusEl.textContent = "✅ Saved. Opening your result…";
           trackAnalytics("captured_reflection_audio", {
             include_teaching_context: includeTeachingContext,
             source: "dashboard_record",
           });
+          const nextRoute = data.next_route || `/workflows/result/${data.capture_id || ""}`;
+          window.location.assign(nextRoute);
         } else {
           if (res.status === 401) {
             throw new Error("session expired");
@@ -2460,7 +2458,7 @@
         await uploadAudio(file, file.name || "voice-memo.m4a");
         statusEl.style.background = "#f0fdf4";
         statusEl.style.color = "#15803d";
-        statusEl.textContent = "✅ Your Voice Memo is being processed into a note.";
+        statusEl.textContent = "✅ Saved. Opening your result…";
       } catch (e) {
         statusEl.style.background = "#fef2f2";
         statusEl.style.color = "#dc2626";
@@ -2610,18 +2608,6 @@
             recordBtn.classList.add("btn-primary");
             stream.getTracks().forEach(t => t.stop());
             await uploadAudio(blob, filename);
-            const refreshedToken = await getToken(true);
-            await loadLatestAudio(refreshedToken, {
-              listPath: "/reflections",
-              streamPath: "/reflection",
-              containerId: "reflection-player-container",
-              emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[currentReflectionStyle] || "Complete").toLowerCase()} reflection will appear here after processing.`,
-              errorMessage: "The latest reflection could not be loaded.",
-              fallbackName: "Latest reflection",
-              cache: reflectionObjectUrls,
-            });
-            await loadRecentNotes(user.uid);
-            setReflectionView("listen");
           };
           mediaRecorder.start();
           recordBtn.textContent = "⏹ Stop recording";

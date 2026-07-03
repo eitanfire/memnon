@@ -56,6 +56,10 @@ from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_
 from weather_context import clear_weather_cache_fields, load_weather_context
 from workflows.ai import generate_professional_note, load_openai_api_key, transcribe_audio_bytes
 from workflows.blueprint import create_workflows_blueprint
+from workflows.continuity_bridge import (
+    DAILY_FEED_NOTES_COLLECTION,
+    write_firestore_continuity_note,
+)
 from workflows.repository import FirestoreWorkflowRepository
 from workflows.service import WorkflowService
 
@@ -99,7 +103,31 @@ def _workflow_service():
         note_generator=generate_professional_note,
         now_provider=lambda: datetime.now(timezone.utc).isoformat(),
         api_key_provider=load_openai_api_key,
+        continuity_bridge_writer=lambda **payload: write_firestore_continuity_note(
+            db=_get_db(),
+            **payload,
+        ),
     )
+
+
+def _workflow_capture_note_label(record) -> str:
+    result = dict(getattr(record, "result", {}) or {})
+    artifact = dict(
+        result.get("primary_artifact")
+        or result.get("saved_note_artifact")
+        or {}
+    )
+    return (artifact.get("title") or "Saved result").strip() or "Saved result"
+
+
+def _workflow_capture_compat_response(record):
+    return jsonify({
+        "ok": True,
+        "capture_id": record.capture_id,
+        "next_route": f"/workflows/result/{record.capture_id}",
+        "note": _workflow_capture_note_label(record),
+        "reflection_audio": None,
+    })
 
 
 # ── constants ─────────────────────────────────────────────────────────────────
@@ -1800,24 +1828,46 @@ def _estimate_audio_duration_seconds(text: str) -> int:
     return max(10, int(round(words / 2.5)))
 
 
+def _daily_feed_note_identity_keys(note: dict) -> set[str]:
+    keys: set[str] = set()
+    bridge_capture_id = _safe_string(note.get("bridge_capture_id"))
+    if bridge_capture_id:
+        keys.add(f"bridge:{bridge_capture_id}")
+
+    date_text = _safe_string(note.get("date"))
+    title = _safe_string(note.get("title")).lower()
+    anchor = _safe_string(note.get("insight") or note.get("summary")).lower()
+    if date_text and title and anchor:
+        keys.add(f"content:{date_text}|{title}|{anchor}")
+    return keys
+
+
 def _load_recent_feed_notes(uid: str, limit: int = DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT) -> list[dict]:
-    notes_ref = _get_db().collection("users").document(uid).collection("notes")
+    user_ref = _get_db().collection("users").document(uid)
     docs = []
-    seen_ids: set[str] = set()
-    for field_name in ("created_at", "date"):
-        try:
-            field_docs = list(
-                notes_ref.order_by(field_name, direction=firestore.Query.DESCENDING).limit(limit).stream()
-            )
-        except Exception:
-            continue
-        for doc in field_docs:
-            if not doc.exists or doc.id in seen_ids:
+    seen_keys: set[tuple[str, str]] = set()
+    seen_identity_keys: set[str] = set()
+    for collection_name in (DAILY_FEED_NOTES_COLLECTION, "notes"):
+        notes_ref = user_ref.collection(collection_name)
+        for field_name in ("created_at", "date"):
+            try:
+                field_docs = list(
+                    notes_ref.order_by(field_name, direction=firestore.Query.DESCENDING).limit(limit).stream()
+                )
+            except Exception:
                 continue
-            seen_ids.add(doc.id)
-            payload = doc.to_dict() or {}
-            payload["_id"] = doc.id
-            docs.append(payload)
+            for doc in field_docs:
+                doc_key = (collection_name, doc.id)
+                if not doc.exists or doc_key in seen_keys:
+                    continue
+                seen_keys.add(doc_key)
+                payload = doc.to_dict() or {}
+                payload["_id"] = doc.id
+                identity_keys = _daily_feed_note_identity_keys(payload)
+                if identity_keys and seen_identity_keys.intersection(identity_keys):
+                    continue
+                seen_identity_keys.update(identity_keys)
+                docs.append(payload)
     docs.sort(key=lambda item: _sort_key_with_fallback(item, "created_at", "date"), reverse=True)
     return docs[:limit]
 
@@ -3246,8 +3296,8 @@ def _sweep_user(uid: str, user_data: dict):
     Ensure the user's Drive folders exist.
 
     With drive.file scope, we can only access files this app created.
-    Audio processing now happens exclusively via the /upload endpoint
-    (browser recording or PWA share target), not by polling Drive.
+    Live capture processing now happens through the active app endpoints,
+    not by polling Drive.
     """
     creds = _drive_creds(uid)
     if not creds:
@@ -3851,12 +3901,11 @@ def get_reflection(file_id: str):
 
 @flask_app.route("/upload", methods=["POST"])
 def upload_audio():
-    """Accept a direct audio upload, run it through the pipeline, save note to Drive."""
+    """Compatibility adapter into the workflows capture pipeline for audio uploads."""
     uid = _verify_firebase_token(request)
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
 
-    # Accept either multipart file or raw bytes
     if "file" in request.files:
         f = request.files["file"]
         audio_bytes = f.read()
@@ -3868,30 +3917,17 @@ def upload_audio():
                    f"upload-{datetime.now().strftime('%Y%m%d-%H%M%S')}.webm")
         upload_mime_type = request.headers.get("Content-Type", "audio/webm")
 
-    if len(audio_bytes) < 4096:
-        return jsonify({"error": "audio too short"}), 400
+    if not audio_bytes:
+        return jsonify({"error": "audio file is empty"}), 400
 
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_key = load_openai_api_key()
     if not api_key:
         return jsonify({"error": "server misconfigured"}), 500
 
-    # Get user data + Drive credentials
-    doc = _get_db().collection("users").document(uid).get()
-    if not doc.exists:
-        return jsonify({"error": "user not found"}), 404
-    user_data = doc.to_dict()
-    user_data = dict(user_data)
     include_teaching_context = _coerce_bool(request.form.get("include_teaching_context"), True)
 
-    creds = _drive_creds(uid)
-    if not creds:
-        return jsonify({"error": "Drive not connected"}), 403
-
-    service = build("drive", "v3", credentials=creds, cache_discovery=False)
-
-    # Run pipeline
     try:
-        transcript = _transcribe(audio_bytes, filename, api_key)
+        transcript = transcribe_audio_bytes(audio_bytes, filename, api_key).strip()
     except urllib.error.HTTPError as exc:
         if exc.code == 401:
             return jsonify({"error": "transcription service authentication failed"}), 502
@@ -3903,25 +3939,21 @@ def upload_audio():
     if len(transcript.split()) < 3:
         return jsonify({"error": "transcript too short"}), 400
 
-    result = _process_reflection_entry(
-        service,
-        uid,
-        user_data,
-        transcript,
-        api_key,
-        filename,
+    record = _workflow_service().create_text_capture(
+        uid=uid,
+        source_text=transcript,
+        context_hint="",
+        input_type="voice",
         include_teaching_context=include_teaching_context,
-        source_audio_bytes=audio_bytes,
-        source_mime_type=upload_mime_type,
     )
 
     _log_usage_event(uid, "captured_reflection_audio", {
         "include_teaching_context": include_teaching_context,
-        "reflection_style": user_data.get("reflection_style") or "complete",
+        "input_type": "voice",
         "source": "record",
+        "upload_mime_type": upload_mime_type,
     })
-    print(f"[{uid}] Direct upload note saved: {result['note_name']}")
-    return jsonify({"ok": True, "note": result["note_name"], "reflection_audio": result["reflection_audio"]})
+    return _workflow_capture_compat_response(record)
 
 
 @flask_app.route("/reflection-response", methods=["POST"])
@@ -4000,7 +4032,7 @@ def save_reflection_response():
 
 @flask_app.route("/text-reflection", methods=["POST"])
 def create_text_reflection():
-    """Accept a written reflection entry and run it through the same reflection pipeline."""
+    """Compatibility adapter into the workflows capture pipeline for text capture."""
     uid = _verify_firebase_token(request)
     if not uid:
         return jsonify({"error": "unauthorized"}), 401
@@ -4012,38 +4044,20 @@ def create_text_reflection():
     if len(transcript.split()) < 3:
         return jsonify({"error": "text too short"}), 400
 
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        return jsonify({"error": "server misconfigured"}), 500
-
-    doc = _get_db().collection("users").document(uid).get()
-    if not doc.exists:
-        return jsonify({"error": "user not found"}), 404
-    user_data = dict(doc.to_dict() or {})
-
-    creds = _drive_creds(uid)
-    if not creds:
-        return jsonify({"error": "Drive not connected"}), 403
-
-    service = build("drive", "v3", credentials=creds, cache_discovery=False)
-    filename = f"text-entry-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
-    result = _process_reflection_entry(
-        service,
-        uid,
-        user_data,
-        transcript,
-        api_key,
-        filename,
+    record = _workflow_service().create_text_capture(
+        uid=uid,
+        source_text=transcript,
+        context_hint="",
+        input_type="text",
         include_teaching_context=include_teaching_context,
     )
 
     _log_usage_event(uid, "captured_reflection_text", {
         "include_teaching_context": include_teaching_context,
-        "reflection_style": user_data.get("reflection_style") or "complete",
+        "input_type": "text",
         "word_count": len(transcript.split()),
     })
-    print(f"[{uid}] Text entry note saved: {result['note_name']}")
-    return jsonify({"ok": True, "note": result["note_name"], "reflection_audio": result["reflection_audio"]})
+    return _workflow_capture_compat_response(record)
 
 
 @flask_app.route("/usage-event", methods=["POST"])

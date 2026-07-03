@@ -20,6 +20,7 @@ class FirestoreWorkflowRepository:
             "lane": payload.get("lane", "professional"),
             "profession": payload.get("profession", "professional"),
             "reflection_style": payload.get("reflection_style", "practical"),
+            "include_teaching_context": payload.get("include_teaching_context"),
             "reflect_config": payload.get("reflect_config", {}),
         }
 

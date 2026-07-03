@@ -95,6 +95,82 @@ class FakeRepository:
 
 
 class WorkflowServiceTests(unittest.TestCase):
+    def test_service_triggers_continuity_bridge_for_text_capture_with_default_context_flag(self):
+        repo = FakeRepository()
+        bridge_calls = []
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Product direction conversation with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "next_step": "Revise the result card.",
+            },
+            now_provider=lambda: "2026-07-02T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the product direction. Action: revise the result card.",
+            context_hint="product review",
+        )
+
+        self.assertEqual(len(bridge_calls), 1)
+        bridge_call = bridge_calls[0]
+        self.assertEqual(bridge_call["uid"], "user-1")
+        self.assertEqual(bridge_call["include_teaching_context"], True)
+        self.assertEqual(bridge_call["capture_record"]["capture_id"], record.capture_id)
+        self.assertEqual(bridge_call["capture_record"]["source_event"]["input_type"], "text")
+        self.assertEqual(bridge_call["profile"]["reflection_style"], "practical")
+
+    def test_service_triggers_continuity_bridge_for_voice_and_file_captures(self):
+        repo = FakeRepository()
+        bridge_calls = []
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Workshop plan draft",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "next_step": "Tighten the opening before sharing it.",
+            },
+            now_provider=lambda: "2026-07-02T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
+        )
+
+        service.create_text_capture(
+            uid="user-1",
+            source_text="Talked through the workshop plan. Action: tighten the opening before sharing it.",
+            context_hint="product review",
+            input_type="voice",
+        )
+        service.create_text_capture(
+            uid="user-1",
+            source_text="# Workshop plan\n\nDraft the opening more tightly, then send the revision by Friday.",
+            context_hint="product review",
+            input_type="file",
+            source_metadata={
+                "source_filename": "workshop-plan.md",
+                "source_file_type": "text/markdown",
+                "source_file_extension": ".md",
+                "source_file_size_bytes": 88,
+            },
+            include_teaching_context=False,
+        )
+
+        self.assertEqual(
+            [call["capture_record"]["source_event"]["input_type"] for call in bridge_calls],
+            ["voice", "file"],
+        )
+        self.assertEqual(bridge_calls[1]["include_teaching_context"], False)
+        self.assertEqual(
+            bridge_calls[1]["capture_record"]["source_event"]["source_filename"],
+            "workshop-plan.md",
+        )
+
     def test_service_can_create_active_context(self):
         repo = FakeRepository()
         service = WorkflowService(

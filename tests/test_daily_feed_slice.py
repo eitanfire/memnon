@@ -45,6 +45,7 @@ class FakeUserRef:
         self.doc_id = doc_id
         self.set_calls = []
         self.usage = FakeUsageCollection()
+        self.subcollections = {}
 
     def get(self):
         return FakeDoc(self.data, True, self.doc_id)
@@ -54,9 +55,11 @@ class FakeUserRef:
         self.data.update(payload)
 
     def collection(self, name):
-        if name != "usage_events":
-            raise AssertionError(f"unexpected subcollection: {name}")
-        return self.usage
+        if name == "usage_events":
+            return self.usage
+        if name in self.subcollections:
+            return self.subcollections[name]
+        raise AssertionError(f"unexpected subcollection: {name}")
 
 
 class FakeUsersCollection:
@@ -75,6 +78,60 @@ class FakeDB:
         if name != "users":
             raise AssertionError(f"unexpected collection: {name}")
         return FakeUsersCollection(self.ref)
+
+
+class FakeWorkflowRecord:
+    def __init__(self, capture_id="cap-test", input_type="text", title="Saved result"):
+        self.capture_id = capture_id
+        self.input_type = input_type
+        self.result = {
+            "primary_artifact": {
+                "title": title,
+                "status": "Saved and shaped",
+            },
+            "saved_note_artifact": None,
+        }
+
+    def to_dict(self):
+        return {
+            "capture_id": self.capture_id,
+            "input_type": self.input_type,
+            "result": self.result,
+            "source_event": {
+                "input_type": self.input_type,
+            },
+        }
+
+
+class FakeWorkflowService:
+    def __init__(self, record=None):
+        self.record = record or FakeWorkflowRecord()
+        self.calls = []
+
+    def create_text_capture(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.record
+
+
+class FakeOrderedCollection:
+    def __init__(self, docs):
+        self.docs = docs
+
+    def order_by(self, _field_name, direction=None):
+        return self
+
+    def limit(self, _count):
+        return self
+
+    def stream(self):
+        return list(self.docs)
+
+
+class FakeDailyFeedUserRef(FakeUserRef):
+    def collection(self, name):
+        if name in self.subcollections:
+            return self.subcollections[name]
+        return super().collection(name)
 
 
 class DailyFeedSliceTests(unittest.TestCase):
@@ -604,6 +661,116 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertEqual(result["generation_meta"]["weather"]["available"], False)
         self.assertEqual(result["generation_meta"]["weather"]["applied"], False)
         self.assertEqual(result["generation_meta"]["weather"]["unavailable_reason"], "forecast_failed")
+
+    def test_sparse_bridged_note_still_produces_continuity_anchor_and_brief(self):
+        bridged_note = {
+            "title": "Workshop plan draft",
+            "summary": "Saved and shaped from a recent capture.",
+            "insight": "Tighten the opener before sharing it.",
+            "date": "2026-07-02",
+            "created_at": "2026-07-02T16:00:00Z",
+            "themes": ["planning"],
+            "reflection_style": "complete",
+            "include_teaching_context": True,
+        }
+
+        brief = self.main._build_feed_note_brief(bridged_note)
+        anchor = self.main._daily_feed_continuity_anchor([bridged_note])
+
+        self.assertIn("Workshop plan draft", brief)
+        self.assertIn("Tighten the opener before sharing it.", brief)
+        self.assertEqual(anchor, "Tighten the opener before sharing it.")
+        self.assertNotIn("None", brief)
+
+    def test_load_recent_feed_notes_dedupes_bridged_and_legacy_versions_of_same_capture(self):
+        user_ref = FakeDailyFeedUserRef()
+        bridged_doc = FakeDoc(
+            {
+                "title": "Workshop plan draft",
+                "summary": "Saved and shaped from a recent capture.",
+                "insight": "Tighten the opener before sharing it.",
+                "date": "2026-07-02",
+                "created_at": "2026-07-02T16:00:00Z",
+                "bridge_capture_id": "cap-123",
+                "bridge_origin": "workflow_capture",
+            },
+            doc_id="cap-123",
+        )
+        legacy_doc = FakeDoc(
+            {
+                "title": "Workshop plan draft",
+                "summary": "Saved and shaped from a recent capture.",
+                "insight": "Tighten the opener before sharing it.",
+                "date": "2026-07-02",
+                "created_at": "2026-07-02T16:00:00Z",
+            },
+            doc_id="legacy-1",
+        )
+        user_ref.subcollections["daily_feed_notes"] = FakeOrderedCollection([bridged_doc])
+        user_ref.subcollections["notes"] = FakeOrderedCollection([legacy_doc])
+
+        with patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)):
+            notes = self.main._load_recent_feed_notes("user123", limit=4)
+
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0]["_id"], "cap-123")
+
+    def test_text_reflection_route_adapts_to_workflow_capture_pipeline(self):
+        client = self.main.flask_app.test_client()
+        fake_service = FakeWorkflowService(
+            FakeWorkflowRecord(capture_id="cap-text", input_type="text", title="Saved dashboard note")
+        )
+
+        with (
+            patch.object(self.main, "_verify_firebase_token", return_value="user123"),
+            patch.object(self.main, "_workflow_service", return_value=fake_service),
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            response = client.post(
+                "/text-reflection",
+                json={"text": "Capture this messy text and save it as a result.", "include_teaching_context": False},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["capture_id"], "cap-text")
+        self.assertEqual(payload["next_route"], "/workflows/result/cap-text")
+        self.assertEqual(payload["note"], "Saved dashboard note")
+        self.assertEqual(fake_service.calls[0]["input_type"], "text")
+        self.assertEqual(fake_service.calls[0]["include_teaching_context"], False)
+
+    def test_upload_route_adapts_to_workflow_capture_pipeline(self):
+        client = self.main.flask_app.test_client()
+        fake_service = FakeWorkflowService(
+            FakeWorkflowRecord(capture_id="cap-voice", input_type="voice", title="Saved voice result")
+        )
+
+        with (
+            patch.object(self.main, "_verify_firebase_token", return_value="user123"),
+            patch.object(self.main, "_workflow_service", return_value=fake_service),
+            patch.object(
+                self.main,
+                "transcribe_audio_bytes",
+                return_value="Talked through the workshop plan. Action: tighten the opening before sharing it.",
+            ),
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            response = client.post(
+                "/upload",
+                data={
+                    "include_teaching_context": "false",
+                    "file": (self.main.io.BytesIO(b"fake-audio-bytes-over-minimum"), "voice-note.webm", "audio/webm"),
+                },
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["capture_id"], "cap-voice")
+        self.assertEqual(payload["next_route"], "/workflows/result/cap-voice")
+        self.assertEqual(payload["note"], "Saved voice result")
+        self.assertEqual(fake_service.calls[0]["input_type"], "voice")
+        self.assertEqual(fake_service.calls[0]["include_teaching_context"], False)
 
     def test_dashboard_includes_admin_regenerate_controls(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")
