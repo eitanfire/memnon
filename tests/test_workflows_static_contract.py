@@ -277,6 +277,115 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
 
+    def test_reopened_result_metadata_prefers_payload_source_context(self):
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              'const SOURCE_EXCERPT_LABEL = "From your note";',
+              extractBetween("function formatLocalCaptureDate", "function describeSourceType"),
+              extractBetween("function describeSourceType", "function buildMetadataLine"),
+              extractBetween("function buildMetadataLine", "function buildSourceExcerptLabel"),
+              extractBetween("function buildSourceExcerptLabel", "function renderSourceExcerpt"),
+              extractBetween("function renderResultFeedback", "function renderResultCard"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const reopenedFilePayload = {
+              input_type: "file",
+              created_at: "2026-06-27T16:00:00Z",
+              source_event: {
+                created_at: "2026-06-27T16:00:00Z",
+                source_text: "Draft the file-backed note.",
+              },
+              event_manifest: {
+                source_event: {
+                  input_type: "file",
+                  source_filename: "plan.md",
+                },
+              },
+            };
+            const reopenedTextPayload = {
+              input_type: "text",
+              created_at: "2026-06-27T16:00:00Z",
+              source_event: {
+                created_at: "2026-06-27T16:00:00Z",
+                source_text: "Draft the pasted note.",
+              },
+            };
+            const reopenedVoicePayload = {
+              input_type: "voice",
+              created_at: "2026-06-27T16:00:00Z",
+              source_event: {
+                created_at: "2026-06-27T16:00:00Z",
+                source_text: "Draft the voice note.",
+              },
+            };
+
+            const fileMetadata = context.resolveResultMetadataLine(
+              reopenedFilePayload,
+              { metadata_line: "Saved note · Jun 27, 2026" },
+            );
+            const fileLabel = context.buildSourceExcerptLabel(
+              context.resolveResultSourceEvent(reopenedFilePayload),
+            );
+            const textMetadata = context.resolveResultMetadataLine(
+              reopenedTextPayload,
+              { metadata_line: "Pasted note · Jun 27, 2026" },
+            );
+            const voiceMetadata = context.resolveResultMetadataLine(
+              reopenedVoicePayload,
+              { metadata_line: "Voice note · Jun 27, 2026" },
+            );
+            const reopenedFeedback = context.renderResultFeedback(
+              { capture_id: "cap-1", feedback_choice: null },
+              { isImmediateResult: false },
+            );
+
+            if (fileMetadata !== "Uploaded file · plan.md · Jun 27, 2026") {
+              throw new Error(`unexpected reopened file metadata: ${fileMetadata}`);
+            }
+            if (fileLabel !== "From plan.md") {
+              throw new Error(`unexpected reopened file label: ${fileLabel}`);
+            }
+            if (textMetadata !== "Pasted note · Jun 27, 2026") {
+              throw new Error(`unexpected reopened text metadata: ${textMetadata}`);
+            }
+            if (voiceMetadata !== "Voice note · Jun 27, 2026") {
+              throw new Error(`unexpected reopened voice metadata: ${voiceMetadata}`);
+            }
+            if (reopenedFeedback.trim() !== "") {
+              throw new Error(`reopened feedback should stay hidden: ${reopenedFeedback}`);
+            }
+            """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
     def test_result_route_thread_controls_follow_immediate_result_rules(self):
         css = Path("public/workflows.css").read_text(encoding="utf-8")
         self.assertIn("workflows-thread-chooser", css)

@@ -609,6 +609,24 @@ function buildMetadataLine(sourceEvent) {
   return parts.join(" · ");
 }
 
+function resolveResultSourceEvent(payload) {
+  const payloadSourceEvent = payload?.source_event || {};
+  const manifestSourceEvent = payload?.event_manifest?.source_event || {};
+  return {
+    ...manifestSourceEvent,
+    ...payloadSourceEvent,
+    input_type: payloadSourceEvent.input_type || payload?.input_type || manifestSourceEvent.input_type || "",
+    created_at: payloadSourceEvent.created_at || payload?.created_at || manifestSourceEvent.created_at || "",
+    source_filename: payloadSourceEvent.source_filename || manifestSourceEvent.source_filename || "",
+    source_text: payloadSourceEvent.source_text || manifestSourceEvent.source_text || "",
+    source_preview: payloadSourceEvent.source_preview || manifestSourceEvent.source_preview || "",
+  };
+}
+
+function resolveResultMetadataLine(payload, artifact = {}) {
+  return buildMetadataLine(resolveResultSourceEvent(payload)) || artifact.metadata_line || "";
+}
+
 function buildSourceExcerptLabel(sourceEvent) {
   if (sourceEvent?.input_type === "file" && sourceEvent?.source_filename) {
     return `From ${compactSourceFilename(sourceEvent.source_filename)}`;
@@ -885,6 +903,7 @@ function renderSavedNote(payload, options = {}) {
   const sourcePanel = document.getElementById("source-text-panel");
   const sourceText = document.getElementById("source-text-content");
   const savedArtifact = payload.result.saved_note_artifact || {};
+  const sourceEvent = resolveResultSourceEvent(payload);
   const defaultFramingLine =
     savedArtifact.state === "weak_signal"
       ? "This is a small note worth preserving."
@@ -898,15 +917,15 @@ function renderSavedNote(payload, options = {}) {
     statusTone: "saved",
     kicker: savedKicker,
     title: savedArtifact.title || "Saved note",
-    metadataLine: buildMetadataLine(payload.source_event) || savedArtifact.metadata_line,
+    metadataLine: resolveResultMetadataLine(payload, savedArtifact),
     interpretationLine: payload.result.interpretation_line,
     framingLine: savedArtifact.framing_line || defaultFramingLine,
     bodyHtml: `
       ${renderRelatedThreadSuggestion(payload, activeThreads)}
       ${renderConfirmedThreadDisplay(payload)}
       ${renderSourceExcerpt(
-        savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "",
-        payload.source_event,
+        savedArtifact.source_excerpt || payload.result.source_preview || sourceEvent.source_preview || "",
+        sourceEvent,
       )}
       ${renderSections(savedArtifact.sections || [])}
       ${renderResultFeedback(payload, options)}
@@ -918,7 +937,7 @@ function renderSavedNote(payload, options = {}) {
   });
 
   sourcePanel.hidden = false;
-  sourceText.textContent = payload.source_event.source_text;
+  sourceText.textContent = sourceEvent.source_text;
   wireResultThreadControls(card, payload, {
     activeThreads,
     isImmediateResult: options.isImmediateResult,
@@ -939,10 +958,11 @@ function renderPrimaryArtifact(payload, options = {}) {
   const sourceText = document.getElementById("source-text-content");
   const artifact = payload.result.primary_artifact;
   const activeThreads = options.activeThreads || [];
+  const sourceEvent = resolveResultSourceEvent(payload);
   const bodyHtml = `
     ${renderRelatedThreadSuggestion(payload, activeThreads)}
     ${renderConfirmedThreadDisplay(payload)}
-    ${renderSourceExcerpt(artifact.source_excerpt, payload.source_event)}
+    ${renderSourceExcerpt(artifact.source_excerpt, sourceEvent)}
     ${renderSections(artifact.sections || [])}
     ${renderResultFeedback(payload, options)}
   `;
@@ -952,7 +972,7 @@ function renderPrimaryArtifact(payload, options = {}) {
     statusTone: "ready",
     kicker: "Saved result",
     title: artifact.title,
-    metadataLine: buildMetadataLine(payload.source_event) || artifact.metadata_line,
+    metadataLine: resolveResultMetadataLine(payload, artifact),
     interpretationLine: payload.result.interpretation_line,
     framingLine: artifact.framing_line,
     bodyHtml,
@@ -964,7 +984,7 @@ function renderPrimaryArtifact(payload, options = {}) {
   });
 
   sourcePanel.hidden = false;
-  sourceText.textContent = payload.source_event.source_text;
+  sourceText.textContent = sourceEvent.source_text;
 
   document.getElementById("copy-artifact-body")?.addEventListener("click", async () => {
     await navigator.clipboard.writeText(artifact.copy_text || artifact.body || "");
