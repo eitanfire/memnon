@@ -54,6 +54,9 @@ class WorkflowsStaticContractTests(unittest.TestCase):
     def test_workflows_shell_has_required_copy_and_mount_points(self):
         html = Path("public/workflows.html").read_text(encoding="utf-8")
 
+        self.assertIn("<title>Memnon Capture</title>", html)
+        self.assertNotIn("<title>Memnon Workflows</title>", html)
+        self.assertIn(">Capture<", html)
         self.assertIn("Capture a thought", html)
         self.assertIn("Speak, drop a file, or paste something messy.", html)
         self.assertIn("Turn it into something useful.", html)

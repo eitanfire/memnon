@@ -94,7 +94,8 @@ class PublicStaticServerTests(unittest.TestCase):
     def test_dashboard_route_rewrites_to_dashboard_html(self):
         status, _headers, body = self.request("GET", "/dashboard")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture anything", body)
+        self.assertIn(b"Memnon Today", body)
+        self.assertIn(b"Open capture", body)
 
     def test_workflows_route_rewrites_to_workflows_html(self):
         status, _headers, body = self.request("GET", "/workflows/result/example")

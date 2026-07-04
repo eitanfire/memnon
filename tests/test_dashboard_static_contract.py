@@ -15,23 +15,36 @@ class DashboardStaticContractTests(unittest.TestCase):
         self.assertIn("event.respondWith(handleShareTarget(event.request));", sw)
         self.assertNotIn("event.respondWith(fetch(event.request))", sw)
 
-    def test_dashboard_capture_posts_to_workflows_capture_endpoint(self):
+    def test_dashboard_is_framed_as_today(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("/api/workflows/captures", html)
-        self.assertNotIn("/text-reflection", html)
-        self.assertNotIn("/upload", html)
+        self.assertIn("<title>Memnon Today</title>", html)
+        self.assertIn(">Today<", html)
+        self.assertIn("Daily Brief", html)
 
-    def test_dashboard_success_flow_redirects_to_saved_result_route(self):
+    def test_dashboard_links_to_core_capture_without_owning_capture_form(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("/workflows/result/", html)
-        self.assertIn("window.location.assign", html)
+        self.assertIn('href="/workflows"', html)
+        self.assertIn("Open capture", html)
+        self.assertNotIn('id="record-btn"', html)
+        self.assertNotIn('id="write-btn"', html)
+        self.assertNotIn('id="capture-text-panel"', html)
+        self.assertNotIn('id="capture-text-save"', html)
 
-    def test_dashboard_keeps_legacy_teaching_context_ui_without_new_lane_copy(self):
+    def test_dashboard_replaces_reflection_context_panel_with_context_settings_link(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("Use teaching context", html)
+        self.assertIn("Context settings", html)
+        self.assertNotIn("Reflection Context", html)
+        self.assertNotIn("next reflection", html)
+        self.assertNotIn("Use teaching context", html)
+        self.assertNotIn("Teaching context: On", html)
+        self.assertNotIn("Teaching context:", html)
+        self.assertNotIn("Voices:", html)
+        self.assertNotIn("Frameworks:", html)
+        self.assertNotIn("Mode: Complete reflection", html)
+        self.assertNotIn("Tune Reflection", html)
         self.assertNotIn("Choose a workflow", html)
         self.assertNotIn("Choose a note type", html)
         self.assertNotIn("reflection or workflow", html)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memnon</title>
+  <title>Memnon Today</title>
   <link rel="stylesheet" href="/style.css" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="manifest" href="/manifest.json" />
@@ -934,31 +934,19 @@
 
     <div class="card dashboard-primary-card dashboard-capture-card">
       <div class="dashboard-capture-intro">
-        <h1 class="dashboard-capture-title">Capture anything — a thought, a task, a note.</h1>
+        <h1 class="dashboard-capture-title">Today</h1>
         <p class="dashboard-capture-description">
-          Say or write something messy. Memnon will turn it into a useful saved result.
+          Daily Brief and continuity from recent captures live here. When you need something new, open Capture.
         </p>
       </div>
       <div class="capture-prompt-shell">
         <div class="capture-prompt-actions">
-          <button id="record-btn" class="btn btn-primary capture-mode-btn">
-            <span class="record-mark" aria-hidden="true">🎙</span>
-            Record
-          </button>
-          <button id="write-btn" class="btn btn-outline capture-mode-btn">
-            <span aria-hidden="true">⌨️</span>
-            Write
-          </button>
-        </div>
-        <div id="capture-text-panel" class="capture-text-panel" hidden>
-          <div class="capture-text-copy">Write freely. Short or rough is fine. Memnon will save it and shape the result.</div>
-          <textarea id="capture-text-input" placeholder="Write what happened, what is weighing on you, or what you want to understand more clearly."></textarea>
-          <div class="capture-text-actions">
-            <button id="capture-text-save" class="btn btn-primary" style="padding:8px 14px; font-size:0.8rem;">
-              Capture in writing
-            </button>
-            <div id="capture-text-status" class="capture-text-status" aria-live="polite"></div>
-          </div>
+          <a id="today-open-capture" class="btn btn-primary capture-mode-btn" href="/workflows">
+            Open capture
+          </a>
+          <a id="today-context-settings" class="btn btn-outline capture-mode-btn" href="/setup">
+            Context settings →
+          </a>
         </div>
       </div>
       <div class="dashboard-capture-secondary">
@@ -982,8 +970,8 @@
                 <div id="reflection-read-content" class="recording-player-empty">Loading the latest reflection text…</div>
               </div>
               <div id="reflection-continuation" class="reflection-continuation" hidden>
-                <div class="reflection-continuation-prompt">Carry this forward in your next reflection.</div>
-                <div class="reflection-continuation-copy">You can agree, push back, or continue the thread in your next voice note or written entry.</div>
+                <div class="reflection-continuation-prompt">Carry this forward in your next capture.</div>
+                <div class="reflection-continuation-copy">You can agree, push back, or continue the thread in your next voice note or written note.</div>
                 <button id="reflection-continue-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
                   Continue the thread
                 </button>
@@ -1058,38 +1046,6 @@
             </button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Lane -->
-    <div class="card editorial-card dashboard-secondary-card">
-      <div class="editorial-main">
-        <div class="editorial-header">
-          <div>
-          <h2 id="lane-title">Reflection Context</h2>
-          <p id="lane-desc" style="color:#555;">These settings shape how Memnon will ground your next reflection.</p>
-          <div class="capture-context-toggle" style="margin-top:14px;">
-            <label for="capture-teaching-context">
-              <input id="capture-teaching-context" type="checkbox" checked />
-              <span>
-                <div class="capture-context-toggle-title">Use teaching context</div>
-                <div class="capture-context-toggle-copy">When on, Memnon includes your classroom, school, and standards context in the next reflection.</div>
-              </span>
-            </label>
-          </div>
-          <div id="lane-pills" class="context-pill-row"></div>
-        </div>
-        <a href="/setup" class="btn context-cta" style="white-space:nowrap;">
-          <span aria-hidden="true">⚙</span>
-          Tune Reflection
-        </a>
-        </div>
-        <p class="editorial-copy" id="lane-copy">
-          Memnon can ground the next reflection in your classroom context, selected frameworks, guiding voices, and memory across entries.
-        </p>
-      </div>
-      <div class="editorial-media" aria-hidden="true">
-        <img src="/sacred_objects.png" alt="" />
       </div>
     </div>
 
@@ -1274,8 +1230,6 @@
       const firstName = data.preferred_name || "there";
       document.getElementById("first-name").textContent = firstName;
       document.getElementById("nav-name").textContent = "Preview mode";
-      renderTeachingContextToggle(true, true);
-      renderReflectionContextCard(data, { previewMode: true });
       applyDashboardPortraitStyle(
         document.getElementById("welcome-mark-image"),
         normalizeDashboardImageConfig(data.dashboard_image)
@@ -1526,70 +1480,8 @@
       return data.reflection_style in REFLECTION_STYLE_LABELS ? data.reflection_style : "complete";
     }
 
-    function summarizeReflectionContext(data, options = {}) {
-      const styleKey = reflectionStyleKey(data);
-      const reflectionStyle = REFLECTION_STYLE_LABELS[styleKey];
-      const includeTeachingContext = options.includeTeachingContext !== false;
-      const subjects = (data.subjects || "").trim();
-      const grades = Array.isArray(data.grade_levels) ? data.grade_levels : [];
-      const standards = Array.isArray(data.state_standards) ? data.state_standards : [];
-      const selectedGuides = Array.isArray(data.reflect_config?.selected_guides)
-        ? data.reflect_config.selected_guides.map(toProperNounLabel).filter(Boolean)
-        : [];
-      const schoolName = (data.school_name || "").trim();
-      const schoolState = (data.school_state || "").trim();
-      const teachingDetail = includeTeachingContext
-        ? [subjects || "", grades.length ? `Grades ${formatList(grades)}` : "", schoolState, schoolName]
-            .filter(Boolean)
-            .join(" · ")
-        : "Off for the next reflection";
-      const standardsLabel = includeTeachingContext
-        ? standards.length
-          ? standards.join(", ")
-          : "No frameworks selected"
-        : "Off";
-      const voicesLabel = selectedGuides.length
-        ? selectedGuides.join(", ")
-        : "No voices selected";
-      return {
-        description: includeTeachingContext
-          ? "These settings shape how Memnon will ground your next reflection."
-          : "The next reflection will keep your voices and reflection history, but leave out classroom, school, and standards context.",
-        copy: includeTeachingContext
-          ? teachingDetail || "Teaching context is on for the next reflection."
-          : "Use this when you want the next reflection to stay personal without routing it through your professional setup.",
-        pills: [
-          `Teaching context: ${includeTeachingContext ? "On" : "Off"}`,
-          `Voices: ${voicesLabel}`,
-          `Frameworks: ${standardsLabel}`,
-          `Mode: ${reflectionStyle}`,
-        ],
-      };
-    }
-
     function getIncludeTeachingContextEntry() {
       return document.getElementById("capture-teaching-context")?.checked !== false;
-    }
-
-    function renderTeachingContextToggle(isEnabled = true, disabled = false) {
-      const input = document.getElementById("capture-teaching-context");
-      if (!input) return;
-      input.checked = !!isEnabled;
-      input.disabled = !!disabled;
-    }
-
-    function renderReflectionContextCard(data, options = {}) {
-      if (!data) return;
-      const summary = summarizeReflectionContext(data, {
-        includeTeachingContext: options.includeTeachingContext ?? getIncludeTeachingContextEntry(),
-      });
-      document.getElementById("lane-title").textContent = "🧭 Reflection Context";
-      document.getElementById("lane-desc").textContent = summary.description;
-      document.getElementById("lane-copy").textContent = summary.copy;
-      const pillsEl = document.getElementById("lane-pills");
-      if (pillsEl) {
-        pillsEl.innerHTML = summary.pills.map((item) => `<span class="context-pill">${item}</span>`).join("");
-      }
     }
 
     function updateReflectionArchiveLabels(styleKey) {
@@ -2040,16 +1932,19 @@
       const prefill = latestReflectionNote?.title
         ? `In response to "${latestReflectionNote.title}"...`
         : "In response to my last reflection...";
-      renderCaptureTextPanel(true);
-      const input = document.getElementById("capture-text-input");
-      if (input) {
-        if (!input.value.trim()) {
-          input.value = prefill;
-        }
-        input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
+      try {
+        sessionStorage.setItem(
+          "memnon_workflows_pending_capture_v1",
+          JSON.stringify({
+            text: prefill,
+            contextHint: "",
+            shouldResume: false,
+          })
+        );
+      } catch (error) {
+        console.error("Could not store pending capture:", error);
       }
-      document.getElementById("record-btn")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.location.assign("/workflows");
     }
 
     function summarizeGuidingVoices(data) {
@@ -2496,16 +2391,6 @@
         note_id: latestReflectionNote?.id || "",
       });
     });
-    document.getElementById("capture-teaching-context")?.addEventListener("change", async () => {
-      if (currentProfileData) {
-        renderReflectionContextCard(currentProfileData, {
-          includeTeachingContext: getIncludeTeachingContextEntry(),
-        });
-      }
-      await logUsageEvent("toggled_teaching_context", {
-        include_teaching_context: getIncludeTeachingContextEntry(),
-      });
-    });
     document.getElementById("write-btn")?.addEventListener("click", async () => {
       const panel = document.getElementById("capture-text-panel");
       renderCaptureTextPanel(!!panel?.hidden);
@@ -2552,8 +2437,6 @@
         const data = await res.json();
         currentProfileData = data;
         updateReflectionArchiveLabels(data.reflection_style || "complete");
-        renderTeachingContextToggle(true, false);
-        renderReflectionContextCard(data);
         renderDailyBriefSubscription(data);
 
         // inbox folder link removed — direct upload is now the primary ingest path
