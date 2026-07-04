@@ -55,6 +55,14 @@ def create_workflows_blueprint(
 ):
     blueprint = Blueprint("workflows", __name__)
 
+    def _sanitize_capture_payload(payload: dict) -> dict:
+        body = dict(payload or {})
+        event_manifest = dict(body.get("event_manifest") or {})
+        event_manifest.pop("contextual_suggestions", None)
+        if event_manifest:
+            body["event_manifest"] = event_manifest
+        return body
+
     def _error_response(error: Exception):
         if isinstance(error, KeyError):
             return jsonify({"error": "not found"}), 404
@@ -143,7 +151,7 @@ def create_workflows_blueprint(
                         "source_file_size_bytes": len(file_bytes),
                     },
                 )
-                body = record.to_dict()
+                body = _sanitize_capture_payload(record.to_dict())
                 body["next_route"] = f"/workflows/result/{record.capture_id}"
                 return jsonify(body), 201
 
@@ -219,7 +227,7 @@ def create_workflows_blueprint(
                 include_teaching_context=include_teaching_context,
             )
 
-        body = record.to_dict()
+        body = _sanitize_capture_payload(record.to_dict())
         body["next_route"] = f"/workflows/result/{record.capture_id}"
         return jsonify(body), 201
 
@@ -233,7 +241,7 @@ def create_workflows_blueprint(
         payload = service.get_capture(uid, capture_id)
         if payload is None:
             return jsonify({"error": "not found"}), 404
-        return jsonify(payload)
+        return jsonify(_sanitize_capture_payload(payload))
 
     @blueprint.route("/captures/<capture_id>/source-audio", methods=["GET"])
     def get_capture_source_audio(capture_id: str):
@@ -282,7 +290,27 @@ def create_workflows_blueprint(
             )
         except (KeyError, ValueError) as error:
             return _error_response(error)
-        return jsonify(updated)
+        return jsonify(_sanitize_capture_payload(updated))
+
+    @blueprint.route("/captures/<capture_id>/suggestions", methods=["POST"])
+    def apply_contextual_suggestion(capture_id: str):
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        service = service_provider()
+        try:
+            created = service.apply_contextual_suggestion(
+                uid,
+                capture_id,
+                suggestion_type=(payload.get("suggestion_type") or "").strip(),
+            )
+        except (KeyError, ValueError) as error:
+            return _error_response(error)
+        body = _sanitize_capture_payload(created)
+        body["next_route"] = f"/workflows/result/{body['capture_id']}"
+        return jsonify(body), 201
 
     @blueprint.route("/captures/<capture_id>/context-decision", methods=["POST"])
     def apply_context_decision(capture_id: str):
@@ -302,6 +330,6 @@ def create_workflows_blueprint(
             )
         except (KeyError, ValueError) as error:
             return _error_response(error)
-        return jsonify(updated)
+        return jsonify(_sanitize_capture_payload(updated))
 
     return blueprint

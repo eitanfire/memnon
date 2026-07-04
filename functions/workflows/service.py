@@ -18,6 +18,13 @@ from .models import (
     WorkflowResultPayload,
     WorkflowThreadState,
 )
+from .contextual_suggestions import (
+    ANALYZE_PROFESSIONALLY,
+    CONTEXTUAL_SUGGESTION_TYPES,
+    DRAFT_SOCIAL_POST,
+    build_visible_contextual_suggestions,
+    evaluate_contextual_suggestions,
+)
 from .quality import (
     best_transcript_sentence,
     has_explicit_action_signal,
@@ -1077,12 +1084,16 @@ class WorkflowService:
         now_provider,
         api_key_provider,
         continuity_bridge_writer=None,
+        social_post_generator=None,
+        professional_analysis_generator=None,
     ):
         self.repository = repository
         self.note_generator = note_generator
         self.now_provider = now_provider
         self.api_key_provider = api_key_provider
         self.continuity_bridge_writer = continuity_bridge_writer
+        self.social_post_generator = social_post_generator
+        self.professional_analysis_generator = professional_analysis_generator
 
     def _call_note_generator(self, source_text: str, context_hint: str, profile: dict, *, allow_next_step: bool) -> dict:
         api_key = self.api_key_provider()
@@ -1106,6 +1117,79 @@ class WorkflowService:
                 )
 
         return self.note_generator(source_text, context_hint, profile, api_key)
+
+    def _call_structured_generator(self, generator, source_text: str, context_hint: str, profile: dict) -> dict:
+        if generator is None:
+            raise ValueError("suggestion generator unavailable")
+        return generator(source_text, context_hint, profile, self.api_key_provider())
+
+    def _contextual_suggestion_meta(self, record: dict) -> dict:
+        event_manifest = record.get("event_manifest") or {}
+        meta = event_manifest.get("contextual_suggestions") or {}
+        if meta:
+            return dict(meta)
+        return evaluate_contextual_suggestions(record)
+
+    def _attach_visible_contextual_suggestions(self, payload: dict, *, include_contextual_suggestions: bool) -> dict:
+        result = dict(payload.get("result") or {})
+        result.pop("contextual_suggestions", None)
+        if include_contextual_suggestions:
+            visible = build_visible_contextual_suggestions(self._contextual_suggestion_meta(payload))
+            if visible:
+                result["contextual_suggestions"] = visible
+        payload["result"] = result
+        return payload
+
+    def _build_derived_artifact_sections(self, generated: dict) -> list[WorkflowArtifactSection]:
+        sections = []
+        body = _normalize_text(str(generated.get("body") or ""))
+        if body:
+            sections.append(
+                WorkflowArtifactSection(
+                    label=str(generated.get("body_label") or "Draft").strip() or "Draft",
+                    text=body,
+                )
+            )
+        for item in generated.get("sections") or []:
+            if not isinstance(item, dict):
+                continue
+            label = _normalize_text(str(item.get("label") or ""))
+            text = _normalize_text(str(item.get("text") or ""))
+            if label and text:
+                sections.append(WorkflowArtifactSection(label=label, text=text))
+        return sections
+
+    def _build_derived_primary_artifact(
+        self,
+        *,
+        capture_id: str,
+        suggestion_type: str,
+        metadata_line: str,
+        source_excerpt: str,
+        generated: dict,
+    ) -> dict:
+        sections = self._build_derived_artifact_sections(generated)
+        title = _normalize_text(str(generated.get("title") or "Saved result")) or "Saved result"
+        framing_line = _normalize_text(str(generated.get("framing_line") or "Saved as a result worth keeping.")) or "Saved as a result worth keeping."
+        body = _normalize_text(str(generated.get("body") or ""))
+        copy_text = _normalize_text(str(generated.get("copy_text") or body))
+        kind = "social_post" if suggestion_type == DRAFT_SOCIAL_POST else "professional_analysis"
+        if not copy_text:
+            copy_text = build_copy_text(title, sections)
+        return WorkflowArtifact(
+            artifact_id=f"{capture_id}-primary",
+            kind=kind,
+            title=title,
+            framing_line=framing_line,
+            body=body,
+            status="Saved and shaped",
+            primary_action="Copy",
+            metadata_line=metadata_line,
+            source_excerpt=source_excerpt,
+            sections=sections,
+            copy_text=copy_text,
+            secondary_actions=[],
+        ).to_dict()
 
     def _repository_create_context(self, uid: str, *, context_id: str, title: str, summary: str, seed_capture_id: str | None, now: str) -> dict:
         if hasattr(self.repository, "create_context"):
@@ -1219,12 +1303,20 @@ class WorkflowService:
         _persist_repository_state(self.repository)
         return context
 
-    def _hydrate_capture_record(self, uid: str, record: dict | None, *, include_suggestion: bool = True) -> dict | None:
+    def _hydrate_capture_record(
+        self,
+        uid: str,
+        record: dict | None,
+        *,
+        include_suggestion: bool = True,
+        include_contextual_suggestions: bool = False,
+    ) -> dict | None:
         if record is None:
             return None
 
         hydrated = dict(record)
         result = dict(hydrated.get("result") or {})
+        result.pop("contextual_suggestions", None)
         raw_threading = dict(hydrated.get("threading") or {})
         threading = dict(raw_threading if include_suggestion else _threading_without_suggestion(raw_threading))
         context = self._repository_get_context(uid, threading.get("confirmed_context_id"))
@@ -1236,7 +1328,10 @@ class WorkflowService:
             result.pop("related_thread", None)
         hydrated["result"] = result
         hydrated["threading"] = threading
-        return hydrated
+        return self._attach_visible_contextual_suggestions(
+            hydrated,
+            include_contextual_suggestions=include_contextual_suggestions,
+        )
 
     def create_context(self, uid: str, *, title: str, summary: str = "", seed_capture_id: str | None = None) -> dict:
         context_id = f"ctx-{secrets.token_hex(6)}"
@@ -1322,7 +1417,11 @@ class WorkflowService:
 
         self._repository_update_capture_threading(uid, capture_id, threading, now)
         updated = self.repository.get_capture(uid, capture_id)
-        return self._hydrate_capture_record(uid, updated)
+        return self._hydrate_capture_record(
+            uid,
+            updated,
+            include_contextual_suggestions=True,
+        )
 
     def apply_feedback_choice(
         self,
@@ -1341,7 +1440,137 @@ class WorkflowService:
         now = self.now_provider()
         self._repository_update_capture_feedback(uid, capture_id, feedback_choice, now)
         updated = self.repository.get_capture(uid, capture_id)
-        return self._hydrate_capture_record(uid, updated)
+        return self._hydrate_capture_record(
+            uid,
+            updated,
+            include_contextual_suggestions=True,
+        )
+
+    def apply_contextual_suggestion(
+        self,
+        uid: str,
+        capture_id: str,
+        *,
+        suggestion_type: str,
+    ) -> dict:
+        if suggestion_type not in CONTEXTUAL_SUGGESTION_TYPES:
+            raise ValueError("invalid suggestion type")
+
+        parent = self.repository.get_capture(uid, capture_id)
+        if parent is None:
+            raise KeyError(capture_id)
+
+        stored_parent_meta = dict(((parent.get("event_manifest") or {}).get("contextual_suggestions") or {}))
+        if not stored_parent_meta:
+            raise ValueError("suggestion unavailable")
+        parent_meta = stored_parent_meta
+        if parent_meta.get("origin") == "derived_result":
+            raise ValueError("suggestion unavailable")
+        if suggestion_type not in (parent_meta.get("shown_types") or []):
+            raise ValueError("suggestion unavailable")
+
+        profile = self.repository.load_user_profile(uid)
+        source_event = dict(parent.get("source_event") or {})
+        source_text = str(source_event.get("source_text") or "")
+        context_hint = str(parent.get("context_hint") or source_event.get("context_hint") or "")
+        input_type = str(source_event.get("input_type") or parent.get("input_type") or "text")
+        now = self.now_provider()
+        new_capture_id = f"cap-{secrets.token_hex(6)}"
+
+        if suggestion_type == DRAFT_SOCIAL_POST:
+            generated = self._call_structured_generator(
+                self.social_post_generator,
+                source_text,
+                context_hint,
+                profile,
+            )
+            interpretation_line = "Saved as a social-ready draft."
+        else:
+            generated = self._call_structured_generator(
+                self.professional_analysis_generator,
+                source_text,
+                context_hint,
+                profile,
+            )
+            interpretation_line = "Saved as a professional analysis."
+
+        derived_source_event = dict(source_event)
+        derived_source_event["capture_id"] = new_capture_id
+        derived_source_event["created_at"] = now
+        derived_source_event["context_hint"] = context_hint
+        derived_source_event["profile_snapshot"] = profile
+        derived_source_event["source_preview"] = _normalize_text(
+            str(derived_source_event.get("source_preview") or source_text)
+        )[:240]
+
+        metadata_line = _build_metadata_line(input_type, now, context_hint)
+        source_excerpt = (
+            _extract_voice_source_excerpt(source_text)
+            if input_type == "voice"
+            else _extract_source_excerpt(source_text)
+        )
+        primary_artifact = self._build_derived_primary_artifact(
+            capture_id=new_capture_id,
+            suggestion_type=suggestion_type,
+            metadata_line=metadata_line,
+            source_excerpt=source_excerpt,
+            generated=generated,
+        )
+
+        routing = WorkflowDecision(
+            route_kind="direct_professional_note",
+            interpretation_line=interpretation_line,
+            primary_artifact_kind=primary_artifact.get("kind") or "professional_note",
+            secondary_artifact_kinds=[],
+            likely_themes=[],
+        ).to_dict()
+        result = WorkflowResultPayload(
+            interpretation_line=interpretation_line,
+            route_kind="direct_professional_note",
+            primary_artifact=primary_artifact,
+            saved_note_artifact=None,
+            secondary_artifacts=[],
+            review_queue=[],
+            source_preview=derived_source_event["source_preview"],
+            likely_themes=[],
+        ).to_dict()
+        result.pop("related_thread", None)
+        result.pop("contextual_suggestions", None)
+
+        record = WorkflowCaptureRecord(
+            capture_id=new_capture_id,
+            input_type=input_type,
+            context_hint=context_hint,
+            source_event=derived_source_event,
+            routing=routing,
+            result=result,
+            event_manifest={
+                "source_event": derived_source_event,
+                "routing": routing,
+                "transcript_quality": dict((parent.get("event_manifest") or {}).get("transcript_quality") or {}),
+                "artifact_count": 1,
+                "contextual_suggestions": {
+                    "origin": "derived_result",
+                    "parent_capture_id": capture_id,
+                    "invoked_type": suggestion_type,
+                    "considered_types": list(CONTEXTUAL_SUGGESTION_TYPES),
+                    "shown_types": [],
+                    "suppression_reasons": {
+                        DRAFT_SOCIAL_POST: "derived_result",
+                        ANALYZE_PROFESSIONALLY: "derived_result",
+                    },
+                },
+            },
+            created_at=now,
+            updated_at=now,
+            threading={},
+        )
+        self.repository.save_capture(uid, record)
+        return self._hydrate_capture_record(
+            uid,
+            self.repository.get_capture(uid, new_capture_id),
+            include_contextual_suggestions=False,
+        )
 
     def _context_recency_boost(self, thread: dict) -> int:
         last_activity_at = _parse_iso_timestamp(thread.get("last_activity_at") or thread.get("updated_at"))
@@ -1600,6 +1829,7 @@ class WorkflowService:
             likely_themes=[],
         ).to_dict()
         result.pop("related_thread", None)
+        result.pop("contextual_suggestions", None)
 
         record = WorkflowCaptureRecord(
             capture_id=capture_id,
@@ -1618,6 +1848,7 @@ class WorkflowService:
             updated_at=now,
             threading={},
         )
+        record.event_manifest["contextual_suggestions"] = evaluate_contextual_suggestions(record.to_dict())
         suggestion = self.suggest_context_for_capture(uid, record.to_dict())
         if suggestion:
             record.threading = suggestion
@@ -1645,6 +1876,11 @@ class WorkflowService:
                 )
             except Exception as exc:
                 print(f"[{uid}] Warning: continuity bridge write failed: {exc}")
+        visible_contextual_suggestions = build_visible_contextual_suggestions(
+            record.event_manifest.get("contextual_suggestions"),
+        )
+        if visible_contextual_suggestions:
+            record.result["contextual_suggestions"] = visible_contextual_suggestions
         return record
 
     def get_capture(self, uid: str, capture_id: str):
@@ -1652,6 +1888,7 @@ class WorkflowService:
             uid,
             self.repository.get_capture(uid, capture_id),
             include_suggestion=False,
+            include_contextual_suggestions=False,
         )
 
     def list_capture_summaries(self, uid: str, limit: int = 50):

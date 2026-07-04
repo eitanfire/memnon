@@ -993,6 +993,151 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.get_json(), {"error": "unauthorized"})
 
+    def test_suggestion_invocation_endpoint_creates_derived_saved_result(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS meetup recap",
+                "framing_line": "A saved result shaped around the strongest public takeaway.",
+                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+            social_post_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS next meetup",
+                "framing_line": "A concise social draft built from the capture.",
+                "body": "Thanks to everyone who came to BoulderJS tonight. Join us next week for the next meetup.",
+                "sections": [],
+                "copy_text": "Thanks to everyone who came to BoulderJS tonight. Join us next week for the next meetup.",
+            },
+            professional_analysis_generator=lambda *_args, **_kwargs: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "body": "Unused",
+                "sections": [],
+                "copy_text": "Unused",
+            },
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "BoulderJS meetup recap: thanks to everyone who came tonight. "
+                "Share the highlights and invite the community to next week's event."
+            ),
+            context_hint="",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/suggestions",
+            json={"suggestion_type": "draft_social_post"},
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertNotEqual(payload["capture_id"], capture.capture_id)
+        self.assertEqual(payload["next_route"], f"/workflows/result/{payload['capture_id']}")
+        self.assertNotIn("contextual_suggestions", payload["result"])
+        self.assertNotIn("contextual_suggestions", payload.get("event_manifest") or {})
+
+    def test_suggestion_endpoint_rejects_invalid_or_unshown_suggestion(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Small note",
+                "framing_line": "Saved quietly.",
+                "key_point": "Unused",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+            social_post_generator=lambda *_args, **_kwargs: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "body": "Unused",
+                "sections": [],
+                "copy_text": "Unused",
+            },
+            professional_analysis_generator=lambda *_args, **_kwargs: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "body": "Unused",
+                "sections": [],
+                "copy_text": "Unused",
+            },
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Hold onto this for later",
+            context_hint="",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/suggestions",
+            json={"suggestion_type": "draft_social_post"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_capture_response_hides_internal_contextual_suggestion_diagnostics(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS meetup recap",
+                "framing_line": "A saved result shaped around the strongest public takeaway.",
+                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            "/workflows/captures",
+            json={
+                "text": (
+                    "BoulderJS meetup recap: thanks to everyone who came tonight. "
+                    "Share the highlights and invite the community to next week's event."
+                ),
+                "context_hint": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(
+            [item["type"] for item in payload["result"].get("contextual_suggestions") or []],
+            ["draft_social_post"],
+        )
+        self.assertNotIn("contextual_suggestions", payload.get("event_manifest") or {})
+
 
 if __name__ == "__main__":
     unittest.main()

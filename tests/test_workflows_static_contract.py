@@ -704,6 +704,107 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
 
+    def test_contextual_result_suggestions_are_immediate_only_and_quiet(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        self.assertIn("Draft social post", js)
+        self.assertIn("Analyze professionally", js)
+        self.assertNotIn("Choose a workflow", js)
+        self.assertNotIn("Generated from", js)
+        self.assertNotIn("Derived result", js)
+
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              extractBetween("function escapeHtml", "function setStatus"),
+              extractBetween("function renderContextualSuggestions", "function renderResultFeedback"),
+              extractBetween("function renderSavedResultsBody", "function renderSavedResultsList"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const none = context.renderContextualSuggestions(
+              { result: {} },
+              { isImmediateResult: true },
+            );
+            const one = context.renderContextualSuggestions(
+              {
+                result: {
+                  contextual_suggestions: [
+                    { type: "draft_social_post", copy: "This could become a social post.", action_label: "Draft social post" },
+                  ],
+                },
+              },
+              { isImmediateResult: true },
+            );
+            const two = context.renderContextualSuggestions(
+              {
+                result: {
+                  contextual_suggestions: [
+                    { type: "draft_social_post", copy: "This could become a social post.", action_label: "Draft social post" },
+                    { type: "analyze_professionally", copy: "Analyze this through your professional lens.", action_label: "Analyze professionally" },
+                  ],
+                },
+              },
+              { isImmediateResult: true },
+            );
+            const reopened = context.renderContextualSuggestions(
+              {
+                result: {
+                  contextual_suggestions: [
+                    { type: "draft_social_post", copy: "This could become a social post.", action_label: "Draft social post" },
+                  ],
+                },
+              },
+              { isImmediateResult: false },
+            );
+            const savedList = context.renderSavedResultsBody([
+              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note" },
+            ]);
+
+            if (none.trim() !== "") {
+              throw new Error(`zero suggestions should render nothing: ${none}`);
+            }
+            if (!one.includes("This could become a social post.") || !one.includes("Draft social post")) {
+              throw new Error(`single suggestion missing quiet copy: ${one}`);
+            }
+            if (!two.includes("Optional next steps") || !two.includes("Analyze professionally")) {
+              throw new Error(`two suggestions should render quietly: ${two}`);
+            }
+            if (reopened.trim() !== "") {
+              throw new Error(`reopened result should not render suggestions: ${reopened}`);
+            }
+            if (savedList.includes("Draft social post") || savedList.includes("Analyze professionally")) {
+              throw new Error(`saved results list should not include suggestions: ${savedList}`);
+            }
+            """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
     def test_immediate_thread_decision_rerenders_preserve_feedback_state(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
         thread_controls_start = js.index("function wireResultThreadControls")

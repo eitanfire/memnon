@@ -376,6 +376,40 @@ body.workflows-page {
   padding-top: 4px;
 }
 
+.workflows-contextual-suggestions {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8f4ee;
+  border: 1px solid #e8ddd0;
+}
+
+.workflows-contextual-suggestions-label {
+  margin: 0;
+  color: #5d5750;
+  font-size: 0.9rem;
+}
+
+.workflows-contextual-suggestions-list {
+  display: grid;
+  gap: 10px;
+}
+
+.workflows-contextual-suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workflows-contextual-suggestion-copy {
+  margin: 0;
+  color: #2f2924;
+  flex: 1 1 280px;
+}
+
 .workflows-feedback-label {
   color: #5d5750;
   font-size: 0.9rem;

@@ -81,3 +81,16 @@ Artifact shape for both `primary_artifact` and `saved_note_artifact`:
 
 Persistence rule:
 - The stored payload must be sufficient to re-render `/workflows/result/:id` without re-running routing or generation.
+
+Optional internal `event_manifest.contextual_suggestions` fields:
+- `origin: "original_capture" | "derived_result"`
+- `considered_types: string[]`
+- `shown_types: string[]`
+- `suppression_reasons: object`
+- `parent_capture_id: string` for derived results only
+- `invoked_type: string` for derived results only
+
+Contextual suggestion metadata rules:
+- This metadata is internal-only.
+- It may be used to validate immediate suggestion invocation and suppress recursive suggestion chains.
+- It must never surface as user-facing lineage, badges, labels, or special saved-results categories.

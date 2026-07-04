@@ -171,6 +171,190 @@ class WorkflowServiceTests(unittest.TestCase):
             "workshop-plan.md",
         )
 
+    def test_immediate_capture_includes_contextual_suggestions_when_signal_is_clear(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS meetup recap",
+                "framing_line": "A saved result shaped around the strongest public takeaway.",
+                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "BoulderJS meetup recap: thanks to everyone who came tonight. "
+                "Share the highlights and invite the community to next week's event."
+            ),
+            context_hint="",
+        )
+
+        suggestions = record.result.get("contextual_suggestions") or []
+        self.assertEqual([item["type"] for item in suggestions], ["draft_social_post"])
+        self.assertEqual(
+            record.event_manifest["contextual_suggestions"]["shown_types"],
+            ["draft_social_post"],
+        )
+
+    def test_reopened_capture_hides_contextual_suggestions(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Product strategy podcast notes",
+                "framing_line": "A saved result shaped around the sharpest professional takeaway.",
+                "key_point": "The notes point toward retention and positioning analysis.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Podcast notes on product strategy, retention, and pricing tradeoffs. "
+                "The transcript is worth analyzing through a professional lens."
+            ),
+            context_hint="",
+        )
+
+        reopened = service.get_capture("user-1", record.capture_id)
+
+        self.assertNotIn("contextual_suggestions", reopened["result"])
+        self.assertEqual(
+            reopened["event_manifest"]["contextual_suggestions"]["shown_types"],
+            ["analyze_professionally"],
+        )
+
+    def test_feedback_rerender_preserves_immediate_contextual_suggestions(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS meetup recap",
+                "framing_line": "A saved result shaped around the strongest public takeaway.",
+                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "BoulderJS meetup recap: thanks to everyone who came tonight. "
+                "Share the highlights and invite the community to next week's event."
+            ),
+            context_hint="",
+        )
+
+        updated = service.apply_feedback_choice(
+            "user-1",
+            record.capture_id,
+            feedback_choice="useful",
+        )
+
+        suggestions = updated["result"].get("contextual_suggestions") or []
+        self.assertEqual([item["type"] for item in suggestions], ["draft_social_post"])
+
+    def test_thread_decision_rerender_preserves_immediate_contextual_suggestions(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS meetup recap",
+                "framing_line": "A saved result shaped around the strongest public takeaway.",
+                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "BoulderJS meetup recap: thanks to everyone who came tonight. "
+                "Share the highlights and invite the community to next week's event."
+            ),
+            context_hint="boulderjs",
+        )
+        context = service.create_context("user-1", title="BoulderJS", summary="")
+
+        updated = service.apply_context_decision(
+            "user-1",
+            record.capture_id,
+            action="confirmed",
+            context_id=context["context_id"],
+        )
+
+        suggestions = updated["result"].get("contextual_suggestions") or []
+        self.assertEqual([item["type"] for item in suggestions], ["draft_social_post"])
+
+    def test_apply_contextual_suggestion_creates_new_saved_result_without_mutating_original(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS meetup recap",
+                "framing_line": "A saved result shaped around the strongest public takeaway.",
+                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+            social_post_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS next meetup",
+                "framing_line": "A concise social draft built from the capture.",
+                "body": "Thanks to everyone who came to BoulderJS tonight. Join us next week for the next meetup.",
+                "sections": [],
+                "copy_text": "Thanks to everyone who came to BoulderJS tonight. Join us next week for the next meetup.",
+            },
+            professional_analysis_generator=lambda *_args, **_kwargs: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "body": "Unused",
+                "sections": [],
+                "copy_text": "Unused",
+            },
+        )
+
+        original = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "BoulderJS meetup recap: thanks to everyone who came tonight. "
+                "Share the highlights and invite the community to next week's event."
+            ),
+            context_hint="",
+        )
+
+        derived = service.apply_contextual_suggestion(
+            "user-1",
+            original.capture_id,
+            suggestion_type="draft_social_post",
+        )
+
+        self.assertNotEqual(derived["capture_id"], original.capture_id)
+        self.assertEqual(
+            original.result["contextual_suggestions"][0]["type"],
+            "draft_social_post",
+        )
+        self.assertNotIn("contextual_suggestions", derived["result"])
+        self.assertEqual(
+            derived["event_manifest"]["contextual_suggestions"]["origin"],
+            "derived_result",
+        )
+        self.assertEqual(
+            derived["event_manifest"]["contextual_suggestions"]["parent_capture_id"],
+            original.capture_id,
+        )
+
     def test_service_can_create_active_context(self):
         repo = FakeRepository()
         service = WorkflowService(

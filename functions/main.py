@@ -54,7 +54,13 @@ from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status, rerank_candidates
 from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 from weather_context import clear_weather_cache_fields, load_weather_context
-from workflows.ai import generate_professional_note, load_openai_api_key, transcribe_audio_bytes
+from workflows.ai import (
+    generate_professional_analysis,
+    generate_professional_note,
+    generate_social_post,
+    load_openai_api_key,
+    transcribe_audio_bytes,
+)
 from workflows.blueprint import create_workflows_blueprint
 from workflows.continuity_bridge import (
     DAILY_FEED_NOTES_COLLECTION,
@@ -107,6 +113,8 @@ def _workflow_service():
             db=_get_db(),
             **payload,
         ),
+        social_post_generator=generate_social_post,
+        professional_analysis_generator=generate_professional_analysis,
     )
 
 

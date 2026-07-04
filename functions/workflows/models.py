@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 RouteKind = Literal["direct_professional_note", "saved_note"]
-ArtifactKind = Literal["professional_note", ""]
+ArtifactKind = Literal["professional_note", "social_post", "professional_analysis", ""]
 SavedNoteState = Literal["weak_signal", "needs_direction", ""]
 
 
@@ -61,6 +61,7 @@ class WorkflowResultPayload:
     source_preview: str
     likely_themes: list[str]
     related_thread: dict[str, Any] | None = None
+    contextual_suggestions: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

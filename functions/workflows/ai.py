@@ -7,6 +7,31 @@ from pathlib import Path
 import urllib.request
 
 
+def _call_json_completion(prompt: str, api_key: str) -> dict:
+    payload = json.dumps({
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": "You return strict JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        "response_format": {"type": "json_object"},
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=45) as response:
+        raw = json.loads(response.read().decode("utf-8"))
+    content = raw["choices"][0]["message"]["content"]
+    return json.loads(content)
+
+
 def generate_professional_note(
     source_text: str,
     context_hint: str,
@@ -59,29 +84,78 @@ Context hint: {context_hint or "(none)"}
 Source text:
 {source_text}
 """
+    return _call_json_completion(prompt, api_key)
 
-    payload = json.dumps({
-        "model": "gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": "You return strict JSON only."},
-            {"role": "user", "content": prompt},
-        ],
-        "response_format": {"type": "json_object"},
-    }).encode("utf-8")
 
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=45) as response:
-        raw = json.loads(response.read().decode("utf-8"))
-    content = raw["choices"][0]["message"]["content"]
-    return json.loads(content)
+def generate_social_post(
+    source_text: str,
+    context_hint: str,
+    profile: dict,
+    api_key: str,
+) -> dict:
+    prompt = f"""Turn this saved result into one concise public-facing social post draft.
+
+Return strict JSON with:
+- title
+- framing_line
+- body
+- sections
+
+Rules:
+- one draft only
+- body should read like a clean post draft the user can copy as-is
+- keep it public-facing and concise
+- stay grounded in the source text
+- do not expose internal workflow language
+- do not add hashtags unless the source clearly supports them
+- sections may be an empty array or at most one short support section
+- do not mention derivation or lineage
+
+Optional saved profile:
+- lane: {profile.get("lane", "professional")}
+- profession: {profile.get("profession", "professional")}
+
+Context hint: {context_hint or "(none)"}
+
+Source text:
+{source_text}
+"""
+    return _call_json_completion(prompt, api_key)
+
+
+def generate_professional_analysis(
+    source_text: str,
+    context_hint: str,
+    profile: dict,
+    api_key: str,
+) -> dict:
+    prompt = f"""Turn this saved result into one concise professional analysis.
+
+Return strict JSON with:
+- title
+- framing_line
+- body
+- sections
+
+Rules:
+- one analysis only
+- body should summarize the central read in plain language
+- sections should contain 2 or 3 short analytical blocks with label and text
+- keep it grounded in the source text
+- do not add teacher-specific framing unless the source clearly supports it
+- do not expose workflow language, derivation, or lineage
+- avoid generic business filler
+
+Optional saved profile:
+- lane: {profile.get("lane", "professional")}
+- profession: {profile.get("profession", "professional")}
+
+Context hint: {context_hint or "(none)"}
+
+Source text:
+{source_text}
+"""
+    return _call_json_completion(prompt, api_key)
 
 
 def load_openai_api_key() -> str:

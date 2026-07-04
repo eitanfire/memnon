@@ -54,6 +54,16 @@ const SOURCE_EXCERPT_LABEL = "From your note";
 const KEY_POINT_LABEL = "Key point";
 const NEXT_STEP_LABEL = "Next step";
 const WHY_KEEP_THIS_LABEL = "Why keep this";
+const CONTEXTUAL_SUGGESTION_COPY = {
+  draft_social_post: {
+    copy: "This could become a social post.",
+    actionLabel: "Draft social post",
+  },
+  analyze_professionally: {
+    copy: "Analyze this through your professional lens.",
+    actionLabel: "Analyze professionally",
+  },
+};
 const MAX_TEXT_FILE_BYTES = 512 * 1024;
 const SUPPORTED_TEXT_FILE_EXTENSIONS = new Set([".txt", ".md"]);
 const VOICE_MIME_CANDIDATES = ["audio/webm", "audio/mp4", "video/mp4"];
@@ -808,6 +818,65 @@ function renderSections(sections) {
     .join("");
 }
 
+function renderContextualSuggestions(payload, options = {}) {
+  if (!options.isImmediateResult) {
+    return "";
+  }
+
+  const suggestionCopy =
+    typeof CONTEXTUAL_SUGGESTION_COPY !== "undefined"
+      ? CONTEXTUAL_SUGGESTION_COPY
+      : {
+          draft_social_post: {
+            copy: "This could become a social post.",
+            actionLabel: "Draft social post",
+          },
+          analyze_professionally: {
+            copy: "Analyze this through your professional lens.",
+            actionLabel: "Analyze professionally",
+          },
+        };
+
+  const suggestions = (payload?.result?.contextual_suggestions || [])
+    .map((item) => {
+      const defaults = suggestionCopy[item?.type] || {};
+      return {
+        type: item?.type || "",
+        copy: item?.copy || defaults.copy || "",
+        action_label: item?.action_label || defaults.actionLabel || "",
+      };
+    })
+    .filter((item) => item.type && item.copy && item.action_label);
+  if (!suggestions.length) {
+    return "";
+  }
+
+  return `
+    <section class="workflows-contextual-suggestions" aria-label="${suggestions.length > 1 ? "Optional next steps" : "Optional next step"}">
+      <p class="workflows-contextual-suggestions-label">${suggestions.length > 1 ? "Optional next steps" : "Optional next step"}</p>
+      <div class="workflows-contextual-suggestions-list">
+        ${suggestions
+          .slice(0, 2)
+          .map(
+            (item) => `
+              <div class="workflows-contextual-suggestion-row">
+                <p class="workflows-contextual-suggestion-copy">${escapeHtml(item.copy)}</p>
+                <button
+                  type="button"
+                  class="btn btn-outline workflows-contextual-suggestion-button"
+                  data-contextual-suggestion-type="${escapeHtml(item.type)}"
+                >
+                  ${escapeHtml(item.action_label)}
+                </button>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderResultFeedback(payload, options = {}) {
   if (!options.isImmediateResult || !payload?.capture_id) {
     return "";
@@ -1007,6 +1076,7 @@ function renderSavedNote(payload, options = {}) {
         sourceEvent,
       )}
       ${renderSections(savedArtifact.sections || [])}
+      ${renderContextualSuggestions(payload, options)}
       ${renderResultFeedback(payload, options)}
     `,
     actions: [
@@ -1019,6 +1089,9 @@ function renderSavedNote(payload, options = {}) {
   sourceText.textContent = sourceEvent.source_text;
   wireResultThreadControls(card, payload, {
     activeThreads,
+    isImmediateResult: options.isImmediateResult,
+  });
+  wireResultContextualSuggestionControls(card, payload, {
     isImmediateResult: options.isImmediateResult,
   });
   wireResultFeedbackControls(card, payload, {
@@ -1045,6 +1118,7 @@ function renderPrimaryArtifact(payload, options = {}) {
     ${renderVoiceReview(sourceEvent)}
     ${renderSourceExcerpt(artifact.source_excerpt, sourceEvent)}
     ${renderSections(artifact.sections || [])}
+    ${renderContextualSuggestions(payload, options)}
     ${renderResultFeedback(payload, options)}
   `;
 
@@ -1058,7 +1132,7 @@ function renderPrimaryArtifact(payload, options = {}) {
     framingLine: artifact.framing_line,
     bodyHtml,
     actions: [
-      { html: '<button type="button" class="btn btn-primary" id="copy-artifact-body">Copy note</button>' },
+      { html: `<button type="button" class="btn btn-primary" id="copy-artifact-body">${escapeHtml(artifact.primary_action || "Copy note")}</button>` },
       { html: '<a class="btn btn-outline" href="/workflows/saved">View saved results</a>' },
       { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
     ],
@@ -1073,6 +1147,9 @@ function renderPrimaryArtifact(payload, options = {}) {
   });
   wireResultThreadControls(card, payload, {
     activeThreads,
+    isImmediateResult: options.isImmediateResult,
+  });
+  wireResultContextualSuggestionControls(card, payload, {
     isImmediateResult: options.isImmediateResult,
   });
   wireResultFeedbackControls(card, payload, {
@@ -1159,6 +1236,15 @@ async function submitFeedbackChoice(captureId, feedbackChoice) {
     method: "POST",
     body: JSON.stringify({
       feedback_choice: feedbackChoice,
+    }),
+  });
+}
+
+async function submitContextualSuggestion(captureId, suggestionType) {
+  return apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}/suggestions`, {
+    method: "POST",
+    body: JSON.stringify({
+      suggestion_type: suggestionType,
     }),
   });
 }
@@ -1666,6 +1752,44 @@ function wireResultFeedbackControls(card, payload, options = {}) {
       } catch (error) {
         console.error("[workflows] feedback submission failed", error);
         setStatusTone("Could not save feedback. Try again.", "error");
+      }
+    });
+  }
+}
+
+function wireResultContextualSuggestionControls(card, payload, options = {}) {
+  if (!card || !options.isImmediateResult) {
+    return;
+  }
+  const captureId = payload?.capture_id;
+  if (!captureId) {
+    return;
+  }
+
+  for (const button of card.querySelectorAll("[data-contextual-suggestion-type]")) {
+    if (button.dataset.wired === "true") {
+      continue;
+    }
+    button.dataset.wired = "true";
+    button.addEventListener("click", async () => {
+      const suggestionType = button.getAttribute("data-contextual-suggestion-type");
+      if (!suggestionType) {
+        return;
+      }
+
+      setStatusTone("Shaping that result...", "working");
+      try {
+        const created = await submitContextualSuggestion(captureId, suggestionType);
+        const nextPath = `/workflows/result/${encodeURIComponent(created.capture_id)}`;
+        history.pushState({}, "", nextPath);
+        setStatus("");
+        renderPayload(created, {
+          activeThreads: [],
+          isImmediateResult: true,
+        });
+      } catch (error) {
+        console.error("[workflows] contextual suggestion failed", error);
+        setStatusTone("Something went wrong. Try again.", "error");
       }
     });
   }

@@ -122,6 +122,35 @@ def _local_transcribe_audio(_audio_bytes: bytes, _filename: str, _api_key: str) 
     return "Voice note captured in local development. Action: review the transcript-backed result path."
 
 
+def _local_social_post_generator(source_text, context_hint, profile, api_key):
+    del context_hint, profile, api_key
+    first_sentence = source_text.split(".")[0].strip()
+    body = first_sentence or "Sharing one clear update from this capture."
+    if not body.endswith("."):
+        body += "."
+    return {
+        "title": "Social post draft",
+        "framing_line": "A public-facing draft built from your saved result.",
+        "body": body,
+        "sections": [],
+        "copy_text": body,
+    }
+
+
+def _local_professional_analysis_generator(source_text, context_hint, profile, api_key):
+    del context_hint, profile, api_key
+    key_point = derive_key_point(source_text, "", "")
+    return {
+        "title": "Professional analysis",
+        "framing_line": "A concise professional read grounded in the source material.",
+        "body": key_point,
+        "sections": [
+            {"label": "Read", "text": key_point},
+        ],
+        "copy_text": key_point,
+    }
+
+
 def create_local_app(storage_path: str | None = None, transcribe_audio=None):
     app = Flask(__name__)
     CORS(
@@ -141,6 +170,8 @@ def create_local_app(storage_path: str | None = None, transcribe_audio=None):
         note_generator=_local_note_generator,
         now_provider=lambda: datetime.now().astimezone().isoformat(),
         api_key_provider=lambda: "local-dev",
+        social_post_generator=_local_social_post_generator,
+        professional_analysis_generator=_local_professional_analysis_generator,
     )
     app.register_blueprint(
         create_workflows_blueprint(
