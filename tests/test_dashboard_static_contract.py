@@ -49,6 +49,20 @@ class DashboardStaticContractTests(unittest.TestCase):
         self.assertNotIn("Choose a note type", html)
         self.assertNotIn("reflection or workflow", html)
 
+    def test_dashboard_uses_latest_result_language_for_latest_return_surface(self):
+        html = DASHBOARD_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("Latest result", html)
+        self.assertIn("Latest complete result", html)
+        self.assertIn("Loading your latest result…", html)
+        self.assertIn("Loading the latest result text…", html)
+        self.assertIn("Your latest result text will appear here after processing.", html)
+        self.assertNotIn("Latest reflection", html)
+        self.assertNotIn("Latest complete reflection", html)
+        self.assertNotIn("Loading your latest reflection…", html)
+        self.assertNotIn("Loading the latest reflection text…", html)
+        self.assertNotIn("Your latest reflection text will appear here after processing.", html)
+
     def test_share_target_audio_falls_back_to_upload_status_when_share_status_is_hidden(self):
         html = DASHBOARD_PATH.read_text(encoding="utf-8")
         start = html.index("async function checkSharedFile()")

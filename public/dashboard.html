@@ -952,22 +952,22 @@
       <div class="dashboard-capture-secondary">
         <div class="summary-tile summary-tile--latest">
           <div>
-            <div class="summary-tile-kicker">Latest reflection</div>
+            <div class="summary-tile-kicker">Latest result</div>
             <div class="summary-tile-title">Receive the latest return</div>
             <div class="summary-tile-copy">Listen, read, and decide what thread to carry forward.</div>
             <div class="recording-player-wrap">
-              <div class="recording-player-label" id="reflection-player-label">Latest complete reflection</div>
+              <div class="recording-player-label" id="reflection-player-label">Latest complete result</div>
               <div class="reflection-view-toggle" id="reflection-view-toggle">
                 <button id="reflection-view-listen" class="is-active" type="button">Listen</button>
                 <button id="reflection-view-read" type="button">Read</button>
               </div>
               <div id="reflection-audio-panel" class="reflection-panel">
                 <div id="reflection-player-container" class="recording-player">
-                  <div class="recording-player-empty">Loading your latest reflection…</div>
+                  <div class="recording-player-empty">Loading your latest result…</div>
                 </div>
               </div>
               <div id="reflection-read-panel" class="reflection-panel reflection-read-panel" hidden>
-                <div id="reflection-read-content" class="recording-player-empty">Loading the latest reflection text…</div>
+                <div id="reflection-read-content" class="recording-player-empty">Loading the latest result text…</div>
               </div>
               <div id="reflection-continuation" class="reflection-continuation" hidden>
                 <div class="reflection-continuation-prompt">Carry this forward in your next capture.</div>
@@ -1141,6 +1141,17 @@
       complete: "Each capture returns as a complete spoken reflection in your",
     };
 
+    function latestResultStyleDescriptor(styleKey) {
+      switch (styleKey) {
+        case "practical":
+          return "practical";
+        case "grounded":
+          return "grounded";
+        default:
+          return "complete";
+      }
+    }
+
     const params = new URLSearchParams(window.location.search);
     const PREVIEW_MODE =
       params.has("preview") ||
@@ -1261,7 +1272,7 @@
       const hasMockReflection = MOCK_REFLECTION_STATE !== "empty";
       if (player) {
         if (!hasMockReflection) {
-          player.innerHTML = `<div class="recording-player-empty">No ${REFLECTION_STYLE_LABELS[data.reflection_style || "complete"].toLowerCase()} yet. Record a memo to generate one.</div>`;
+          player.innerHTML = `<div class="recording-player-empty">No ${latestResultStyleDescriptor(data.reflection_style || "complete")} result yet. Record a memo to generate one.</div>`;
         } else {
           const titles = {
             practical: "June 9, 2026 — Resetting discussion routines",
@@ -1271,7 +1282,7 @@
           const styleKey = data.reflection_style || "complete";
           player.innerHTML = `
             <div class="recording-player-name">${titles[styleKey] || titles.complete}</div>
-            <div class="recording-player-empty">Mock preview. Sign in to generate and play the real audio reflection.</div>
+            <div class="recording-player-empty">Mock preview. Sign in to generate and play the real audio result.</div>
           `;
         }
       }
@@ -1490,7 +1501,7 @@
       const label = document.getElementById("reflection-player-label");
       const summary = document.getElementById("archive-summary-copy");
       if (label) {
-        label.textContent = `Latest ${REFLECTION_STYLE_LABELS[style].toLowerCase()}`;
+        label.textContent = `Latest ${latestResultStyleDescriptor(style)} result`;
       }
       if (summary) {
         summary.textContent = REFLECTION_STYLE_ARCHIVE_COPY[style];
@@ -1819,12 +1830,12 @@
       const container = document.getElementById("reflection-read-content");
       if (!container) return;
       if (!note) {
-        container.innerHTML = `<div class="recording-player-empty">Your latest reflection text will appear here after processing.</div>`;
+        container.innerHTML = `<div class="recording-player-empty">Your latest result text will appear here after processing.</div>`;
         return;
       }
       const actions = Array.isArray(note.action_items) ? note.action_items.filter(Boolean) : [];
       container.innerHTML = `
-        <div class="reflection-read-title">${note.title || "Latest reflection"}</div>
+        <div class="reflection-read-title">${note.title || "Latest result"}</div>
         <div class="reflection-read-summary">${note.summary || ""}</div>
         ${note.insight ? `<div class="reflection-read-insight">${note.insight}</div>` : ""}
         ${actions.length ? `<div class="reflection-read-actions">${actions.map((item) => `<span class="reflection-read-pill">${item}</span>`).join("")}</div>` : ""}
@@ -2452,9 +2463,9 @@
           listPath: "/reflections",
           streamPath: "/reflection",
           containerId: "reflection-player-container",
-          emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[data.reflection_style || "complete"] || "Complete").toLowerCase()} reflection will appear here after processing.`,
-          errorMessage: "The latest reflection could not be loaded.",
-          fallbackName: `Latest ${(REFLECTION_STYLE_LABELS[data.reflection_style || "complete"] || "Complete").toLowerCase()} reflection`,
+          emptyMessage: `Your latest ${latestResultStyleDescriptor(data.reflection_style || "complete")} result will appear here after processing.`,
+          errorMessage: "The latest result could not be loaded.",
+          fallbackName: `Latest ${latestResultStyleDescriptor(data.reflection_style || "complete")} result`,
           cache: reflectionObjectUrls,
         });
         await loadRecentNotes(user.uid);
