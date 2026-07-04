@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Setup — Memnon</title>
+  <title>Context Settings - Memnon</title>
   <link rel="stylesheet" href="/style.css" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <style>
@@ -497,17 +497,17 @@
 
     <div class="page-hero">
       <div class="page-hero-kicker">Set up Memnon</div>
-      <h1>Tune Reflection</h1>
-      <p class="page-hero-copy">Adjust how Memnon helps you reflect and make sense of your experience.</p>
+      <h1>Context Settings</h1>
+      <p class="page-hero-copy">Adjust the context Memnon can draw on when shaping your captures.</p>
     </div>
 
     <div class="card setup-feature-card">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
         <span style="font-size:1.4rem;">🧭</span>
-        <h2 style="margin:0;">Reflection Style</h2>
+        <h2 style="margin:0;">Reflective Response Style</h2>
       </div>
       <p class="muted" style="margin-bottom:18px;">
-        Choose what comes back after you record.
+        Choose the default shape Memnon uses when a result calls for reflection or synthesis.
       </p>
       <div class="mode-grid" id="reflection-style-grid"></div>
       <div id="reflection-style-recommendation" class="muted" style="margin-top:12px; line-height:1.55;"></div>
@@ -522,7 +522,7 @@
             <h2 style="margin:0;">Teaching Context</h2>
           </div>
           <div class="drawer-toggle-copy">
-            Classroom, school, subject, and standards frameworks.
+            Classroom, school, subject, and standards Memnon can use when relevant.
           </div>
         </div>
         <span class="drawer-chevron" aria-hidden="true">▾</span>
@@ -532,7 +532,7 @@
       <div class="field-block">
         <label for="preferred-name">What should Memnon call you?</label>
         <p class="muted field-help">
-          This is the name Memnon will use in reflections and audio.
+          This is the name Memnon will use in reflective results and spoken audio when relevant.
         </p>
         <input type="text" id="preferred-name" placeholder="e.g. Eitan" />
       </div>
@@ -623,7 +623,7 @@
             <h2 style="margin:0;">Guiding Voices</h2>
           </div>
           <div class="drawer-toggle-copy">
-            Thinkers and traditions that shape grounded reflection.
+            Thinkers and traditions Memnon can draw on for grounded or reflective synthesis when they fit.
           </div>
         </div>
         <span class="drawer-chevron" aria-hidden="true">▾</span>
@@ -662,10 +662,10 @@
         <div style="min-width:0;">
           <div class="drawer-toggle-main">
             <span style="font-size:1.4rem;">🖼️</span>
-            <h2 style="margin:0;">Dashboard Portrait</h2>
+            <h2 style="margin:0;">Today Portrait</h2>
           </div>
           <div class="drawer-toggle-copy">
-            Choose the image that appears on your dashboard.
+            Choose the image that appears on Today.
           </div>
         </div>
         <span class="drawer-chevron" aria-hidden="true">▾</span>
@@ -695,9 +695,9 @@
         </div>
 
         <div class="portrait-preview">
-          <div class="muted" style="font-size:0.75rem; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.08em; text-align:center;">Current dashboard portrait</div>
+          <div class="muted" style="font-size:0.75rem; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.08em; text-align:center;">Current Today portrait</div>
           <div class="portrait-preview-shell">
-            <img id="portrait-preview-image" src="/sound_waves.png" alt="Selected dashboard portrait preview" />
+            <img id="portrait-preview-image" src="/sound_waves.png" alt="Selected Today portrait preview" />
           </div>
         </div>
       </div>
@@ -709,7 +709,7 @@
         <h2 style="margin:0;">Google Tasks</h2>
       </div>
       <p class="muted" style="margin-bottom:18px;">
-        Memnon can read one Google Tasks list as optional context, without turning your reflections into a to-do list.
+        Memnon can read one Google Tasks list as optional context, without turning your captures into a task list.
       </p>
 
       <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px;">
@@ -732,7 +732,7 @@
         </select>
       </div>
       <p class="tasks-helper">
-        Memnon will keep this contextual. It will always hold your top tasks in view, but it will only foreground additional tasks when they clearly overlap with your reflection.
+        Memnon will keep this contextual. It will always hold your top tasks in view, but it will only foreground additional tasks when they clearly overlap with your capture.
       </p>
     </div>
 
@@ -742,14 +742,14 @@
         <h2 style="margin:0;">Privacy</h2>
       </div>
       <p class="muted" style="margin-bottom:18px;">
-        Decide whether Memnon can use anonymized reflection signals to improve defaults and product decisions.
+        Decide whether Memnon can use anonymized product signals to improve defaults and product decisions.
       </p>
       <div class="toggle-card">
         <div class="toggle-row">
           <div class="toggle-copy">
             <h3>Contribute anonymized product signals</h3>
             <p>
-              Leave this off if you want reflections used only for your own return. If you turn it on, Memnon may use high-level reflection metadata in aggregate. Your reflection text does not appear verbatim in founder research views.
+              Leave this off if you want your captures and results used only for your own return. If you turn it on, Memnon may use high-level product metadata in aggregate. Your capture text does not appear verbatim in founder research views.
             </p>
           </div>
           <input id="allow-anonymized-research" class="toggle-input" type="checkbox" aria-label="Contribute anonymized product signals" />
@@ -763,7 +763,7 @@
         <h2 style="margin:0;">Narration Voice</h2>
       </div>
       <p class="muted" style="margin-bottom:18px;">
-        Choose the voice Memnon uses when reading reflections aloud. Selecting a voice will play a short sample.
+        Choose the voice Memnon uses when reading spoken results aloud. Selecting a voice will play a short sample.
       </p>
       <div class="narration-voice-grid" id="narration-voice-grid"></div>
       <div class="voice-preview-row">
@@ -779,7 +779,7 @@
 
     <div class="page-actions" style="display:grid; gap:10px; margin-top:4px;">
       <button id="save-btn" class="btn btn-primary" style="width:100%; justify-content:center; font-size:1rem; padding:14px;">
-        Save and go to dashboard →
+        Save and go to Today →
       </button>
       <a id="cancel-link" href="/dashboard" class="btn btn-outline" style="width:100%; justify-content:center; font-size:0.95rem; padding:12px 14px;">
         Exit without saving
@@ -1111,15 +1111,15 @@
     const reflectionStyles = {
       practical: {
         label: 'Practical',
-        copy: 'Instructional guidance and next steps grounded in your classroom context.',
+        copy: 'A more practical synthesis centered on concrete guidance and next steps.',
       },
       grounded: {
         label: 'Grounded',
-        copy: 'A wisdom-based reflection shaped by the guiding voices you selected.',
+        copy: 'A steadier reflective synthesis shaped by your voices and context.',
       },
       complete: {
         label: 'Complete',
-        copy: 'A fuller synthesis that brings practical guidance and grounded reflection into conversation.',
+        copy: 'A fuller synthesis that brings grounded reflection and practical guidance together.',
       },
     };
     let selectedReflectionStyle = 'complete';
@@ -1832,10 +1832,10 @@
       const styleLabel = reflectionStyles[recommendation.recommended_reflection_style].label;
       const explanation = recommendation.explanation || '';
       if (hasExplicitStyle) {
-        el.innerHTML = `<strong>Research signal:</strong> ${styleLabel} is the current default recommendation, but your saved setting stays in place. ${explanation}`;
+        el.innerHTML = `<strong>Research signal:</strong> ${styleLabel} is the current reflective default recommendation, but your saved setting stays in place. ${explanation}`;
         return;
       }
-      el.innerHTML = `<strong>Recommended default:</strong> ${styleLabel}. ${explanation}`;
+      el.innerHTML = `<strong>Recommended reflective default:</strong> ${styleLabel}. ${explanation}`;
     }
 
     async function fetchMe(forceRefresh = false) {
@@ -2004,7 +2004,7 @@
         const btn = document.getElementById("save-btn");
         if (MOCK_SETUP_KEY) {
           prefill(getMockSetupData());
-          btn.textContent = `Previewing ${MOCK_SETUP_KEY} reflection — sign in to save`;
+          btn.textContent = `Previewing ${MOCK_SETUP_KEY} settings — sign in to save`;
         } else {
           btn.textContent = "Preview mode — sign in to save";
         }
@@ -2047,7 +2047,7 @@
     document.getElementById("save-btn").addEventListener("click", async () => {
       if (!currentUser) {
         if (PREVIEW_MODE) {
-          alert("Preview mode only. Open the authenticated app to save reflection tuning.");
+          alert("Preview mode only. Open the authenticated app to save these settings.");
         }
         return;
       }
@@ -2105,7 +2105,7 @@
         window.location.href = routes.dashboard;
       } else {
         btn.disabled = false;
-        btn.textContent = "Save and go to dashboard →";
+        btn.textContent = "Save and go to Today →";
         if (res.status === 401) {
           alert("Your session expired. Refresh the page and sign in again.");
           return;
