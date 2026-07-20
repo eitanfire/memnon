@@ -1,6 +1,7 @@
 config.json
 runtime/*
 !runtime/.gitkeep
+.local/
 *.log
 .DS_Store
 memnon/
