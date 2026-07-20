@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Memnon">
+  <style>
+    :root, svg {
+      --m-ink: var(--memnon-ink, #5C4327);
+      --m-gold: var(--memnon-gold, #E3B269);
+      --m-gold-light: var(--memnon-gold-light, #EFD3A0);
+      --m-cream: var(--memnon-cream, #F2E3C4);
+      --m-cream-deep: var(--memnon-cream-deep, #E9D3A6);
+      --m-blue: var(--memnon-blue, #5B7FC7);
+    }
+    .ink-line { stroke: var(--m-ink); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .ink-fill { fill: var(--m-ink); }
+  </style>
+  <defs>
+    <clipPath id="memnon-dome">
+      <path d="M256 38 C362 38 436 106 444 212 C449 282 434 338 404 368 L108 368 C78 338 63 282 68 212 C76 106 150 38 256 38 Z"/>
+    </clipPath>
+    <clipPath id="memnon-lappet-l"><rect x="84" y="254" width="80" height="212" rx="34"/></clipPath>
+    <clipPath id="memnon-lappet-r"><rect x="348" y="254" width="80" height="212" rx="34"/></clipPath>
+  </defs>
+  <path d="M62 496 C72 410 148 380 256 380 C364 380 440 410 450 496 Z" fill="var(--m-cream-deep)" stroke="var(--m-ink)" stroke-width="11" stroke-linejoin="round"/>
+  <g>
+    <rect x="84" y="254" width="80" height="212" rx="34" fill="var(--m-gold)"/>
+    <g clip-path="url(#memnon-lappet-l)">
+      <rect x="76" y="272" width="96" height="24" fill="var(--m-blue)"/>
+      <rect x="76" y="316" width="96" height="24" fill="var(--m-blue)"/>
+      <rect x="76" y="360" width="96" height="24" fill="var(--m-blue)"/>
+      <rect x="76" y="404" width="96" height="24" fill="var(--m-blue)"/>
+    </g>
+    <rect x="84" y="254" width="80" height="212" rx="34" fill="none" stroke="var(--m-ink)" stroke-width="11"/>
+  </g>
+  <g>
+    <rect x="348" y="254" width="80" height="212" rx="34" fill="var(--m-gold)"/>
+    <g clip-path="url(#memnon-lappet-r)">
+      <rect x="340" y="272" width="96" height="24" fill="var(--m-blue)"/>
+      <rect x="340" y="316" width="96" height="24" fill="var(--m-blue)"/>
+      <rect x="340" y="360" width="96" height="24" fill="var(--m-blue)"/>
+      <rect x="340" y="404" width="96" height="24" fill="var(--m-blue)"/>
+    </g>
+    <rect x="348" y="254" width="80" height="212" rx="34" fill="none" stroke="var(--m-ink)" stroke-width="11"/>
+  </g>
+  <g>
+    <path d="M256 38 C362 38 436 106 444 212 C449 282 434 338 404 368 L108 368 C78 338 63 282 68 212 C76 106 150 38 256 38 Z" fill="var(--m-gold)"/>
+    <g clip-path="url(#memnon-dome)">
+      <rect x="215" y="20" width="26" height="132" fill="var(--m-blue)"/>
+      <rect x="271" y="20" width="26" height="132" fill="var(--m-blue)"/>
+      <rect x="159" y="20" width="26" height="132" fill="var(--m-blue)"/>
+      <rect x="327" y="20" width="26" height="132" fill="var(--m-blue)"/>
+      <rect x="103" y="20" width="26" height="132" fill="var(--m-blue)"/>
+      <rect x="383" y="20" width="26" height="132" fill="var(--m-blue)"/>
+      <rect x="40" y="172" width="136" height="24" fill="var(--m-blue)"/>
+      <rect x="40" y="216" width="136" height="24" fill="var(--m-blue)"/>
+      <rect x="40" y="260" width="136" height="24" fill="var(--m-blue)"/>
+      <rect x="40" y="304" width="136" height="24" fill="var(--m-blue)"/>
+      <rect x="336" y="172" width="136" height="24" fill="var(--m-blue)"/>
+      <rect x="336" y="216" width="136" height="24" fill="var(--m-blue)"/>
+      <rect x="336" y="260" width="136" height="24" fill="var(--m-blue)"/>
+      <rect x="336" y="304" width="136" height="24" fill="var(--m-blue)"/>
+    </g>
+    <path d="M256 38 C362 38 436 106 444 212 C449 282 434 338 404 368 L108 368 C78 338 63 282 68 212 C76 106 150 38 256 38 Z" fill="none" stroke="var(--m-ink)" stroke-width="11" stroke-linejoin="round"/>
+  </g>
+  <path d="M256 128 C326 128 358 174 358 248 C358 314 322 376 256 384 C190 376 154 314 154 248 C154 174 186 128 256 128 Z" fill="var(--m-cream)" stroke="var(--m-ink)" stroke-width="11" stroke-linejoin="round"/>
+  <rect x="138" y="118" width="236" height="48" rx="23" fill="var(--m-gold)" stroke="var(--m-ink)" stroke-width="10"/>
+  <g>
+    <path d="M256 18 C265 18 270 28 269 42 C268.5 50 266 58 264 66 L248 66 C246 58 243.5 50 243 42 C242 28 247 18 256 18 Z" fill="var(--m-gold-light)" stroke="var(--m-ink)" stroke-width="9" stroke-linejoin="round"/>
+    <path class="ink-line" d="M248 66 C246 84 246 98 250 112 M264 66 C266 84 266 98 262 112" stroke-width="8"/>
+  </g>
+  <path class="ink-line" d="M202 228 Q221 216 240 226" stroke-width="9"/>
+  <path class="ink-line" d="M272 226 Q291 216 310 228" stroke-width="9"/>
+  <ellipse class="ink-fill" cx="221" cy="254" rx="7.5" ry="9.5"/>
+  <ellipse class="ink-fill" cx="291" cy="254" rx="7.5" ry="9.5"/>
+  <path class="ink-line" d="M248 288 Q256 297 264 288" stroke-width="8"/>
+  <path class="ink-line" d="M214 316 Q256 346 298 316" stroke-width="10"/>
+  <g>
+    <rect x="232" y="378" width="48" height="84" rx="20" fill="var(--m-gold)" stroke="var(--m-ink)" stroke-width="10"/>
+    <path class="ink-line" d="M238 408 L274 408" stroke-width="7"/>
+    <path class="ink-line" d="M238 434 L274 434" stroke-width="7"/>
+  </g>
+</svg>
