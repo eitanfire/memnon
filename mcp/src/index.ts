@@ -69,18 +69,26 @@ function loadNotes(notesDir: string): NoteRecord[] {
     .filter((f) => f.endsWith(".md"))
     .sort(); // alphabetical / chronological (filenames start with date)
 
-  return files.map((filename) => {
+  const notes: NoteRecord[] = [];
+  for (const filename of files) {
     const filepath = path.join(notesDir, filename);
     const raw = fs.readFileSync(filepath, "utf-8");
-    const parsed = matter(raw);
-    return {
-      filename,
-      filepath,
-      frontmatter: parsed.data as NoteFrontmatter,
-      content: raw,
-      body: parsed.content,
-    };
-  });
+    try {
+      const parsed = matter(raw);
+      notes.push({
+        filename,
+        filepath,
+        frontmatter: parsed.data as NoteFrontmatter,
+        content: raw,
+        body: parsed.content,
+      });
+    } catch (err) {
+      process.stderr.write(
+        `[memnon-mcp] Skipping note with unparseable frontmatter: ${filename}: ${err}\n`
+      );
+    }
+  }
+  return notes;
 }
 
 // ---------------------------------------------------------------------------
