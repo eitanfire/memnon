@@ -76,9 +76,10 @@ class FakeRepository:
         record["threading"] = dict(threading)
         return record
 
-    def update_capture_feedback(self, uid, capture_id, feedback_choice, feedback_updated_at):
+    def update_capture_feedback(self, uid, capture_id, feedback_choice, feedback_note, feedback_updated_at):
         record = self.records[(uid, capture_id)]
         record["feedback_choice"] = feedback_choice
+        record["feedback_note"] = feedback_note
         record["feedback_updated_at"] = feedback_updated_at
         return record
 
@@ -86,12 +87,13 @@ class FakeRepository:
 class WorkflowApiTests(unittest.TestCase):
     def test_create_and_fetch_capture(self):
         repo = FakeRepository()
+        bridge_calls = []
 
         def fake_ai(source_text, context_hint, profile, api_key):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -100,6 +102,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=fake_ai,
             now_provider=lambda: "2026-06-27T16:00:00Z",
             api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
         )
         blueprint = create_workflows_blueprint(
             verify_token=lambda _request: "user-1",
@@ -139,9 +142,12 @@ class WorkflowApiTests(unittest.TestCase):
         )
         self.assertEqual(
             [section["label"] for section in fetched["result"]["primary_artifact"]["sections"]],
-            ["Key point", "Next step"],
+            ["Next step"],
         )
         self.assertEqual(fetched["source_event"]["input_type"], "text")
+        self.assertEqual(len(bridge_calls), 1)
+        self.assertEqual(bridge_calls[0]["capture_record"]["capture_id"], capture_id)
+        self.assertEqual(bridge_calls[0]["include_teaching_context"], True)
 
     def test_api_primary_artifact_keeps_source_excerpt_and_sections(self):
         repo = FakeRepository()
@@ -150,7 +156,7 @@ class WorkflowApiTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -187,12 +193,22 @@ class WorkflowApiTests(unittest.TestCase):
 
     def test_create_audio_capture_from_multipart_uses_voice_source_type(self):
         repo = FakeRepository()
+        bridge_calls = []
+        archived_audio = {}
+
+        def archive_voice_capture_audio(*, uid, capture_id, audio_bytes, filename, content_type):
+            storage_path = f"workflow-voice-audio/{uid}/{capture_id}/{filename}"
+            archived_audio[storage_path] = {
+                "bytes": audio_bytes,
+                "content_type": content_type,
+            }
+            return storage_path
 
         def fake_ai(source_text, context_hint, profile, api_key):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -201,6 +217,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=fake_ai,
             now_provider=lambda: "2026-06-27T16:00:00Z",
             api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
         )
         blueprint = create_workflows_blueprint(
             verify_token=lambda _request: "user-1",
@@ -210,6 +227,8 @@ class WorkflowApiTests(unittest.TestCase):
                 "Action: revise the result card before the next demo."
             ),
             transcription_api_key_provider=lambda: "test-key",
+            archive_voice_capture_audio=archive_voice_capture_audio,
+            download_voice_capture_audio=lambda storage_path: archived_audio[storage_path]["bytes"],
         )
         app = Flask(__name__)
         app.register_blueprint(blueprint, url_prefix="/workflows")
@@ -227,17 +246,28 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(create_response.status_code, 201)
         payload = create_response.get_json()
         self.assertEqual(payload["source_event"]["input_type"], "voice")
+        self.assertIn("source_audio_storage_path", payload["source_event"])
+        self.assertEqual(payload["source_event"]["source_audio_content_type"], "audio/webm")
         self.assertEqual(payload["result"]["route_kind"], "direct_professional_note")
         self.assertEqual(payload["result"]["primary_artifact"]["metadata_line"], "Voice note · Jun 27, 2026 · Product review")
+        self.assertEqual(len(bridge_calls), 1)
+        self.assertEqual(bridge_calls[0]["capture_record"]["source_event"]["input_type"], "voice")
+        self.assertEqual(bridge_calls[0]["include_teaching_context"], True)
+
+        audio_response = client.get(f"/workflows/captures/{payload['capture_id']}/source-audio")
+        self.assertEqual(audio_response.status_code, 200)
+        self.assertEqual(audio_response.data, b"fake-audio-bytes-that-are-not-empty")
+        self.assertEqual(audio_response.headers["Content-Type"], "audio/webm")
 
     def test_create_file_capture_from_multipart_preserves_file_source_metadata(self):
         repo = FakeRepository()
+        bridge_calls = []
 
         def fake_ai(source_text, context_hint, profile, api_key):
             return {
                 "title": "Workshop plan draft",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "summary": "The plan needs one tighter opener and one clear follow-up.",
                 "next_step": "Tighten the opening before sharing it.",
             }
 
@@ -246,6 +276,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=fake_ai,
             now_provider=lambda: "2026-06-27T16:00:00Z",
             api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
         )
         blueprint = create_workflows_blueprint(
             verify_token=lambda _request: "user-1",
@@ -285,6 +316,9 @@ class WorkflowApiTests(unittest.TestCase):
             payload["result"]["primary_artifact"]["metadata_line"],
             "Uploaded file · Jun 27, 2026 · Product review",
         )
+        self.assertEqual(len(bridge_calls), 1)
+        self.assertEqual(bridge_calls[0]["capture_record"]["source_event"]["input_type"], "file")
+        self.assertEqual(bridge_calls[0]["include_teaching_context"], True)
 
     def test_file_capture_rejects_unsupported_extension(self):
         repo = FakeRepository()
@@ -374,7 +408,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -408,7 +442,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -442,7 +476,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -477,7 +511,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -513,7 +547,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -540,7 +574,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -578,7 +612,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -611,7 +645,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -646,7 +680,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -693,7 +727,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs a different thread choice.",
+                "summary": "The result needs a different thread choice.",
                 "next_step": "Record the alternate thread decision.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -743,7 +777,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Voice capture product direction",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs its own new thread.",
+                "summary": "The result needs its own new thread.",
                 "next_step": "Create the thread from the chooser flow.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -790,7 +824,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -831,7 +865,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -873,7 +907,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -907,7 +941,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -937,7 +971,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -959,6 +993,151 @@ class WorkflowApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.get_json(), {"error": "unauthorized"})
+
+    def test_suggestion_invocation_endpoint_creates_derived_saved_result(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS meetup recap",
+                "framing_line": "A saved result shaped around the strongest public takeaway.",
+                "summary": "The meetup recap should become a public-facing post for the community.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+            social_post_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS next meetup",
+                "framing_line": "A concise social draft built from the capture.",
+                "body": "Thanks to everyone who came to BoulderJS tonight. Join us next week for the next meetup.",
+                "sections": [],
+                "copy_text": "Thanks to everyone who came to BoulderJS tonight. Join us next week for the next meetup.",
+            },
+            professional_analysis_generator=lambda *_args, **_kwargs: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "body": "Unused",
+                "sections": [],
+                "copy_text": "Unused",
+            },
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "BoulderJS meetup recap: thanks to everyone who came tonight. "
+                "Share the highlights and invite the community to next week's event."
+            ),
+            context_hint="",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/suggestions",
+            json={"suggestion_type": "draft_social_post"},
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertNotEqual(payload["capture_id"], capture.capture_id)
+        self.assertEqual(payload["next_route"], f"/workflows/result/{payload['capture_id']}")
+        self.assertNotIn("contextual_suggestions", payload["result"])
+        self.assertNotIn("contextual_suggestions", payload.get("event_manifest") or {})
+
+    def test_suggestion_endpoint_rejects_invalid_or_unshown_suggestion(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Small note",
+                "framing_line": "Saved quietly.",
+                "summary": "Unused",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+            social_post_generator=lambda *_args, **_kwargs: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "body": "Unused",
+                "sections": [],
+                "copy_text": "Unused",
+            },
+            professional_analysis_generator=lambda *_args, **_kwargs: {
+                "title": "Unused",
+                "framing_line": "Unused",
+                "body": "Unused",
+                "sections": [],
+                "copy_text": "Unused",
+            },
+        )
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Hold onto this for later",
+            context_hint="",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            f"/workflows/captures/{capture.capture_id}/suggestions",
+            json={"suggestion_type": "draft_social_post"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_capture_response_hides_internal_contextual_suggestion_diagnostics(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "BoulderJS meetup recap",
+                "framing_line": "A saved result shaped around the strongest public takeaway.",
+                "summary": "The meetup recap should become a public-facing post for the community.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-03T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        blueprint = create_workflows_blueprint(
+            verify_token=lambda _request: "user-1",
+            service_provider=lambda: service,
+        )
+        app = Flask(__name__)
+        app.register_blueprint(blueprint, url_prefix="/workflows")
+        client = app.test_client()
+
+        response = client.post(
+            "/workflows/captures",
+            json={
+                "text": (
+                    "BoulderJS meetup recap: thanks to everyone who came tonight. "
+                    "Share the highlights and invite the community to next week's event."
+                ),
+                "context_hint": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(
+            [item["type"] for item in payload["result"].get("contextual_suggestions") or []],
+            ["draft_social_post"],
+        )
+        self.assertNotIn("contextual_suggestions", payload.get("event_manifest") or {})
 
 
 if __name__ == "__main__":

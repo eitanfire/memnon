@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&display=swap');
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -49,6 +51,14 @@ nav {
   vertical-align: middle;
 }
 .nav-right  { display: flex; align-items: center; gap: 12px; font-size: 0.875rem; }
+
+.memnon-lockup { display: inline-flex; align-items: center; gap: 0.32em; font-size: 19px; }
+.memnon-lockup img { height: 1.55em; width: auto; display: block; }
+.memnon-wordmark {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600; color: #5C4327;
+  letter-spacing: -0.012em; line-height: 1;
+}
 
 .container { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
 

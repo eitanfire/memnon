@@ -54,6 +54,16 @@ const SOURCE_EXCERPT_LABEL = "From your note";
 const KEY_POINT_LABEL = "Key point";
 const NEXT_STEP_LABEL = "Next step";
 const WHY_KEEP_THIS_LABEL = "Why keep this";
+const CONTEXTUAL_SUGGESTION_COPY = {
+  draft_social_post: {
+    copy: "This could become a social post.",
+    actionLabel: "Draft social post",
+  },
+  analyze_professionally: {
+    copy: "Analyze this through your professional lens.",
+    actionLabel: "Analyze professionally",
+  },
+};
 const MAX_TEXT_FILE_BYTES = 512 * 1024;
 const SUPPORTED_TEXT_FILE_EXTENSIONS = new Set([".txt", ".md"]);
 const VOICE_MIME_CANDIDATES = ["audio/webm", "audio/mp4", "video/mp4"];
@@ -75,6 +85,7 @@ let mediaStream = null;
 let recordingChunks = [];
 let activeRecordingMimeType = "";
 let selectedUploadFile = null;
+const activeVoiceReviewObjectUrls = new Set();
 
 function buildDebugPayload(event, extra = {}) {
   return {
@@ -459,7 +470,35 @@ async function apiFetch(path, init = {}) {
   return payload;
 }
 
+async function apiFetchBlob(path, init = {}) {
+  const token = await getToken();
+  const headers = new Headers(init.headers || {});
+  headers.set("Authorization", `Bearer ${token}`);
+
+  logDebug("api_fetch", {
+    method: init.method || "GET",
+    target: `${API_ORIGIN}${path}`,
+  });
+
+  const response = await fetch(`${API_ORIGIN}${path}`, {
+    ...init,
+    headers,
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || `Request failed: ${response.status}`);
+  }
+  return response.blob();
+}
+
+function releaseVoiceReviewObjectUrls() {
+  activeVoiceReviewObjectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+  activeVoiceReviewObjectUrls.clear();
+}
+
 function resetResultCards() {
+  releaseVoiceReviewObjectUrls();
   for (const cardId of ["loading-card", "primary-artifact-card", "saved-note-card"]) {
     const card = document.getElementById(cardId);
     if (!card) {
@@ -599,14 +638,78 @@ function buildMetadataLine(sourceEvent) {
   if (sourceType) {
     parts.push(sourceType);
   }
-  if (sourceEvent?.input_type === "file" && sourceEvent?.source_filename) {
-    parts.push(compactSourceFilename(sourceEvent.source_filename));
-  }
   const captureDate = formatLocalCaptureDate(sourceEvent?.created_at);
   if (captureDate) {
     parts.push(captureDate);
   }
   return parts.join(" · ");
+}
+
+function resolveResultSourceEvent(payload) {
+  const payloadSourceEvent = payload?.source_event || {};
+  const manifestSourceEvent = payload?.event_manifest?.source_event || {};
+  return {
+    ...manifestSourceEvent,
+    ...payloadSourceEvent,
+    capture_id: payloadSourceEvent.capture_id || payload?.capture_id || manifestSourceEvent.capture_id || "",
+    input_type: payloadSourceEvent.input_type || payload?.input_type || manifestSourceEvent.input_type || "",
+    created_at: payloadSourceEvent.created_at || payload?.created_at || manifestSourceEvent.created_at || "",
+    source_filename: payloadSourceEvent.source_filename || manifestSourceEvent.source_filename || "",
+    source_text: payloadSourceEvent.source_text || manifestSourceEvent.source_text || "",
+    source_preview: payloadSourceEvent.source_preview || manifestSourceEvent.source_preview || "",
+    source_audio_storage_path: payloadSourceEvent.source_audio_storage_path || manifestSourceEvent.source_audio_storage_path || "",
+    source_audio_content_type: payloadSourceEvent.source_audio_content_type || manifestSourceEvent.source_audio_content_type || "",
+  };
+}
+
+function resolveResultMetadataLine(payload, artifact = {}) {
+  return buildMetadataLine(resolveResultSourceEvent(payload)) || artifact.metadata_line || "";
+}
+
+function renderVoiceReview(sourceEvent) {
+  if (sourceEvent?.input_type !== "voice" || !sourceEvent?.capture_id || !sourceEvent?.source_audio_storage_path) {
+    return "";
+  }
+  const apiOriginPrefix = typeof API_ORIGIN === "string" ? API_ORIGIN : "";
+  const audioEndpoint = `${apiOriginPrefix}${API_CAPTURES_PATH}/${encodeURIComponent(sourceEvent.capture_id)}/source-audio`;
+  return `
+    <div class="workflows-voice-review">
+      <p class="workflows-source-label">Review captured audio</p>
+      <audio controls preload="none" data-source-audio-endpoint="${escapeHtml(audioEndpoint)}"></audio>
+    </div>
+  `;
+}
+
+async function wireVoiceReviewAudio(card) {
+  const sourceAudioElement = card?.querySelector("audio[data-source-audio-endpoint]");
+  if (!sourceAudioElement) {
+    return;
+  }
+  if (
+    sourceAudioElement.dataset.sourceAudioLoaded === "true"
+    || sourceAudioElement.dataset.sourceAudioLoading === "true"
+  ) {
+    return;
+  }
+
+  sourceAudioElement.dataset.sourceAudioLoading = "true";
+  try {
+    const blob = await apiFetchBlob(sourceAudioElement.dataset.sourceAudioEndpoint);
+    const objectUrl = URL.createObjectURL(blob);
+    if (!document.contains(sourceAudioElement)) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    activeVoiceReviewObjectUrls.add(objectUrl);
+    sourceAudioElement.src = objectUrl;
+    sourceAudioElement.dataset.sourceAudioLoaded = "true";
+    sourceAudioElement.load();
+  } catch (error) {
+    console.error("[workflows] voice review audio load failed", error);
+    sourceAudioElement.closest(".workflows-voice-review")?.setAttribute("hidden", "");
+  } finally {
+    delete sourceAudioElement.dataset.sourceAudioLoading;
+  }
 }
 
 function buildSourceExcerptLabel(sourceEvent) {
@@ -685,6 +788,36 @@ function renderConfirmedThreadDisplay(payload) {
   return `<p class="workflows-related-thread-confirmed">Related to ${escapeHtml(relatedThread.confirmed_title)}</p>`;
 }
 
+function renderSummary(artifact) {
+  const summary = artifact?.summary;
+  if (!summary) {
+    return "";
+  }
+  const lines = summary
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const blocks = [];
+  let bulletBuffer = [];
+  const flushBullets = () => {
+    if (bulletBuffer.length) {
+      blocks.push(`<ul>${bulletBuffer.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`);
+      bulletBuffer = [];
+    }
+  };
+  for (const line of lines) {
+    const bulletMatch = line.match(/^[-*]\s+(.*)$/);
+    if (bulletMatch) {
+      bulletBuffer.push(bulletMatch[1]);
+    } else {
+      flushBullets();
+      blocks.push(`<p>${escapeHtml(line)}</p>`);
+    }
+  }
+  flushBullets();
+  return `<div class="workflows-summary">${blocks.join("")}</div>`;
+}
+
 function renderSections(sections) {
   if (!sections?.length) {
     return "";
@@ -712,12 +845,72 @@ function renderSections(sections) {
     .join("");
 }
 
+function renderContextualSuggestions(payload, options = {}) {
+  if (!options.isImmediateResult) {
+    return "";
+  }
+
+  const suggestionCopy =
+    typeof CONTEXTUAL_SUGGESTION_COPY !== "undefined"
+      ? CONTEXTUAL_SUGGESTION_COPY
+      : {
+          draft_social_post: {
+            copy: "This could become a social post.",
+            actionLabel: "Draft social post",
+          },
+          analyze_professionally: {
+            copy: "Analyze this through your professional lens.",
+            actionLabel: "Analyze professionally",
+          },
+        };
+
+  const suggestions = (payload?.result?.contextual_suggestions || [])
+    .map((item) => {
+      const defaults = suggestionCopy[item?.type] || {};
+      return {
+        type: item?.type || "",
+        copy: item?.copy || defaults.copy || "",
+        action_label: item?.action_label || defaults.actionLabel || "",
+      };
+    })
+    .filter((item) => item.type && item.copy && item.action_label);
+  if (!suggestions.length) {
+    return "";
+  }
+
+  return `
+    <section class="workflows-contextual-suggestions" aria-label="${suggestions.length > 1 ? "Optional next steps" : "Optional next step"}">
+      <p class="workflows-contextual-suggestions-label">${suggestions.length > 1 ? "Optional next steps" : "Optional next step"}</p>
+      <div class="workflows-contextual-suggestions-list">
+        ${suggestions
+          .slice(0, 2)
+          .map(
+            (item) => `
+              <div class="workflows-contextual-suggestion-row">
+                <p class="workflows-contextual-suggestion-copy">${escapeHtml(item.copy)}</p>
+                <button
+                  type="button"
+                  class="btn btn-outline workflows-contextual-suggestion-button"
+                  data-contextual-suggestion-type="${escapeHtml(item.type)}"
+                >
+                  ${escapeHtml(item.action_label)}
+                </button>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderResultFeedback(payload, options = {}) {
-  if (!options.isImmediateResult || !payload?.capture_id) {
+  if (!payload?.capture_id) {
     return "";
   }
 
   const feedbackChoice = payload.feedback_choice || "";
+  const feedbackNote = payload.feedback_note || "";
   const isUsefulSelected = feedbackChoice === "useful";
   const isNotUsefulSelected = feedbackChoice === "not_useful";
 
@@ -742,6 +935,7 @@ function renderResultFeedback(payload, options = {}) {
           Not useful
         </button>
       </div>
+      ${renderFeedbackNoteForm(payload.capture_id, feedbackChoice, feedbackNote)}
     </section>
   `;
 }
@@ -842,20 +1036,138 @@ function renderSavedResultsBody(items) {
   return `
     <div class="workflows-saved-results-list">
       ${items
-        .map(
-          (item) => `
-            <article class="workflows-saved-results-item">
+        .map((item) => {
+          const isUsefulSelected = item.feedback_choice === "useful";
+          const isNotUsefulSelected = item.feedback_choice === "not_useful";
+          return `
+            <article class="workflows-saved-results-item" data-capture-id="${escapeHtml(item.capture_id || "")}">
               <div class="workflows-saved-results-item-header">
-                <h3>${escapeHtml(item.title || "Saved note")}</h3>
+                <h3>${escapeHtml(item.title || "Saved note")}${item.looks_like_dev_data ? ' <span class="workflows-dev-data-tag">Dev/QA</span>' : ""}</h3>
                 <a class="workflows-saved-results-link" href="${escapeHtml(item.next_route || "/workflows")}">Open</a>
               </div>
               <p class="workflows-saved-results-meta">${escapeHtml(item.metadata_line || item.status || "")}</p>
+              <div class="workflows-feedback-actions workflows-feedback-actions--compact" role="group" aria-label="Result feedback options">
+                <button
+                  type="button"
+                  class="btn btn-outline workflows-feedback-button ${isUsefulSelected ? "is-selected" : ""}"
+                  data-feedback-choice="useful"
+                  data-capture-id="${escapeHtml(item.capture_id || "")}"
+                  aria-pressed="${isUsefulSelected ? "true" : "false"}"
+                >
+                  Useful
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline workflows-feedback-button ${isNotUsefulSelected ? "is-selected" : ""}"
+                  data-feedback-choice="not_useful"
+                  data-capture-id="${escapeHtml(item.capture_id || "")}"
+                  aria-pressed="${isNotUsefulSelected ? "true" : "false"}"
+                >
+                  Not useful
+                </button>
+              </div>
+              ${renderFeedbackNoteForm(item.capture_id, item.feedback_choice, item.feedback_note, { compact: true })}
             </article>
-          `,
-        )
+          `;
+        })
         .join("")}
     </div>
   `;
+}
+
+function renderFeedbackNoteForm(captureId, feedbackChoice, feedbackNote, options = {}) {
+  if (!feedbackChoice || !captureId) {
+    return "";
+  }
+  const inputId = `feedback-note-input-${captureId}`;
+  const compactClass = options.compact ? " workflows-feedback-note-form--compact" : "";
+  return `
+    <form class="workflows-feedback-note-form${compactClass}" data-feedback-note-form data-capture-id="${escapeHtml(captureId)}">
+      <label class="workflows-visually-hidden" for="${escapeHtml(inputId)}">Why?</label>
+      <input
+        id="${escapeHtml(inputId)}"
+        name="feedback_note"
+        type="text"
+        maxlength="500"
+        placeholder="Say why (optional)"
+        value="${escapeHtml(feedbackNote || "")}"
+      />
+      <button type="submit" class="btn btn-quiet">Save</button>
+    </form>
+  `;
+}
+
+function wireSavedResultsListFeedbackControls(card) {
+  if (!card) {
+    return;
+  }
+
+  for (const button of card.querySelectorAll("[data-feedback-choice][data-capture-id]")) {
+    if (button.dataset.wired === "true") {
+      continue;
+    }
+    button.dataset.wired = "true";
+    button.addEventListener("click", async () => {
+      const feedbackChoice = button.getAttribute("data-feedback-choice");
+      const captureId = button.getAttribute("data-capture-id");
+      if (!feedbackChoice || !captureId) {
+        return;
+      }
+      const item = card.querySelector(`.workflows-saved-results-item[data-capture-id="${CSS.escape(captureId)}"]`);
+      const existingNoteInput = item?.querySelector("[data-feedback-note-form] input");
+      const existingNote = existingNoteInput?.value || "";
+
+      setStatusTone("Saving feedback...", "working");
+      try {
+        await submitFeedbackChoice(captureId, feedbackChoice, existingNote);
+        setStatusTone("Feedback saved.");
+        for (const feedbackButton of item?.querySelectorAll("[data-feedback-choice]") || []) {
+          const isSelected = feedbackButton.getAttribute("data-feedback-choice") === feedbackChoice;
+          feedbackButton.classList.toggle("is-selected", isSelected);
+          feedbackButton.setAttribute("aria-pressed", isSelected ? "true" : "false");
+        }
+        if (item && !item.querySelector("[data-feedback-note-form]")) {
+          const actionsBlock = item.querySelector(".workflows-feedback-actions");
+          actionsBlock?.insertAdjacentHTML(
+            "afterend",
+            renderFeedbackNoteForm(captureId, feedbackChoice, existingNote, { compact: true }),
+          );
+          wireSavedResultsListFeedbackControls(card);
+        }
+      } catch (error) {
+        console.error("[workflows] feedback submission failed", error);
+        setStatusTone("Could not save feedback. Try again.", "error");
+      }
+    });
+  }
+
+  for (const noteForm of card.querySelectorAll("[data-feedback-note-form]")) {
+    if (noteForm.dataset.wired === "true") {
+      continue;
+    }
+    noteForm.dataset.wired = "true";
+    noteForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const captureId = noteForm.getAttribute("data-capture-id");
+      const item = card.querySelector(`.workflows-saved-results-item[data-capture-id="${CSS.escape(captureId)}"]`);
+      const selectedButton = item?.querySelector("[data-feedback-choice].is-selected");
+      const feedbackChoice = selectedButton?.getAttribute("data-feedback-choice") || "";
+      if (!captureId || !feedbackChoice) {
+        return;
+      }
+      const input = noteForm.querySelector("input");
+      const feedbackNote = (input?.value || "").trim();
+
+      setStatusTone("Saving note...", "working");
+      try {
+        await submitFeedbackChoice(captureId, feedbackChoice, feedbackNote);
+        setStatusTone("Note saved.");
+      } catch (error) {
+        console.error("[workflows] feedback note submission failed", error);
+        setStatusTone("Could not save note. Try again.", "error");
+      }
+    });
+  }
 }
 
 function renderSavedResultsList(items) {
@@ -866,13 +1178,14 @@ function renderSavedResultsList(items) {
     statusLabel: "Saved results",
     statusTone: "saved",
     kicker: "History",
-    title: "Saved workflow results",
-    framingLine: "Reopen any saved workflow artifact.",
+    title: "Saved results",
+    framingLine: "Reopen a saved result.",
     bodyHtml: renderSavedResultsBody(items),
     actions: [
       { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
     ],
   });
+  wireSavedResultsListFeedbackControls(card);
   wireReturnToCapture();
 }
 
@@ -885,10 +1198,11 @@ function renderSavedNote(payload, options = {}) {
   const sourcePanel = document.getElementById("source-text-panel");
   const sourceText = document.getElementById("source-text-content");
   const savedArtifact = payload.result.saved_note_artifact || {};
+  const sourceEvent = resolveResultSourceEvent(payload);
   const defaultFramingLine =
     savedArtifact.state === "weak_signal"
       ? "This is a small note worth preserving."
-      : "This seems worth keeping, but it may need a little direction before it becomes something stronger.";
+      : "This note is worth keeping, but it needs clearer direction before acting on it.";
   const savedStatusLabel =
     savedArtifact.state === "needs_direction" ? "Needs light direction" : "Saved for later";
   const savedKicker =
@@ -898,17 +1212,19 @@ function renderSavedNote(payload, options = {}) {
     statusTone: "saved",
     kicker: savedKicker,
     title: savedArtifact.title || "Saved note",
-    metadataLine: buildMetadataLine(payload.source_event) || savedArtifact.metadata_line,
+    metadataLine: resolveResultMetadataLine(payload, savedArtifact),
     interpretationLine: payload.result.interpretation_line,
     framingLine: savedArtifact.framing_line || defaultFramingLine,
     bodyHtml: `
       ${renderRelatedThreadSuggestion(payload, activeThreads)}
       ${renderConfirmedThreadDisplay(payload)}
+      ${renderVoiceReview(sourceEvent)}
       ${renderSourceExcerpt(
-        savedArtifact.source_excerpt || payload.result.source_preview || payload.source_event.source_preview || "",
-        payload.source_event,
+        savedArtifact.source_excerpt || payload.result.source_preview || sourceEvent.source_preview || "",
+        sourceEvent,
       )}
       ${renderSections(savedArtifact.sections || [])}
+      ${renderContextualSuggestions(payload, options)}
       ${renderResultFeedback(payload, options)}
     `,
     actions: [
@@ -918,16 +1234,27 @@ function renderSavedNote(payload, options = {}) {
   });
 
   sourcePanel.hidden = false;
-  sourceText.textContent = payload.source_event.source_text;
+  sourceText.textContent = sourceEvent.source_text;
   wireResultThreadControls(card, payload, {
     activeThreads,
+    isImmediateResult: options.isImmediateResult,
+  });
+  wireResultContextualSuggestionControls(card, payload, {
     isImmediateResult: options.isImmediateResult,
   });
   wireResultFeedbackControls(card, payload, {
     activeThreads,
     isImmediateResult: options.isImmediateResult,
   });
+  void wireVoiceReviewAudio(card);
   wireReturnToCapture();
+}
+
+function isLegacySchemaArtifact(artifact) {
+  if (!artifact || artifact.summary) {
+    return false;
+  }
+  return (artifact.sections || []).some((section) => section.label === "Key point");
 }
 
 function renderPrimaryArtifact(payload, options = {}) {
@@ -939,45 +1266,74 @@ function renderPrimaryArtifact(payload, options = {}) {
   const sourceText = document.getElementById("source-text-content");
   const artifact = payload.result.primary_artifact;
   const activeThreads = options.activeThreads || [];
+  const sourceEvent = resolveResultSourceEvent(payload);
   const bodyHtml = `
     ${renderRelatedThreadSuggestion(payload, activeThreads)}
     ${renderConfirmedThreadDisplay(payload)}
-    ${renderSourceExcerpt(artifact.source_excerpt, payload.source_event)}
+    ${renderVoiceReview(sourceEvent)}
+    ${renderSummary(artifact)}
+    ${renderSourceExcerpt(artifact.source_excerpt, sourceEvent)}
     ${renderSections(artifact.sections || [])}
+    ${renderContextualSuggestions(payload, options)}
     ${renderResultFeedback(payload, options)}
   `;
+
+  const actions = [
+    { html: `<button type="button" class="btn btn-primary" id="copy-artifact-body">${escapeHtml(artifact.primary_action || "Copy note")}</button>` },
+    { html: '<a class="btn btn-outline" href="/workflows/saved">View saved results</a>' },
+    { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
+  ];
+  if (isLegacySchemaArtifact(artifact)) {
+    actions.push({
+      html: '<button type="button" class="btn btn-quiet" id="regenerate-capture">Update to new format</button>',
+    });
+  }
 
   renderResultCard(card, {
     statusLabel: artifact.status || "Saved and shaped",
     statusTone: "ready",
     kicker: "Saved result",
     title: artifact.title,
-    metadataLine: buildMetadataLine(payload.source_event) || artifact.metadata_line,
+    metadataLine: resolveResultMetadataLine(payload, artifact),
     interpretationLine: payload.result.interpretation_line,
     framingLine: artifact.framing_line,
     bodyHtml,
-    actions: [
-      { html: '<button type="button" class="btn btn-primary" id="copy-artifact-body">Copy note</button>' },
-      { html: '<a class="btn btn-outline" href="/workflows/saved">View saved results</a>' },
-      { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
-    ],
+    actions,
   });
 
   sourcePanel.hidden = false;
-  sourceText.textContent = payload.source_event.source_text;
+  sourceText.textContent = sourceEvent.source_text;
 
   document.getElementById("copy-artifact-body")?.addEventListener("click", async () => {
     await navigator.clipboard.writeText(artifact.copy_text || artifact.body || "");
     setStatusTone("Copied note.");
   });
+  document.getElementById("regenerate-capture")?.addEventListener("click", async () => {
+    setStatusTone("Updating to the new format...", "working");
+    try {
+      const updated = await submitRegenerateCapture(payload.capture_id);
+      setStatusTone("Updated.");
+      renderPayload(updated, {
+        activeThreads,
+        isImmediateResult: Boolean(options.isImmediateResult),
+      });
+    } catch (error) {
+      console.error("[workflows] regenerate failed", error);
+      setStatusTone("Could not update this result. Try again.", "error");
+    }
+  });
   wireResultThreadControls(card, payload, {
     activeThreads,
+    isImmediateResult: options.isImmediateResult,
+  });
+  wireResultContextualSuggestionControls(card, payload, {
     isImmediateResult: options.isImmediateResult,
   });
   wireResultFeedbackControls(card, payload, {
     activeThreads,
     isImmediateResult: options.isImmediateResult,
   });
+  void wireVoiceReviewAudio(card);
   wireReturnToCapture();
 }
 
@@ -1052,11 +1408,27 @@ async function submitThreadDecision(captureId, action, options = {}) {
   });
 }
 
-async function submitFeedbackChoice(captureId, feedbackChoice) {
+async function submitRegenerateCapture(captureId) {
+  return apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}/regenerate`, {
+    method: "POST",
+  });
+}
+
+async function submitFeedbackChoice(captureId, feedbackChoice, feedbackNote = "") {
   return apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}/feedback`, {
     method: "POST",
     body: JSON.stringify({
       feedback_choice: feedbackChoice,
+      feedback_note: feedbackNote,
+    }),
+  });
+}
+
+async function submitContextualSuggestion(captureId, suggestionType) {
+  return apiFetch(`${API_CAPTURES_PATH}/${encodeURIComponent(captureId)}/suggestions`, {
+    method: "POST",
+    body: JSON.stringify({
+      suggestion_type: suggestionType,
     }),
   });
 }
@@ -1534,7 +1906,7 @@ function wireResultThreadControls(card, payload, options = {}) {
 }
 
 function wireResultFeedbackControls(card, payload, options = {}) {
-  if (!card || !options.isImmediateResult) {
+  if (!card) {
     return;
   }
   const captureId = payload?.capture_id;
@@ -1555,15 +1927,80 @@ function wireResultFeedbackControls(card, payload, options = {}) {
 
       setStatusTone("Saving feedback...", "working");
       try {
-        const updated = await submitFeedbackChoice(captureId, feedbackChoice);
+        const updated = await submitFeedbackChoice(captureId, feedbackChoice, payload.feedback_note || "");
         setStatusTone("Feedback saved.");
         renderPayload(updated, {
           activeThreads: options.activeThreads || [],
-          isImmediateResult: true,
+          isImmediateResult: Boolean(options.isImmediateResult),
         });
       } catch (error) {
         console.error("[workflows] feedback submission failed", error);
         setStatusTone("Could not save feedback. Try again.", "error");
+      }
+    });
+  }
+
+  const noteForm = card.querySelector("[data-feedback-note-form]");
+  if (noteForm && noteForm.dataset.wired !== "true") {
+    noteForm.dataset.wired = "true";
+    noteForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const feedbackChoice = payload.feedback_choice || "";
+      if (!feedbackChoice) {
+        return;
+      }
+      const input = noteForm.querySelector("#feedback-note-input");
+      const feedbackNote = (input?.value || "").trim();
+
+      setStatusTone("Saving note...", "working");
+      try {
+        const updated = await submitFeedbackChoice(captureId, feedbackChoice, feedbackNote);
+        setStatusTone("Note saved.");
+        renderPayload(updated, {
+          activeThreads: options.activeThreads || [],
+          isImmediateResult: Boolean(options.isImmediateResult),
+        });
+      } catch (error) {
+        console.error("[workflows] feedback note submission failed", error);
+        setStatusTone("Could not save note. Try again.", "error");
+      }
+    });
+  }
+}
+
+function wireResultContextualSuggestionControls(card, payload, options = {}) {
+  if (!card || !options.isImmediateResult) {
+    return;
+  }
+  const captureId = payload?.capture_id;
+  if (!captureId) {
+    return;
+  }
+
+  for (const button of card.querySelectorAll("[data-contextual-suggestion-type]")) {
+    if (button.dataset.wired === "true") {
+      continue;
+    }
+    button.dataset.wired = "true";
+    button.addEventListener("click", async () => {
+      const suggestionType = button.getAttribute("data-contextual-suggestion-type");
+      if (!suggestionType) {
+        return;
+      }
+
+      setStatusTone("Shaping that result...", "working");
+      try {
+        const created = await submitContextualSuggestion(captureId, suggestionType);
+        const nextPath = `/workflows/result/${encodeURIComponent(created.capture_id)}`;
+        history.pushState({}, "", nextPath);
+        setStatus("");
+        renderPayload(created, {
+          activeThreads: [],
+          isImmediateResult: true,
+        });
+      } catch (error) {
+        console.error("[workflows] contextual suggestion failed", error);
+        setStatusTone("Something went wrong. Try again.", "error");
       }
     });
   }

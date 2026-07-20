@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memnon</title>
+  <title>Memnon Today</title>
   <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" type="image/svg+xml" href="/brand/memnon-icon-mini.svg" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#f8f7f4" />
@@ -910,7 +911,10 @@
 </head>
 <body class="dashboard-page">
   <nav>
-    <span class="nav-brand"><img class="brand-mark" src="/nav-logo.png" alt="" /> Memnon</span>
+    <div class="memnon-lockup nav-brand">
+      <img src="/brand/memnon-icon.svg" alt="">
+      <span class="memnon-wordmark">memnon</span>
+    </div>
     <div class="nav-right">
       <a id="research-link" class="btn btn-outline" href="/research" style="padding:6px 14px; font-size:0.8rem;">
         Research
@@ -934,56 +938,44 @@
 
     <div class="card dashboard-primary-card dashboard-capture-card">
       <div class="dashboard-capture-intro">
-        <h1 class="dashboard-capture-title">What is on your mind?</h1>
+        <h1 class="dashboard-capture-title">Today</h1>
         <p class="dashboard-capture-description">
-          Record or write whatever feels present. Memnon can return it as a grounded reflection you can revisit later.
+          Daily Brief and continuity from recent captures live here. When you need something new, open Capture.
         </p>
       </div>
       <div class="capture-prompt-shell">
         <div class="capture-prompt-actions">
-          <button id="record-btn" class="btn btn-primary capture-mode-btn">
-            <span class="record-mark" aria-hidden="true">🎙</span>
-            Record
-          </button>
-          <button id="write-btn" class="btn btn-outline capture-mode-btn">
-            <span aria-hidden="true">⌨️</span>
-            Write
-          </button>
-        </div>
-        <div id="capture-text-panel" class="capture-text-panel" hidden>
-          <div class="capture-text-copy">Write freely. Memnon will treat this as a full reflection entry, not a secondary note.</div>
-          <textarea id="capture-text-input" placeholder="Write what happened, what is weighing on you, or what you want to understand more clearly."></textarea>
-          <div class="capture-text-actions">
-            <button id="capture-text-save" class="btn btn-primary" style="padding:8px 14px; font-size:0.8rem;">
-              Capture in writing
-            </button>
-            <div id="capture-text-status" class="capture-text-status" aria-live="polite"></div>
-          </div>
+          <a id="today-open-capture" class="btn btn-primary capture-mode-btn" href="/workflows">
+            Open capture
+          </a>
+          <a id="today-context-settings" class="btn btn-outline capture-mode-btn" href="/setup">
+            Context settings →
+          </a>
         </div>
       </div>
       <div class="dashboard-capture-secondary">
         <div class="summary-tile summary-tile--latest">
           <div>
-            <div class="summary-tile-kicker">Latest reflection</div>
+            <div class="summary-tile-kicker">Latest result</div>
             <div class="summary-tile-title">Receive the latest return</div>
             <div class="summary-tile-copy">Listen, read, and decide what thread to carry forward.</div>
             <div class="recording-player-wrap">
-              <div class="recording-player-label" id="reflection-player-label">Latest complete reflection</div>
+              <div class="recording-player-label" id="reflection-player-label">Latest complete result</div>
               <div class="reflection-view-toggle" id="reflection-view-toggle">
                 <button id="reflection-view-listen" class="is-active" type="button">Listen</button>
                 <button id="reflection-view-read" type="button">Read</button>
               </div>
               <div id="reflection-audio-panel" class="reflection-panel">
                 <div id="reflection-player-container" class="recording-player">
-                  <div class="recording-player-empty">Loading your latest reflection…</div>
+                  <div class="recording-player-empty">Loading your latest result…</div>
                 </div>
               </div>
               <div id="reflection-read-panel" class="reflection-panel reflection-read-panel" hidden>
-                <div id="reflection-read-content" class="recording-player-empty">Loading the latest reflection text…</div>
+                <div id="reflection-read-content" class="recording-player-empty">Loading the latest result text…</div>
               </div>
               <div id="reflection-continuation" class="reflection-continuation" hidden>
-                <div class="reflection-continuation-prompt">Carry this forward in your next reflection.</div>
-                <div class="reflection-continuation-copy">You can agree, push back, or continue the thread in your next voice note or written entry.</div>
+                <div class="reflection-continuation-prompt">Carry this forward in your next capture.</div>
+                <div class="reflection-continuation-copy">You can agree, push back, or continue the thread in your next voice note or written note.</div>
                 <button id="reflection-continue-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
                   Continue the thread
                 </button>
@@ -1058,38 +1050,6 @@
             </button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Lane -->
-    <div class="card editorial-card dashboard-secondary-card">
-      <div class="editorial-main">
-        <div class="editorial-header">
-          <div>
-          <h2 id="lane-title">Reflection Context</h2>
-          <p id="lane-desc" style="color:#555;">These settings shape how Memnon will ground your next reflection.</p>
-          <div class="capture-context-toggle" style="margin-top:14px;">
-            <label for="capture-teaching-context">
-              <input id="capture-teaching-context" type="checkbox" checked />
-              <span>
-                <div class="capture-context-toggle-title">Use teaching context</div>
-                <div class="capture-context-toggle-copy">When on, Memnon includes your classroom, school, and standards context in the next reflection.</div>
-              </span>
-            </label>
-          </div>
-          <div id="lane-pills" class="context-pill-row"></div>
-        </div>
-        <a href="/setup" class="btn context-cta" style="white-space:nowrap;">
-          <span aria-hidden="true">⚙</span>
-          Tune Reflection
-        </a>
-        </div>
-        <p class="editorial-copy" id="lane-copy">
-          Memnon can ground the next reflection in your classroom context, selected frameworks, guiding voices, and memory across entries.
-        </p>
-      </div>
-      <div class="editorial-media" aria-hidden="true">
-        <img src="/sacred_objects.png" alt="" />
       </div>
     </div>
 
@@ -1185,6 +1145,17 @@
       complete: "Each capture returns as a complete spoken reflection in your",
     };
 
+    function latestResultStyleDescriptor(styleKey) {
+      switch (styleKey) {
+        case "practical":
+          return "practical";
+        case "grounded":
+          return "grounded";
+        default:
+          return "complete";
+      }
+    }
+
     const params = new URLSearchParams(window.location.search);
     const PREVIEW_MODE =
       params.has("preview") ||
@@ -1205,6 +1176,9 @@
       window.location.hostname === "localhost" &&
       (window.location.port === "8000" || window.location.port === "8080");
     const API = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "/api";
+    const WORKFLOW_CAPTURES_ENDPOINT = isStaticLocalhost
+      ? "https://api-4hth6oktaa-uc.a.run.app/workflows/captures"
+      : "/api/workflows/captures";
     const routes = {
       home: isStaticLocalhost ? "/index.html" : "/",
       dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
@@ -1271,8 +1245,6 @@
       const firstName = data.preferred_name || "there";
       document.getElementById("first-name").textContent = firstName;
       document.getElementById("nav-name").textContent = "Preview mode";
-      renderTeachingContextToggle(true, true);
-      renderReflectionContextCard(data, { previewMode: true });
       applyDashboardPortraitStyle(
         document.getElementById("welcome-mark-image"),
         normalizeDashboardImageConfig(data.dashboard_image)
@@ -1304,7 +1276,7 @@
       const hasMockReflection = MOCK_REFLECTION_STATE !== "empty";
       if (player) {
         if (!hasMockReflection) {
-          player.innerHTML = `<div class="recording-player-empty">No ${REFLECTION_STYLE_LABELS[data.reflection_style || "complete"].toLowerCase()} yet. Record a memo to generate one.</div>`;
+          player.innerHTML = `<div class="recording-player-empty">No ${latestResultStyleDescriptor(data.reflection_style || "complete")} result yet. Record a memo to generate one.</div>`;
         } else {
           const titles = {
             practical: "June 9, 2026 — Resetting discussion routines",
@@ -1314,7 +1286,7 @@
           const styleKey = data.reflection_style || "complete";
           player.innerHTML = `
             <div class="recording-player-name">${titles[styleKey] || titles.complete}</div>
-            <div class="recording-player-empty">Mock preview. Sign in to generate and play the real audio reflection.</div>
+            <div class="recording-player-empty">Mock preview. Sign in to generate and play the real audio result.</div>
           `;
         }
       }
@@ -1523,70 +1495,8 @@
       return data.reflection_style in REFLECTION_STYLE_LABELS ? data.reflection_style : "complete";
     }
 
-    function summarizeReflectionContext(data, options = {}) {
-      const styleKey = reflectionStyleKey(data);
-      const reflectionStyle = REFLECTION_STYLE_LABELS[styleKey];
-      const includeTeachingContext = options.includeTeachingContext !== false;
-      const subjects = (data.subjects || "").trim();
-      const grades = Array.isArray(data.grade_levels) ? data.grade_levels : [];
-      const standards = Array.isArray(data.state_standards) ? data.state_standards : [];
-      const selectedGuides = Array.isArray(data.reflect_config?.selected_guides)
-        ? data.reflect_config.selected_guides.map(toProperNounLabel).filter(Boolean)
-        : [];
-      const schoolName = (data.school_name || "").trim();
-      const schoolState = (data.school_state || "").trim();
-      const teachingDetail = includeTeachingContext
-        ? [subjects || "", grades.length ? `Grades ${formatList(grades)}` : "", schoolState, schoolName]
-            .filter(Boolean)
-            .join(" · ")
-        : "Off for the next reflection";
-      const standardsLabel = includeTeachingContext
-        ? standards.length
-          ? standards.join(", ")
-          : "No frameworks selected"
-        : "Off";
-      const voicesLabel = selectedGuides.length
-        ? selectedGuides.join(", ")
-        : "No voices selected";
-      return {
-        description: includeTeachingContext
-          ? "These settings shape how Memnon will ground your next reflection."
-          : "The next reflection will keep your voices and reflection history, but leave out classroom, school, and standards context.",
-        copy: includeTeachingContext
-          ? teachingDetail || "Teaching context is on for the next reflection."
-          : "Use this when you want the next reflection to stay personal without routing it through your professional setup.",
-        pills: [
-          `Teaching context: ${includeTeachingContext ? "On" : "Off"}`,
-          `Voices: ${voicesLabel}`,
-          `Frameworks: ${standardsLabel}`,
-          `Mode: ${reflectionStyle}`,
-        ],
-      };
-    }
-
     function getIncludeTeachingContextEntry() {
       return document.getElementById("capture-teaching-context")?.checked !== false;
-    }
-
-    function renderTeachingContextToggle(isEnabled = true, disabled = false) {
-      const input = document.getElementById("capture-teaching-context");
-      if (!input) return;
-      input.checked = !!isEnabled;
-      input.disabled = !!disabled;
-    }
-
-    function renderReflectionContextCard(data, options = {}) {
-      if (!data) return;
-      const summary = summarizeReflectionContext(data, {
-        includeTeachingContext: options.includeTeachingContext ?? getIncludeTeachingContextEntry(),
-      });
-      document.getElementById("lane-title").textContent = "🧭 Reflection Context";
-      document.getElementById("lane-desc").textContent = summary.description;
-      document.getElementById("lane-copy").textContent = summary.copy;
-      const pillsEl = document.getElementById("lane-pills");
-      if (pillsEl) {
-        pillsEl.innerHTML = summary.pills.map((item) => `<span class="context-pill">${item}</span>`).join("");
-      }
     }
 
     function updateReflectionArchiveLabels(styleKey) {
@@ -1595,7 +1505,7 @@
       const label = document.getElementById("reflection-player-label");
       const summary = document.getElementById("archive-summary-copy");
       if (label) {
-        label.textContent = `Latest ${REFLECTION_STYLE_LABELS[style].toLowerCase()}`;
+        label.textContent = `Latest ${latestResultStyleDescriptor(style)} result`;
       }
       if (summary) {
         summary.textContent = REFLECTION_STYLE_ARCHIVE_COPY[style];
@@ -1924,12 +1834,12 @@
       const container = document.getElementById("reflection-read-content");
       if (!container) return;
       if (!note) {
-        container.innerHTML = `<div class="recording-player-empty">Your latest reflection text will appear here after processing.</div>`;
+        container.innerHTML = `<div class="recording-player-empty">Your latest result text will appear here after processing.</div>`;
         return;
       }
       const actions = Array.isArray(note.action_items) ? note.action_items.filter(Boolean) : [];
       container.innerHTML = `
-        <div class="reflection-read-title">${note.title || "Latest reflection"}</div>
+        <div class="reflection-read-title">${note.title || "Latest result"}</div>
         <div class="reflection-read-summary">${note.summary || ""}</div>
         ${note.insight ? `<div class="reflection-read-insight">${note.insight}</div>` : ""}
         ${actions.length ? `<div class="reflection-read-actions">${actions.map((item) => `<span class="reflection-read-pill">${item}</span>`).join("")}</div>` : ""}
@@ -1993,20 +1903,23 @@
         saveBtn.disabled = true;
         saveBtn.setAttribute("aria-disabled", "true");
         const token = await getToken();
-        const res = await fetch(`${API}/text-reflection`, {
+        const res = await fetch(WORKFLOW_CAPTURES_ENDPOINT, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ text, include_teaching_context: includeTeachingContext }),
+          body: JSON.stringify({
+            text,
+            include_teaching_context: includeTeachingContext,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data.error || "Could not capture text reflection");
+          throw new Error(data.error || "Could not capture this note");
         }
         renderCaptureTextPanel(true, {
-          statusText: `Saved. ${data.note || "Your written reflection is processing."}`,
+          statusText: "Saved. Opening your result…",
           statusClass: "is-success",
           clearInput: true,
         });
@@ -2014,22 +1927,12 @@
           include_teaching_context: includeTeachingContext,
           word_count: text.split(/\s+/).filter(Boolean).length,
         });
-        const refreshedToken = await getToken(true);
-        await loadLatestAudio(refreshedToken, {
-          listPath: "/reflections",
-          streamPath: "/reflection",
-          containerId: "reflection-player-container",
-          emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[currentReflectionStyle] || "Complete").toLowerCase()} reflection will appear here after processing.`,
-          errorMessage: "The latest reflection could not be loaded.",
-          fallbackName: "Latest reflection",
-          cache: reflectionObjectUrls,
-        });
-        await loadRecentNotes(auth.currentUser.uid);
-        setReflectionView("read");
+        const nextRoute = data.next_route || `/workflows/result/${data.capture_id || ""}`;
+        window.location.assign(nextRoute);
       } catch (e) {
         console.error("Could not save written reflection:", e);
         renderCaptureTextPanel(true, {
-          statusText: "That written reflection could not be captured right now.",
+          statusText: "That capture could not be saved right now.",
           statusClass: "is-error",
         });
       } finally {
@@ -2044,16 +1947,19 @@
       const prefill = latestReflectionNote?.title
         ? `In response to "${latestReflectionNote.title}"...`
         : "In response to my last reflection...";
-      renderCaptureTextPanel(true);
-      const input = document.getElementById("capture-text-input");
-      if (input) {
-        if (!input.value.trim()) {
-          input.value = prefill;
-        }
-        input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
+      try {
+        sessionStorage.setItem(
+          "memnon_workflows_pending_capture_v1",
+          JSON.stringify({
+            text: prefill,
+            contextHint: "",
+            shouldResume: false,
+          })
+        );
+      } catch (error) {
+        console.error("Could not store pending capture:", error);
       }
-      document.getElementById("record-btn")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.location.assign("/workflows");
     }
 
     function summarizeGuidingVoices(data) {
@@ -2394,7 +2300,7 @@
       }
     }
 
-    // ── Upload audio to /upload endpoint ──
+    // ── Upload audio into the workflows capture pipeline ──
     async function uploadAudio(blob, filename) {
       const statusEl = document.getElementById("upload-status");
       statusEl.style.display = "block";
@@ -2407,7 +2313,7 @@
           const form = new FormData();
           form.append("file", blob, filename);
           form.append("include_teaching_context", includeTeachingContext ? "true" : "false");
-          return fetch(`${API}/upload`, {
+          return fetch(WORKFLOW_CAPTURES_ENDPOINT, {
             method: "POST",
             headers: { "Authorization": `Bearer ${token}` },
             body: form,
@@ -2423,11 +2329,13 @@
           const data = await res.json();
           statusEl.style.background = "#f0fdf4";
           statusEl.style.color = "#15803d";
-          statusEl.textContent = `✅ Note saved: ${data.note}`;
+          statusEl.textContent = "✅ Saved. Opening your result…";
           trackAnalytics("captured_reflection_audio", {
             include_teaching_context: includeTeachingContext,
             source: "dashboard_record",
           });
+          const nextRoute = data.next_route || `/workflows/result/${data.capture_id || ""}`;
+          window.location.assign(nextRoute);
         } else {
           if (res.status === 401) {
             throw new Error("session expired");
@@ -2450,7 +2358,8 @@
       if (!window.location.search.includes("shared=1")) return;
       history.replaceState({}, "", routes.dashboard);
 
-      const statusEl = document.getElementById("share-status");
+      const statusEl = document.getElementById("share-status") || document.getElementById("upload-status");
+      if (!statusEl) return;
       statusEl.style.display = "block";
       statusEl.textContent = "⏳ Processing your shared audio…";
 
@@ -2460,7 +2369,7 @@
         await uploadAudio(file, file.name || "voice-memo.m4a");
         statusEl.style.background = "#f0fdf4";
         statusEl.style.color = "#15803d";
-        statusEl.textContent = "✅ Your Voice Memo is being processed into a note.";
+        statusEl.textContent = "✅ Saved. Opening your result…";
       } catch (e) {
         statusEl.style.background = "#fef2f2";
         statusEl.style.color = "#dc2626";
@@ -2495,16 +2404,6 @@
       continueReflectionThread();
       await logUsageEvent("continued_reflection_thread", {
         note_id: latestReflectionNote?.id || "",
-      });
-    });
-    document.getElementById("capture-teaching-context")?.addEventListener("change", async () => {
-      if (currentProfileData) {
-        renderReflectionContextCard(currentProfileData, {
-          includeTeachingContext: getIncludeTeachingContextEntry(),
-        });
-      }
-      await logUsageEvent("toggled_teaching_context", {
-        include_teaching_context: getIncludeTeachingContextEntry(),
       });
     });
     document.getElementById("write-btn")?.addEventListener("click", async () => {
@@ -2553,8 +2452,6 @@
         const data = await res.json();
         currentProfileData = data;
         updateReflectionArchiveLabels(data.reflection_style || "complete");
-        renderTeachingContextToggle(true, false);
-        renderReflectionContextCard(data);
         renderDailyBriefSubscription(data);
 
         // inbox folder link removed — direct upload is now the primary ingest path
@@ -2570,9 +2467,9 @@
           listPath: "/reflections",
           streamPath: "/reflection",
           containerId: "reflection-player-container",
-          emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[data.reflection_style || "complete"] || "Complete").toLowerCase()} reflection will appear here after processing.`,
-          errorMessage: "The latest reflection could not be loaded.",
-          fallbackName: `Latest ${(REFLECTION_STYLE_LABELS[data.reflection_style || "complete"] || "Complete").toLowerCase()} reflection`,
+          emptyMessage: `Your latest ${latestResultStyleDescriptor(data.reflection_style || "complete")} result will appear here after processing.`,
+          errorMessage: "The latest result could not be loaded.",
+          fallbackName: `Latest ${latestResultStyleDescriptor(data.reflection_style || "complete")} result`,
           cache: reflectionObjectUrls,
         });
         await loadRecentNotes(user.uid);
@@ -2610,18 +2507,6 @@
             recordBtn.classList.add("btn-primary");
             stream.getTracks().forEach(t => t.stop());
             await uploadAudio(blob, filename);
-            const refreshedToken = await getToken(true);
-            await loadLatestAudio(refreshedToken, {
-              listPath: "/reflections",
-              streamPath: "/reflection",
-              containerId: "reflection-player-container",
-              emptyMessage: `Your latest ${(REFLECTION_STYLE_LABELS[currentReflectionStyle] || "Complete").toLowerCase()} reflection will appear here after processing.`,
-              errorMessage: "The latest reflection could not be loaded.",
-              fallbackName: "Latest reflection",
-              cache: reflectionObjectUrls,
-            });
-            await loadRecentNotes(user.uid);
-            setReflectionView("listen");
           };
           mediaRecorder.start();
           recordBtn.textContent = "⏹ Stop recording";

@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 RouteKind = Literal["direct_professional_note", "saved_note"]
-ArtifactKind = Literal["professional_note", ""]
+ArtifactKind = Literal["professional_note", "social_post", "professional_analysis", ""]
 SavedNoteState = Literal["weak_signal", "needs_direction", ""]
 
 
@@ -40,6 +40,7 @@ class WorkflowArtifact:
     status: str
     primary_action: str
     metadata_line: str = ""
+    summary: str = ""
     source_excerpt: str = ""
     sections: list[WorkflowArtifactSection] = field(default_factory=list)
     copy_text: str = ""
@@ -61,6 +62,7 @@ class WorkflowResultPayload:
     source_preview: str
     likely_themes: list[str]
     related_thread: dict[str, Any] | None = None
+    contextual_suggestions: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -79,6 +81,7 @@ class WorkflowCaptureRecord:
     updated_at: str
     threading: dict[str, Any] = field(default_factory=dict)
     feedback_choice: str | None = None
+    feedback_note: str | None = None
     feedback_updated_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:

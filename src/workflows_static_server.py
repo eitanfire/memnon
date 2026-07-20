@@ -27,6 +27,14 @@ def rewrite_workflows_path(raw_path: str) -> str:
 
 
 class WorkflowsStaticHandler(SimpleHTTPRequestHandler):
+    NO_CACHE_EXTENSIONS = (".html", ".js", ".css")
+
+    def end_headers(self):
+        path_only = self.path.split("?", 1)[0]
+        if path_only.endswith(self.NO_CACHE_EXTENSIONS) or path_only in ("", "/"):
+            self.send_header("Cache-Control", "no-cache, max-age=0, must-revalidate")
+        super().end_headers()
+
     def do_GET(self):
         original_path = self.path
         self.path = rewrite_workflows_path(self.path)

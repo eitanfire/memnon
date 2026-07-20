@@ -122,20 +122,39 @@ thing is going to bite us if we deploy Friday without fixing it...
 
 ## Workflows Local Dev
 
-For the `workflows.html` vertical slice, use the dedicated local servers instead of `python3 -m http.server`.
+For the current `public/` dashboard + workflows app, use the dedicated local API and static servers instead of `python3 -m http.server`.
 
-Backend:
+Local workflows API:
 
 ```bash
-cd /Users/eitan/memnon-worktrees/workflows-vertical-slice
-.venv/bin/python functions/run_workflows_local.py
+PYTHONPATH=/Users/eitan/memnon/functions \
+/Users/eitan/memnon/.venv/bin/python -m workflows.local_app
 ```
 
-Static app with Firebase-style rewrites for `/workflows` and `/workflows/result/...`:
+Local static app with clean route rewrites and `/api/*` proxying:
 
 ```bash
-cd /Users/eitan/memnon-worktrees/workflows-vertical-slice
-.venv/bin/python scripts/run_workflows_static.py
+MEMNON_API_ORIGIN=http://127.0.0.1:5051 \
+PYTHONPATH=/Users/eitan/memnon \
+/Users/eitan/memnon/.venv/bin/python /Users/eitan/memnon/scripts/run_public_static.py
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5050/dashboard
+```
+
+This avoids a common local-dev failure mode where the frontend is served without a working `/api` proxy behind it, which can surface as `ERR_FAILED` on capture saves.
+
+If you only need the older workflows-only static slice, the narrower local servers still exist:
+
+```bash
+/Users/eitan/memnon/.venv/bin/python /Users/eitan/memnon/functions/run_workflows_local.py
+```
+
+```bash
+/Users/eitan/memnon/.venv/bin/python /Users/eitan/memnon/scripts/run_workflows_static.py
 ```
 
 Then open:

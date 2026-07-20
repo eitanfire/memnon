@@ -20,6 +20,7 @@ class FirestoreWorkflowRepository:
             "lane": payload.get("lane", "professional"),
             "profession": payload.get("profession", "professional"),
             "reflection_style": payload.get("reflection_style", "practical"),
+            "include_teaching_context": payload.get("include_teaching_context"),
             "reflect_config": payload.get("reflect_config", {}),
         }
 
@@ -96,10 +97,11 @@ class FirestoreWorkflowRepository:
             {"threading": threading, "updated_at": firestore.SERVER_TIMESTAMP},
         )
 
-    def update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str):
+    def update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str, feedback_note: str = ""):
         self._doc(uid, capture_id).update(
             {
                 "feedback_choice": feedback_choice,
+                "feedback_note": feedback_note,
                 "feedback_updated_at": firestore.SERVER_TIMESTAMP,
             },
         )

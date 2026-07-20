@@ -7,14 +7,11 @@ self.addEventListener("activate", e => e.waitUntil(clients.claim()));
 self.addEventListener("fetch", event => {
   const url = new URL(event.request.url);
 
-  // Intercept the share target POST
-  if (url.pathname === "/share-target" && event.request.method === "POST") {
-    event.respondWith(handleShareTarget(event.request));
+  if (url.pathname !== "/share-target" || event.request.method !== "POST") {
     return;
   }
 
-  // All other requests: network first, fall through
-  event.respondWith(fetch(event.request));
+  event.respondWith(handleShareTarget(event.request));
 });
 
 async function handleShareTarget(request) {

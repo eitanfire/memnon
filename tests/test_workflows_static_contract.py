@@ -19,9 +19,44 @@ class WorkflowsStaticContractTests(unittest.TestCase):
             rewrites,
         )
 
+    def test_hosting_cache_headers_force_revalidation_for_dashboard_and_workflows_assets(self):
+        payload = json.loads(Path("firebase.json").read_text(encoding="utf-8"))
+        header_rules = payload["hosting"].get("headers", [])
+
+        actual = {
+            rule["source"]: {
+                header["key"]: header["value"]
+                for header in rule.get("headers", [])
+            }
+            for rule in header_rules
+        }
+
+        expected = {
+            "dashboard": "no-cache, max-age=0, must-revalidate",
+            "dashboard.html": "no-cache, max-age=0, must-revalidate",
+            "workflows{,/**}": "no-cache, max-age=0, must-revalidate",
+            "workflows.html": "no-cache, max-age=0, must-revalidate",
+            "workflows.js": "no-cache, max-age=0, must-revalidate",
+            "workflows_url_helpers.js": "no-cache, max-age=0, must-revalidate",
+            "workflows.css": "no-cache, max-age=0, must-revalidate",
+            "manifest.json": "no-cache, no-store, must-revalidate",
+            "sw.js": "no-cache, no-store, must-revalidate",
+        }
+
+        for source, cache_control in expected.items():
+            self.assertIn(source, actual, f"missing hosting header rule for {source}")
+            self.assertEqual(
+                actual[source].get("Cache-Control"),
+                cache_control,
+                f"unexpected Cache-Control for {source}",
+            )
+
     def test_workflows_shell_has_required_copy_and_mount_points(self):
         html = Path("public/workflows.html").read_text(encoding="utf-8")
 
+        self.assertIn("<title>Memnon Capture</title>", html)
+        self.assertNotIn("<title>Memnon Workflows</title>", html)
+        self.assertIn(">Capture<", html)
         self.assertIn("Capture a thought", html)
         self.assertIn("Speak, drop a file, or paste something messy.", html)
         self.assertIn("Turn it into something useful.", html)
@@ -38,6 +73,14 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn('id="workflows-debug-state"', html)
         self.assertIn('type="module" src="/workflows.js"', html)
 
+    def test_saved_results_copy_uses_neutral_result_language(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+
+        self.assertIn("Saved results", js)
+        self.assertIn("Reopen a saved result.", js)
+        self.assertNotIn("Saved workflow results", js)
+        self.assertNotIn("saved workflow artifact", js)
+
     def test_workflows_js_contains_capture_and_result_api_paths(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
         helper = Path("public/workflows_url_helpers.js").read_text(encoding="utf-8")
@@ -53,6 +96,8 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn('"127.0.0.1"', helper)
         self.assertIn('"localhost"', helper)
         self.assertIn("getIdToken", js)
+        self.assertIn("response.blob()", js)
+        self.assertIn("URL.createObjectURL", js)
         self.assertIn("View source text", html)
 
     def test_workflows_js_includes_voice_capture_flow(self):
@@ -103,7 +148,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn("Saved for later", js)
         self.assertIn("Kept as a saved note", js)
         self.assertIn("This is a small note worth preserving.", js)
-        self.assertIn("This seems worth keeping, but it may need a little direction before it becomes something stronger.", js)
+        self.assertIn("This note is worth keeping, but it needs clearer direction before acting on it.", js)
         self.assertIn("Saved and shaped", js)
         self.assertIn("Saved result", js)
         self.assertIn("Next step", js)
@@ -255,7 +300,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               selectedFile: null,
             });
 
-            if (metadata !== "Uploaded file · plan.md · Jun 27, 2026") {
+            if (metadata !== "Uploaded file · Jun 27, 2026") {
               throw new Error(`unexpected file metadata: ${metadata}`);
             }
             if (label !== "From plan.md") {
@@ -268,6 +313,202 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               throw new Error(`unexpected text active state: ${JSON.stringify(textActive)}`);
             }
           """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+    def test_reopened_result_metadata_prefers_payload_source_context(self):
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              'const SOURCE_EXCERPT_LABEL = "From your note";',
+              extractBetween("function formatLocalCaptureDate", "function describeSourceType"),
+              extractBetween("function describeSourceType", "function buildMetadataLine"),
+              extractBetween("function buildMetadataLine", "function buildSourceExcerptLabel"),
+              extractBetween("function buildSourceExcerptLabel", "function renderSourceExcerpt"),
+              extractBetween("function renderResultFeedback", "function renderResultCard"),
+              extractBetween("function renderFeedbackNoteForm", "function wireSavedResultsListFeedbackControls"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const reopenedFilePayload = {
+              input_type: "file",
+              created_at: "2026-06-27T16:00:00Z",
+              source_event: {
+                created_at: "2026-06-27T16:00:00Z",
+                source_text: "Draft the file-backed note.",
+              },
+              event_manifest: {
+                source_event: {
+                  input_type: "file",
+                  source_filename: "plan.md",
+                },
+              },
+            };
+            const reopenedTextPayload = {
+              input_type: "text",
+              created_at: "2026-06-27T16:00:00Z",
+              source_event: {
+                created_at: "2026-06-27T16:00:00Z",
+                source_text: "Draft the pasted note.",
+              },
+            };
+            const reopenedVoicePayload = {
+              input_type: "voice",
+              created_at: "2026-06-27T16:00:00Z",
+              source_event: {
+                created_at: "2026-06-27T16:00:00Z",
+                source_text: "Draft the voice note.",
+              },
+            };
+
+            const fileMetadata = context.resolveResultMetadataLine(
+              reopenedFilePayload,
+              { metadata_line: "Saved note · Jun 27, 2026" },
+            );
+            const fileLabel = context.buildSourceExcerptLabel(
+              context.resolveResultSourceEvent(reopenedFilePayload),
+            );
+            const textMetadata = context.resolveResultMetadataLine(
+              reopenedTextPayload,
+              { metadata_line: "Pasted note · Jun 27, 2026" },
+            );
+            const voiceMetadata = context.resolveResultMetadataLine(
+              reopenedVoicePayload,
+              { metadata_line: "Voice note · Jun 27, 2026" },
+            );
+            const reopenedFeedback = context.renderResultFeedback(
+              { capture_id: "cap-1", feedback_choice: null },
+              { isImmediateResult: false },
+            );
+
+            if (fileMetadata !== "Uploaded file · Jun 27, 2026") {
+              throw new Error(`unexpected reopened file metadata: ${fileMetadata}`);
+            }
+            if (fileLabel !== "From plan.md") {
+              throw new Error(`unexpected reopened file label: ${fileLabel}`);
+            }
+            if (textMetadata !== "Pasted note · Jun 27, 2026") {
+              throw new Error(`unexpected reopened text metadata: ${textMetadata}`);
+            }
+            if (voiceMetadata !== "Voice note · Jun 27, 2026") {
+              throw new Error(`unexpected reopened voice metadata: ${voiceMetadata}`);
+            }
+            if (reopenedFeedback.trim() === "") {
+              throw new Error(`reopened feedback should render: ${reopenedFeedback}`);
+            }
+            """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+    def test_result_route_renders_voice_audio_review_only_for_voice_captures(self):
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              "const API_CAPTURES_PATH = '/api/workflows/captures';",
+              extractBetween("function escapeHtml", "function setStatus"),
+              extractBetween("function resolveResultSourceEvent", "function resolveResultMetadataLine"),
+              extractBetween("function resolveResultMetadataLine", "function buildSourceExcerptLabel"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const voiceSourceEvent = context.resolveResultSourceEvent({
+              capture_id: "cap-voice",
+              input_type: "voice",
+              source_event: {
+                input_type: "voice",
+                source_audio_storage_path: "workflow-voice-audio/user-1/cap-voice/voice-note.webm",
+              },
+            });
+            const textSourceEvent = context.resolveResultSourceEvent({
+              capture_id: "cap-text",
+              input_type: "text",
+              source_event: {
+                input_type: "text",
+              },
+            });
+            const fileSourceEvent = context.resolveResultSourceEvent({
+              capture_id: "cap-file",
+              input_type: "file",
+              source_event: {
+                input_type: "file",
+              },
+            });
+
+            const voiceHtml = context.renderVoiceReview(voiceSourceEvent);
+            const textHtml = context.renderVoiceReview(textSourceEvent);
+            const fileHtml = context.renderVoiceReview(fileSourceEvent);
+
+            if (!voiceHtml.includes("<audio") || !voiceHtml.includes("/api/workflows/captures/cap-voice/source-audio")) {
+              throw new Error(`unexpected voice review html: ${voiceHtml}`);
+            }
+            if (!voiceHtml.includes("data-source-audio-endpoint=")) {
+              throw new Error(`voice review should use data-source-audio-endpoint: ${voiceHtml}`);
+            }
+            if (voiceHtml.includes(" src=")) {
+              throw new Error(`voice review should not embed an unauthenticated audio src: ${voiceHtml}`);
+            }
+            if (!voiceHtml.includes("Review captured audio")) {
+              throw new Error(`missing voice review label: ${voiceHtml}`);
+            }
+            if (textHtml.trim() !== "") {
+              throw new Error(`text capture should not render voice review: ${textHtml}`);
+            }
+            if (fileHtml.trim() !== "") {
+              throw new Error(`file capture should not render voice review: ${fileHtml}`);
+            }
+            """
         )
         completed = subprocess.run(
             ["node", "-e", script],
@@ -401,7 +642,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
         self.assertIn("workflows-related-thread-escape", css)
 
-    def test_feedback_prompt_is_immediate_only_and_binary(self):
+    def test_feedback_prompt_is_available_everywhere_and_binary(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
         self.assertIn("How was this result?", js)
         self.assertIn("Useful", js)
@@ -445,17 +686,118 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               { isImmediateResult: false },
             );
             const savedList = context.renderSavedResultsBody([
-              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note" },
+              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note", feedback_choice: "" },
             ]);
 
             if (!immediate.includes("How was this result?") || !immediate.includes("Useful") || !immediate.includes("Not useful")) {
               throw new Error(`immediate feedback missing: ${immediate}`);
             }
-            if (reopened.trim() !== "") {
-              throw new Error(`reopened feedback should be hidden: ${reopened}`);
+            if (!reopened.includes("How was this result?") || !reopened.includes("Useful") || !reopened.includes("Not useful")) {
+              throw new Error(`reopened feedback missing: ${reopened}`);
             }
-            if (savedList.includes("How was this result?")) {
-              throw new Error(`saved results list should not include feedback prompt: ${savedList}`);
+            if (!savedList.includes('data-feedback-choice="useful"') || !savedList.includes('data-feedback-choice="not_useful"')) {
+              throw new Error(`saved results list should include feedback controls: ${savedList}`);
+            }
+            """
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+    def test_contextual_result_suggestions_are_immediate_only_and_quiet(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        self.assertIn("Draft social post", js)
+        self.assertIn("Analyze professionally", js)
+        self.assertNotIn("Choose a workflow", js)
+        self.assertNotIn("Generated from", js)
+        self.assertNotIn("Derived result", js)
+
+        script = textwrap.dedent(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync("public/workflows.js", "utf8");
+
+            function extractBetween(startMarker, endMarker) {
+              const start = source.indexOf(startMarker);
+              if (start === -1) {
+                throw new Error(`missing start marker: ${startMarker}`);
+              }
+              const end = source.indexOf(endMarker, start);
+              if (end === -1) {
+                throw new Error(`missing end marker: ${endMarker}`);
+              }
+              return source.slice(start, end);
+            }
+
+            const snippets = [
+              extractBetween("function escapeHtml", "function setStatus"),
+              extractBetween("function renderContextualSuggestions", "function renderResultFeedback"),
+              extractBetween("function renderSavedResultsBody", "function renderSavedResultsList"),
+            ].join("\\n");
+
+            const context = {};
+            vm.createContext(context);
+            vm.runInContext(snippets, context);
+
+            const none = context.renderContextualSuggestions(
+              { result: {} },
+              { isImmediateResult: true },
+            );
+            const one = context.renderContextualSuggestions(
+              {
+                result: {
+                  contextual_suggestions: [
+                    { type: "draft_social_post", copy: "This could become a social post.", action_label: "Draft social post" },
+                  ],
+                },
+              },
+              { isImmediateResult: true },
+            );
+            const two = context.renderContextualSuggestions(
+              {
+                result: {
+                  contextual_suggestions: [
+                    { type: "draft_social_post", copy: "This could become a social post.", action_label: "Draft social post" },
+                    { type: "analyze_professionally", copy: "Analyze this through your professional lens.", action_label: "Analyze professionally" },
+                  ],
+                },
+              },
+              { isImmediateResult: true },
+            );
+            const reopened = context.renderContextualSuggestions(
+              {
+                result: {
+                  contextual_suggestions: [
+                    { type: "draft_social_post", copy: "This could become a social post.", action_label: "Draft social post" },
+                  ],
+                },
+              },
+              { isImmediateResult: false },
+            );
+            const savedList = context.renderSavedResultsBody([
+              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note" },
+            ]);
+
+            if (none.trim() !== "") {
+              throw new Error(`zero suggestions should render nothing: ${none}`);
+            }
+            if (!one.includes("This could become a social post.") || !one.includes("Draft social post")) {
+              throw new Error(`single suggestion missing quiet copy: ${one}`);
+            }
+            if (!two.includes("Optional next steps") || !two.includes("Analyze professionally")) {
+              throw new Error(`two suggestions should render quietly: ${two}`);
+            }
+            if (reopened.trim() !== "") {
+              throw new Error(`reopened result should not render suggestions: ${reopened}`);
+            }
+            if (savedList.includes("Draft social post") || savedList.includes("Analyze professionally")) {
+              throw new Error(`saved results list should not include suggestions: ${savedList}`);
             }
             """
         )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import secrets
 
 from flask import Blueprint, jsonify, request
 
@@ -30,14 +31,37 @@ def _text_file_extension(filename: str | None) -> str:
     return Path(filename or "").suffix.lower()
 
 
+def _coerce_optional_bool(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
 def create_workflows_blueprint(
     verify_token,
     service_provider,
     *,
     transcribe_audio=None,
     transcription_api_key_provider=None,
+    archive_voice_capture_audio=None,
+    download_voice_capture_audio=None,
 ):
     blueprint = Blueprint("workflows", __name__)
+
+    def _sanitize_capture_payload(payload: dict) -> dict:
+        body = dict(payload or {})
+        event_manifest = dict(body.get("event_manifest") or {})
+        event_manifest.pop("contextual_suggestions", None)
+        if event_manifest:
+            body["event_manifest"] = event_manifest
+        return body
 
     def _error_response(error: Exception):
         if isinstance(error, KeyError):
@@ -95,6 +119,9 @@ def create_workflows_blueprint(
         if _is_multipart_request():
             uploaded = request.files.get("file")
             context_hint = (request.form.get("context_hint") or "").strip()
+            include_teaching_context = _coerce_optional_bool(
+                request.form.get("include_teaching_context")
+            )
             if uploaded is None:
                 return jsonify({"error": "audio file is required"}), 400
 
@@ -116,6 +143,7 @@ def create_workflows_blueprint(
                     source_text=text,
                     context_hint=context_hint,
                     input_type="file",
+                    include_teaching_context=include_teaching_context,
                     source_metadata={
                         "source_filename": filename,
                         "source_file_type": (uploaded.mimetype or uploaded.content_type or TEXT_FILE_CONTENT_TYPES[extension]).lower(),
@@ -123,7 +151,7 @@ def create_workflows_blueprint(
                         "source_file_size_bytes": len(file_bytes),
                     },
                 )
-                body = record.to_dict()
+                body = _sanitize_capture_payload(record.to_dict())
                 body["next_route"] = f"/workflows/result/{record.capture_id}"
                 return jsonify(body), 201
 
@@ -155,22 +183,51 @@ def create_workflows_blueprint(
             if len(text.split()) < 3:
                 return jsonify({"error": "text too short"}), 400
 
+            capture_id = f"cap-{secrets.token_hex(6)}"
+            source_metadata = None
+            if archive_voice_capture_audio is not None:
+                storage_path = archive_voice_capture_audio(
+                    uid=uid,
+                    capture_id=capture_id,
+                    audio_bytes=audio_bytes,
+                    filename=uploaded.filename or "voice-note.webm",
+                    content_type=content_type,
+                )
+                if storage_path:
+                    source_metadata = {
+                        "source_audio_storage_path": storage_path,
+                        "source_audio_content_type": content_type,
+                        "source_audio_filename": uploaded.filename or "voice-note.webm",
+                        "source_audio_size_bytes": len(audio_bytes),
+                    }
+
             record = service.create_text_capture(
                 uid=uid,
+                capture_id=capture_id,
                 source_text=text,
                 context_hint=context_hint,
                 input_type="voice",
+                include_teaching_context=include_teaching_context,
+                source_metadata=source_metadata,
             )
         else:
             payload = request.get_json(silent=True) or {}
             text = (payload.get("text") or "").strip()
             context_hint = (payload.get("context_hint") or "").strip()
+            include_teaching_context = _coerce_optional_bool(
+                payload.get("include_teaching_context")
+            )
             if len(text.split()) < 3:
                 return jsonify({"error": "text too short"}), 400
 
-            record = service.create_text_capture(uid=uid, source_text=text, context_hint=context_hint)
+            record = service.create_text_capture(
+                uid=uid,
+                source_text=text,
+                context_hint=context_hint,
+                include_teaching_context=include_teaching_context,
+            )
 
-        body = record.to_dict()
+        body = _sanitize_capture_payload(record.to_dict())
         body["next_route"] = f"/workflows/result/{record.capture_id}"
         return jsonify(body), 201
 
@@ -184,7 +241,38 @@ def create_workflows_blueprint(
         payload = service.get_capture(uid, capture_id)
         if payload is None:
             return jsonify({"error": "not found"}), 404
-        return jsonify(payload)
+        return jsonify(_sanitize_capture_payload(payload))
+
+    @blueprint.route("/captures/<capture_id>/source-audio", methods=["GET"])
+    def get_capture_source_audio(capture_id: str):
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        if download_voice_capture_audio is None:
+            return jsonify({"error": "not found"}), 404
+
+        service = service_provider()
+        payload = service.get_capture(uid, capture_id)
+        if payload is None:
+            return jsonify({"error": "not found"}), 404
+
+        source_event = payload.get("source_event") or {}
+        if source_event.get("input_type") != "voice":
+            return jsonify({"error": "not found"}), 404
+
+        storage_path = (source_event.get("source_audio_storage_path") or "").strip()
+        if not storage_path:
+            return jsonify({"error": "not found"}), 404
+
+        return (
+            download_voice_capture_audio(storage_path),
+            200,
+            {
+                "Content-Type": (source_event.get("source_audio_content_type") or "audio/webm"),
+                "Cache-Control": "private, max-age=300",
+            },
+        )
 
     @blueprint.route("/captures/<capture_id>/feedback", methods=["POST"])
     def apply_feedback_choice(capture_id: str):
@@ -199,10 +287,44 @@ def create_workflows_blueprint(
                 uid,
                 capture_id,
                 feedback_choice=(payload.get("feedback_choice") or "").strip(),
+                feedback_note=(payload.get("feedback_note") or "").strip()[:500],
             )
         except (KeyError, ValueError) as error:
             return _error_response(error)
-        return jsonify(updated)
+        return jsonify(_sanitize_capture_payload(updated))
+
+    @blueprint.route("/captures/<capture_id>/regenerate", methods=["POST"])
+    def regenerate_capture(capture_id: str):
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        service = service_provider()
+        try:
+            updated = service.regenerate_capture(uid, capture_id)
+        except (KeyError, ValueError) as error:
+            return _error_response(error)
+        return jsonify(_sanitize_capture_payload(updated))
+
+    @blueprint.route("/captures/<capture_id>/suggestions", methods=["POST"])
+    def apply_contextual_suggestion(capture_id: str):
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        service = service_provider()
+        try:
+            created = service.apply_contextual_suggestion(
+                uid,
+                capture_id,
+                suggestion_type=(payload.get("suggestion_type") or "").strip(),
+            )
+        except (KeyError, ValueError) as error:
+            return _error_response(error)
+        body = _sanitize_capture_payload(created)
+        body["next_route"] = f"/workflows/result/{body['capture_id']}"
+        return jsonify(body), 201
 
     @blueprint.route("/captures/<capture_id>/context-decision", methods=["POST"])
     def apply_context_decision(capture_id: str):
@@ -222,6 +344,6 @@ def create_workflows_blueprint(
             )
         except (KeyError, ValueError) as error:
             return _error_response(error)
-        return jsonify(updated)
+        return jsonify(_sanitize_capture_payload(updated))
 
     return blueprint

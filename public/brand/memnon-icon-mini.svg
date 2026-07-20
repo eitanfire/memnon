@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Memnon">
+  <style>
+    :root, svg {
+      --m-ink: var(--memnon-ink, #5C4327);
+      --m-gold: var(--memnon-gold, #E3B269);
+      --m-cream: var(--memnon-cream, #F2E3C4);
+      --m-blue: var(--memnon-blue, #5B7FC7);
+    }
+  </style>
+  <defs>
+    <clipPath id="mini-dome">
+      <path d="M50 10 C71 10 86 22 88 42 C89 57 86 70 79 78 L21 78 C14 70 11 57 12 42 C14 22 29 10 50 10 Z"/>
+    </clipPath>
+  </defs>
+  <g>
+    <path d="M50 10 C71 10 86 22 88 42 C89 57 86 70 79 78 L21 78 C14 70 11 57 12 42 C14 22 29 10 50 10 Z" fill="var(--m-gold)"/>
+    <g clip-path="url(#mini-dome)">
+      <rect x="46" y="14" width="9" height="80" fill="var(--m-blue)" transform="rotate(-58 50 14)"/>
+      <rect x="46" y="14" width="9" height="80" fill="var(--m-blue)" transform="rotate(-36 50 14)"/>
+      <rect x="46" y="14" width="9" height="80" fill="var(--m-blue)" transform="rotate(36 50 14)"/>
+      <rect x="46" y="14" width="9" height="80" fill="var(--m-blue)" transform="rotate(58 50 14)"/>
+    </g>
+    <path d="M50 10 C71 10 86 22 88 42 C89 57 86 70 79 78 L21 78 C14 70 11 57 12 42 C14 22 29 10 50 10 Z" fill="none" stroke="var(--m-ink)" stroke-width="5" stroke-linejoin="round"/>
+  </g>
+  <path d="M50 4 C53 4 54.5 7.5 54 12 L46 12 C45.5 7.5 47 4 50 4 Z" fill="var(--m-gold)" stroke="var(--m-ink)" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M50 26 C65 26 72 35 72 49 C72 64 66 76 50 80 C34 76 28 64 28 49 C28 35 35 26 50 26 Z" fill="var(--m-cream)" stroke="var(--m-ink)" stroke-width="5" stroke-linejoin="round"/>
+  <ellipse cx="42" cy="49" rx="2.6" ry="3.3" fill="var(--m-ink)"/>
+  <ellipse cx="58" cy="49" rx="2.6" ry="3.3" fill="var(--m-ink)"/>
+  <path d="M40 61 Q50 69 60 61" stroke="var(--m-ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
+</svg>

@@ -117,7 +117,7 @@ def route_text_capture(source_text: str, context_hint: str, profile: dict[str, A
     if (ambiguous_signal and not document_like_signal) or (not rich_enough and not action_signal):
         return WorkflowDecision(
             route_kind="saved_note",
-            interpretation_line="Saved as a note that may need a little direction.",
+            interpretation_line="Saved as a note that needs clearer direction.",
             primary_artifact_kind="",
             secondary_artifact_kinds=[],
             likely_themes=themes,
