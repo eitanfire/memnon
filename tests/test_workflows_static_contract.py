@@ -148,7 +148,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertIn("Saved for later", js)
         self.assertIn("Kept as a saved note", js)
         self.assertIn("This is a small note worth preserving.", js)
-        self.assertIn("This seems worth keeping, but it may need a little direction before it becomes something stronger.", js)
+        self.assertIn("This note is worth keeping, but it needs clearer direction before acting on it.", js)
         self.assertIn("Saved and shaped", js)
         self.assertIn("Saved result", js)
         self.assertIn("Next step", js)
@@ -300,7 +300,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               selectedFile: null,
             });
 
-            if (metadata !== "Uploaded file · plan.md · Jun 27, 2026") {
+            if (metadata !== "Uploaded file · Jun 27, 2026") {
               throw new Error(`unexpected file metadata: ${metadata}`);
             }
             if (label !== "From plan.md") {
@@ -349,6 +349,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               extractBetween("function buildMetadataLine", "function buildSourceExcerptLabel"),
               extractBetween("function buildSourceExcerptLabel", "function renderSourceExcerpt"),
               extractBetween("function renderResultFeedback", "function renderResultCard"),
+              extractBetween("function renderFeedbackNoteForm", "function wireSavedResultsListFeedbackControls"),
             ].join("\\n");
 
             const context = {};
@@ -406,7 +407,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               { isImmediateResult: false },
             );
 
-            if (fileMetadata !== "Uploaded file · plan.md · Jun 27, 2026") {
+            if (fileMetadata !== "Uploaded file · Jun 27, 2026") {
               throw new Error(`unexpected reopened file metadata: ${fileMetadata}`);
             }
             if (fileLabel !== "From plan.md") {
@@ -418,8 +419,8 @@ class WorkflowsStaticContractTests(unittest.TestCase):
             if (voiceMetadata !== "Voice note · Jun 27, 2026") {
               throw new Error(`unexpected reopened voice metadata: ${voiceMetadata}`);
             }
-            if (reopenedFeedback.trim() !== "") {
-              throw new Error(`reopened feedback should stay hidden: ${reopenedFeedback}`);
+            if (reopenedFeedback.trim() === "") {
+              throw new Error(`reopened feedback should render: ${reopenedFeedback}`);
             }
             """
         )
@@ -641,7 +642,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
         self.assertIn("workflows-related-thread-escape", css)
 
-    def test_feedback_prompt_is_immediate_only_and_binary(self):
+    def test_feedback_prompt_is_available_everywhere_and_binary(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
         self.assertIn("How was this result?", js)
         self.assertIn("Useful", js)
@@ -685,17 +686,17 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               { isImmediateResult: false },
             );
             const savedList = context.renderSavedResultsBody([
-              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note" },
+              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note", feedback_choice: "" },
             ]);
 
             if (!immediate.includes("How was this result?") || !immediate.includes("Useful") || !immediate.includes("Not useful")) {
               throw new Error(`immediate feedback missing: ${immediate}`);
             }
-            if (reopened.trim() !== "") {
-              throw new Error(`reopened feedback should be hidden: ${reopened}`);
+            if (!reopened.includes("How was this result?") || !reopened.includes("Useful") || !reopened.includes("Not useful")) {
+              throw new Error(`reopened feedback missing: ${reopened}`);
             }
-            if (savedList.includes("How was this result?")) {
-              throw new Error(`saved results list should not include feedback prompt: ${savedList}`);
+            if (!savedList.includes('data-feedback-choice="useful"') || !savedList.includes('data-feedback-choice="not_useful"')) {
+              throw new Error(`saved results list should include feedback controls: ${savedList}`);
             }
             """
         )

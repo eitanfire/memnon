@@ -40,6 +40,7 @@ class WorkflowArtifact:
     status: str
     primary_action: str
     metadata_line: str = ""
+    summary: str = ""
     source_excerpt: str = ""
     sections: list[WorkflowArtifactSection] = field(default_factory=list)
     copy_text: str = ""
@@ -80,6 +81,7 @@ class WorkflowCaptureRecord:
     updated_at: str
     threading: dict[str, Any] = field(default_factory=dict)
     feedback_choice: str | None = None
+    feedback_note: str | None = None
     feedback_updated_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:

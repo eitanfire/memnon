@@ -52,22 +52,27 @@ def generate_professional_note(
 Return strict JSON with:
 - title
 - framing_line
-- key_point
+- summary
 - next_step
+- source_quote
 
 Rules:
 - one note only
-- title should be specific enough to feel worth revisiting, but short enough to read like a saved note title rather than a headline
+- title should be specific enough to feel worth revisiting, but short enough to read like a saved note title rather than a headline; condense it from the summary you write below, not from a separate read of the source
 - prefer the concrete topic, person, product, or decision over generic role labels
 - if the source is not teacher-specific, do not inject teacher framing from the saved profile
 - framing_line should describe why this saved object is worth keeping, not just that it is professional
 - framing_line should read like a saved object worth reopening, not an executive summary
-- key_point should be one grounded, concrete takeaway
-- when the source has multiple sentences, prefer the sentence with the clearest takeaway instead of repeating the opening scene-setting sentence
+- summary should describe what this capture actually is and what it actually contains, in plain language a stranger could use without hearing the recording -- not a single takeaway
+- scale the summary's length to the source's actual topic density: a short note or reminder gets one to two sentences; a single-topic conversation gets two to four sentences; a long, multi-topic recording (a talk, a workshop, a meeting covering several distinct subjects) should use multiple sentences or bullet points, one per distinct topic, instead of compressing everything into one sentence -- do not pad a short source into a long summary, and do not compress a long, multi-topic source into one
+- summary should name the concrete specifics the source actually gives (who is involved, what the deliverable or decision is, any date mentioned) instead of a vague paraphrase
+- if the source leaves a specific detail genuinely unresolved (for example, which document, whose deadline, or which meeting), say so directly in framing_line instead of silently picking one interpretation
+- next_step should be derived from the summary you just wrote, not independently re-read from the source
 - {next_step_rule}
-- if next_step is present, keep key_point distinct from the action; do not use the same sentence for both
-- if the source looks like pasted document material, synthesize what the material is for or why it matters; do not merely describe the sections it contains
-- for document-like source text, infer the organizing next action; do not copy a stray sentence verbatim unless it is explicitly marked as an action or next step
+- if the summary describes reference material, a recorded talk, or anything with no owner-side action, next_step must be an empty string -- do not invent one to fill the field
+- if next_step is present, keep summary distinct from the action; do not use the same sentence for both
+- source_quote must be copied verbatim, word-for-word, from the source text -- never paraphrased, shortened with your own words, or invented
+- source_quote should be the single sentence (or short passage) from the source that best illustrates or connects to the summary you wrote, not just whatever appears first
 - practical, direct language
 - avoid phrases like "professional note worth shaping", "important for ensuring", "crucial to ensure", "competitive landscape", or "clear direction for positioning"
 - do not mention workflows, confidence, or routing

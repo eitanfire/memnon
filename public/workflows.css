@@ -340,7 +340,6 @@ body.workflows-page {
   color: #111827;
 }
 
-.workflows-source-excerpt,
 .workflows-section-block {
   display: grid;
   gap: 6px;
@@ -348,6 +347,40 @@ body.workflows-page {
   border-radius: 12px;
   background: #faf6f1;
   border: 1px solid #ece2d6;
+}
+
+.workflows-source-excerpt {
+  display: grid;
+  gap: 3px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid #e4d8c9;
+}
+
+.workflows-source-excerpt p:last-child {
+  margin: 0;
+  color: #7a736a;
+  font-size: 0.88rem;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.workflows-summary {
+  display: grid;
+  gap: 8px;
+  color: #201c17;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.workflows-summary p {
+  margin: 0;
+}
+
+.workflows-summary ul {
+  margin: 0;
+  padding-left: 1.25em;
+  display: grid;
+  gap: 4px;
 }
 
 .workflows-related-thread-block {
@@ -428,6 +461,48 @@ body.workflows-page {
   color: #3f352d;
 }
 
+.workflows-feedback-actions--compact {
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.workflows-feedback-actions--compact .workflows-feedback-button {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.workflows-feedback-note-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.workflows-feedback-note-form input {
+  width: 100%;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fffdfa;
+  color: #181512;
+}
+
+.workflows-feedback-note-form--compact {
+  margin-top: 6px;
+}
+
+.workflows-feedback-note-form--compact input {
+  padding: 5px 9px;
+  font-size: 0.82rem;
+}
+
+.workflows-feedback-note-form--compact .btn {
+  padding: 5px 10px;
+  font-size: 0.82rem;
+}
+
 .workflows-related-thread-actions {
   display: flex;
   flex-wrap: wrap;
@@ -480,11 +555,18 @@ body.workflows-page {
   color: #181512;
 }
 
-.workflows-source-label,
 .workflows-section-block h3 {
   color: #5d5750;
   font-size: 0.84rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.workflows-source-label {
+  margin: 0;
+  color: #a39a8d;
+  font-size: 0.76rem;
+  font-weight: 500;
   letter-spacing: 0.01em;
 }
 
@@ -528,6 +610,20 @@ body.workflows-page {
 .workflows-saved-results-item h3 {
   margin: 0;
   font-size: 1rem;
+}
+
+.workflows-dev-data-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f0ece5;
+  color: #8a8072;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 
 .workflows-saved-results-meta {

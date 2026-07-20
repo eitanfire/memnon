@@ -82,9 +82,10 @@ class FakeRepository:
         record["threading"] = dict(threading)
         record["updated_at"] = threading.get("context_decision_at", record.get("updated_at"))
 
-    def update_capture_feedback(self, uid, capture_id, feedback_choice, feedback_updated_at):
+    def update_capture_feedback(self, uid, capture_id, feedback_choice, feedback_note, feedback_updated_at):
         record = self.records[(uid, capture_id)]
         record["feedback_choice"] = feedback_choice
+        record["feedback_note"] = feedback_note
         record["feedback_updated_at"] = feedback_updated_at
 
     def touch_context_activity(self, uid, context_id, now):
@@ -103,7 +104,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-07-02T16:00:00Z",
@@ -133,7 +134,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workshop plan draft",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "summary": "The plan needs one tighter opener and one clear follow-up.",
                 "next_step": "Tighten the opening before sharing it.",
             },
             now_provider=lambda: "2026-07-02T16:00:00Z",
@@ -178,7 +179,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "BoulderJS meetup recap",
                 "framing_line": "A saved result shaped around the strongest public takeaway.",
-                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "summary": "The meetup recap should become a public-facing post for the community.",
                 "next_step": "",
             },
             now_provider=lambda: "2026-07-03T12:00:00Z",
@@ -208,7 +209,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Product strategy podcast notes",
                 "framing_line": "A saved result shaped around the sharpest professional takeaway.",
-                "key_point": "The notes point toward retention and positioning analysis.",
+                "summary": "The notes point toward retention and positioning analysis.",
                 "next_step": "",
             },
             now_provider=lambda: "2026-07-03T12:00:00Z",
@@ -239,7 +240,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "BoulderJS meetup recap",
                 "framing_line": "A saved result shaped around the strongest public takeaway.",
-                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "summary": "The meetup recap should become a public-facing post for the community.",
                 "next_step": "",
             },
             now_provider=lambda: "2026-07-03T12:00:00Z",
@@ -271,7 +272,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "BoulderJS meetup recap",
                 "framing_line": "A saved result shaped around the strongest public takeaway.",
-                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "summary": "The meetup recap should become a public-facing post for the community.",
                 "next_step": "",
             },
             now_provider=lambda: "2026-07-03T12:00:00Z",
@@ -304,7 +305,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "BoulderJS meetup recap",
                 "framing_line": "A saved result shaped around the strongest public takeaway.",
-                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "summary": "The meetup recap should become a public-facing post for the community.",
                 "next_step": "",
             },
             now_provider=lambda: "2026-07-03T12:00:00Z",
@@ -382,7 +383,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-06-29T12:00:00Z",
@@ -416,7 +417,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-06-29T12:00:00Z",
@@ -441,7 +442,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-06-29T12:00:00Z",
@@ -473,7 +474,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-06-29T12:00:00Z",
@@ -509,7 +510,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -541,7 +542,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -574,7 +575,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -600,7 +601,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -634,7 +635,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result card still feels too generic.",
+                "summary": "The result card still feels too generic.",
                 "next_step": "Revise the result card.",
             },
             now_provider=lambda: "2026-06-29T12:00:00Z",
@@ -678,7 +679,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Voice capture product direction",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result should stay attached to the new thread.",
+                "summary": "The result should stay attached to the new thread.",
                 "next_step": "Keep the result linked quietly on reopen.",
             },
             now_provider=lambda: "2026-06-29T12:00:00Z",
@@ -726,7 +727,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -763,7 +764,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Voice capture follow-up",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to preserve a trustworthy review path.",
+                "summary": "The result needs to preserve a trustworthy review path.",
                 "next_step": "Keep the audio review affordance on the result page.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -798,7 +799,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Workshop plan draft",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "summary": "The plan needs one tighter opener and one clear follow-up.",
                 "next_step": "Tighten the opening before sharing it.",
             }
 
@@ -834,6 +835,41 @@ class WorkflowServiceTests(unittest.TestCase):
         )
         self.assertTrue(record.result["primary_artifact"]["source_excerpt"])
 
+    def test_file_capture_quality_floor_rejects_generic_saved_title(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Saved",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "summary": "",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Need to send the draft to Maya on Tuesday and review project alpha notes before the weekly review."
+            ),
+            context_hint="",
+            input_type="file",
+            source_metadata={
+                "source_filename": "live-question.txt",
+                "source_file_type": "text/plain",
+                "source_file_extension": ".txt",
+                "source_file_size_bytes": 98,
+            },
+        )
+
+        artifact = record.result["primary_artifact"]
+        self.assertNotEqual((artifact["title"] or "").strip().lower(), "saved")
+        self.assertNotEqual((artifact["title"] or "").strip().lower(), "saved note")
+        self.assertTrue((artifact["body"] or "").strip())
+        self.assertTrue((artifact["summary"] or "").strip())
+
     def test_service_capture_summary_can_include_short_uploaded_filename(self):
         repo = FakeRepository()
         service = WorkflowService(
@@ -841,7 +877,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Workshop plan draft",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "summary": "The plan needs one tighter opener and one clear follow-up.",
                 "next_step": "Tighten the opening before sharing it.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -864,7 +900,111 @@ class WorkflowServiceTests(unittest.TestCase):
         items = service.list_capture_summaries("user-1")
 
         self.assertEqual(items[0]["capture_id"], record.capture_id)
-        self.assertEqual(items[0]["metadata_line"], "Uploaded file · plan.md · Jun 27, 2026")
+        self.assertEqual(items[0]["metadata_line"], "Uploaded file · Jun 27, 2026")
+
+    def test_service_file_metadata_includes_recording_context_from_filename(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Saved note",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "summary": "Keep the strongest point and revisit with one clear direction.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "This recording captures presentation ideas, audience questions, and the strongest story to lead with. "
+                "Action: draft a clean three-point talk track for tomorrow."
+            ),
+            context_hint="",
+            input_type="file",
+            source_metadata={
+                "source_filename": "Lincoln St 10-2.txt",
+                "source_file_type": "text/plain",
+                "source_file_extension": ".txt",
+                "source_file_size_bytes": 64,
+            },
+        )
+
+        items = service.list_capture_summaries("user-1")
+        artifact = record.result["primary_artifact"] or record.result["saved_note_artifact"]
+        self.assertEqual(
+            artifact["metadata_line"],
+            "Uploaded file · Jun 27, 2026",
+        )
+        self.assertEqual(items[0]["metadata_line"], "Lincoln St 10 · Jun 27, 2026")
+
+    def test_service_file_metadata_strips_code_like_prefix_from_derived_context(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Saved note",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "summary": "Keep one clear talk-point from the recording.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Recorded talk prep notes and examples for a lightning talk. "
+                "Action: tighten the opening and one closing takeaway."
+            ),
+            context_hint="",
+            input_type="file",
+            source_metadata={
+                "source_filename": "ZR 7-13 Flashtalk.txt",
+                "source_file_type": "text/plain",
+                "source_file_extension": ".txt",
+                "source_file_size_bytes": 72,
+            },
+        )
+
+        items = service.list_capture_summaries("user-1")
+        self.assertEqual(items[0]["metadata_line"], "Flashtalk · Jun 27, 2026")
+
+    def test_service_file_metadata_falls_back_when_derived_label_too_long(self):
+        repo = FakeRepository()
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Saved note",
+                "framing_line": "Shaped from your note into one practical artifact.",
+                "summary": "Keep the strongest point and revisit with one clear direction.",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "This recording captures preparation details and practice notes for a long presentation thread. "
+                "Action: tighten the opening and close with one concrete ask."
+            ),
+            context_hint="",
+            input_type="file",
+            source_metadata={
+                "source_filename": "Very Long Conference Planning Session And Rehearsal Notes 12-2.txt",
+                "source_file_type": "text/plain",
+                "source_file_extension": ".txt",
+                "source_file_size_bytes": 96,
+            },
+        )
+
+        items = service.list_capture_summaries("user-1")
+        self.assertEqual(items[0]["metadata_line"], "Uploaded file · Jun 27, 2026")
 
     def test_service_creates_one_professional_note_record(self):
         repo = FakeRepository()
@@ -873,7 +1013,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The system feels too generic because the result does not yet feel like a saved object.",
+                "summary": "The system feels too generic because the result does not yet feel like a saved object.",
                 "next_step": "Revise the result card so it includes a stronger title, one excerpt, and one concrete next step.",
             }
 
@@ -910,10 +1050,10 @@ class WorkflowServiceTests(unittest.TestCase):
         )
         self.assertEqual(
             [section["label"] for section in record.result["primary_artifact"]["sections"]],
-            ["Key point", "Next step"],
+            ["Next step"],
         )
-        self.assertIn("system feels too generic", record.result["primary_artifact"]["sections"][0]["text"])
-        self.assertIn("Revise the result card", record.result["primary_artifact"]["sections"][1]["text"])
+        self.assertIn("system feels too generic", record.result["primary_artifact"]["summary"])
+        self.assertIn("Revise the result card", record.result["primary_artifact"]["sections"][0]["text"])
         self.assertIn("Met with Jordan today about the product direction.", record.result["primary_artifact"]["source_excerpt"])
         self.assertIn("product direction", record.result["primary_artifact"]["framing_line"].lower())
         self.assertEqual(record.result["secondary_artifacts"], [])
@@ -926,7 +1066,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Teacher workflow note",
                 "framing_line": "Pulled from your product reflection.",
-                "key_point": "Start by clarifying the single change that reduces user friction first.",
+                "summary": "Start by clarifying the single change that reduces user friction first.",
                 "next_step": "Clarify the first workflow before broadening scope.",
             }
 
@@ -958,7 +1098,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Teacher workflow note",
                 "framing_line": "Pulled from your product reflection.",
-                "key_point": "Start by clarifying the single change that reduces user friction first.",
+                "summary": "Start by clarifying the single change that reduces user friction first.",
                 "next_step": "Clarify the first workflow before broadening scope.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -989,6 +1129,171 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertEqual(items[1]["title"], first.result["saved_note_artifact"]["title"])
         self.assertEqual(items[1]["status"], "Saved as a small note")
 
+    def test_service_list_summaries_include_feedback_choice(self):
+        repo = FakeRepository()
+
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Teacher workflow note",
+                "framing_line": "Pulled from your product reflection.",
+                "summary": "Start by clarifying the single change that reduces user friction first.",
+                "next_step": "Clarify the first workflow before broadening scope.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Met with Jordan today about the product direction. "
+                "Action: revise the result card before the next demo."
+            ),
+            context_hint="product review",
+        )
+
+        items_before = service.list_capture_summaries("user-1")
+        self.assertEqual(items_before[0]["feedback_choice"], "")
+
+        service.apply_feedback_choice(
+            "user-1",
+            record.capture_id,
+            feedback_choice="useful",
+        )
+
+        items_after = service.list_capture_summaries("user-1")
+        self.assertEqual(items_after[0]["feedback_choice"], "useful")
+
+    def test_service_persists_feedback_note_alongside_choice(self):
+        repo = FakeRepository()
+
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args: {
+                "title": "Teacher workflow note",
+                "framing_line": "Pulled from your product reflection.",
+                "summary": "Start by clarifying the single change that reduces user friction first.",
+                "next_step": "Clarify the first workflow before broadening scope.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "Met with Jordan today about the product direction. "
+                "Action: revise the result card before the next demo."
+            ),
+            context_hint="product review",
+        )
+
+        updated = service.apply_feedback_choice(
+            "user-1",
+            record.capture_id,
+            feedback_choice="not_useful",
+            feedback_note="The next step didn't match what the summary described.",
+        )
+        self.assertEqual(updated["feedback_note"], "The next step didn't match what the summary described.")
+
+        fetched = service.get_capture("user-1", record.capture_id)
+        self.assertEqual(fetched["feedback_note"], "The next step didn't match what the summary described.")
+
+        items = service.list_capture_summaries("user-1")
+        self.assertEqual(
+            items[0]["feedback_note"], "The next step didn't match what the summary described."
+        )
+
+    def test_regenerate_capture_upgrades_legacy_schema_preserving_timestamps_and_feedback(self):
+        repo = FakeRepository()
+
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Mentorship Program Overview",
+                "framing_line": "Saved as a note worth reopening.",
+                "summary": "The program spans two phases and focuses on peer mentorship.",
+                "next_step": "Access the shared slide deck.",
+                "source_quote": "cultivate the culture of peer mentorship",
+            },
+            now_provider=lambda: "2026-07-19T09:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text=(
+                "This talk is about a two-phase program to cultivate the culture of "
+                "peer mentorship among computer science students."
+            ),
+            context_hint="",
+            input_type="file",
+            source_metadata={"source_filename": "talk.txt"},
+        )
+
+        # Simulate a legacy pre-2026-07-18 record: old "Key point" section shape,
+        # no top-level summary field, plus existing feedback that must survive.
+        key = ("user-1", record.capture_id)
+        legacy_artifact = dict(repo.records[key]["result"]["primary_artifact"])
+        legacy_artifact.pop("summary", None)
+        legacy_artifact["sections"] = [
+            {"label": "Key point", "text": "This document pulls together related materials."},
+        ]
+        repo.records[key]["result"]["primary_artifact"] = legacy_artifact
+        repo.records[key]["created_at"] = "2026-07-17T12:36:00Z"
+        repo.records[key]["feedback_choice"] = "not_useful"
+        repo.records[key]["feedback_note"] = "Key point was boilerplate."
+
+        updated = service.regenerate_capture("user-1", record.capture_id)
+        artifact = updated["result"]["primary_artifact"]
+
+        self.assertTrue(artifact["summary"])
+        self.assertNotIn(
+            "Key point", [section["label"] for section in artifact["sections"]]
+        )
+        self.assertEqual(updated["created_at"], "2026-07-17T12:36:00Z")
+        self.assertEqual(updated["feedback_choice"], "not_useful")
+        self.assertEqual(updated["feedback_note"], "Key point was boilerplate.")
+
+    def test_list_summaries_flag_dev_fixture_captures_without_false_positives(self):
+        repo = FakeRepository()
+
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "",
+                "framing_line": "",
+                "summary": "",
+                "next_step": "",
+            },
+            now_provider=lambda: "2026-07-19T09:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+
+        # Known dev-pollution shape: no filename, generic title, empty/product-review context.
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text="follow up tomorrow",
+            context_hint="product review",
+        )
+        key = ("user-1", record.capture_id)
+        artifact = repo.records[key]["result"]["primary_artifact"] or repo.records[key]["result"]["saved_note_artifact"]
+        artifact["title"] = "Saved"
+
+        # A real file capture with a genuine recording-style filename must never be flagged.
+        real_record = service.create_text_capture(
+            uid="user-1",
+            source_text="This talk is about a two-phase mentorship program for CS students.",
+            context_hint="",
+            input_type="file",
+            source_metadata={"source_filename": "Sheraton New Orleans Hotel.txt"},
+        )
+
+        items = {item["capture_id"]: item for item in service.list_capture_summaries("user-1")}
+        self.assertTrue(items[record.capture_id]["looks_like_dev_data"])
+        self.assertFalse(items[real_record.capture_id]["looks_like_dev_data"])
+
     def test_service_distinguishes_weak_saved_notes_from_ambiguous_ones(self):
         repo = FakeRepository()
 
@@ -996,7 +1301,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             }
 
@@ -1078,7 +1383,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Memnon Workflows note",
                 "framing_line": "Shaped from your note into one practical artifact to review.",
-                "key_point": "The note already points toward one useful direction and is worth shaping into a concrete next step.",
+                "summary": "The note already points toward one useful direction and is worth shaping into a concrete next step.",
                 "next_step": "Clarify the single action this note is meant to support before expanding scope.",
             }
 
@@ -1106,9 +1411,9 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertNotEqual(artifact["title"], "Memnon Workflows note")
         self.assertIn(
             "splits smartness from durability",
-            artifact["sections"][0]["text"].lower(),
+            artifact["summary"].lower(),
         )
-        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
+        self.assertEqual([section["label"] for section in artifact["sections"]], [])
         self.assertNotIn("Next step", artifact["body"])
 
     def test_service_preserves_actual_ambiguity_for_saved_notes(self):
@@ -1119,7 +1424,7 @@ class WorkflowServiceTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -1139,14 +1444,18 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertIn("direction", artifact["sections"][0]["text"].lower())
         self.assertIn("kyle", artifact["sections"][0]["text"].lower())
 
-    def test_service_shapes_document_like_paste_into_primary_artifact(self):
+    def test_service_grounds_generic_summary_in_source_for_pasted_document(self):
+        # Document-mode genre-guessing (asserting "this document pulls together...")
+        # was retired 2026-07-18: a false claim on real transcripts convicted it.
+        # A generic proposed summary now falls back to a grounded sentence from the
+        # source instead of a confident, potentially wrong, genre claim.
         repo = FakeRepository()
 
         def generic_ai(source_text, context_hint, profile, api_key):
             return {
                 "title": "Professional note",
                 "framing_line": "Shaped from your note into one practical artifact to review.",
-                "key_point": "The note already points toward one useful direction and is worth shaping into a concrete next step.",
+                "summary": "The note already points toward one useful direction and is worth shaping into a concrete next step.",
                 "next_step": "Be able to toggle this calendar on and off as needed",
             }
 
@@ -1172,14 +1481,13 @@ class WorkflowServiceTests(unittest.TestCase):
         artifact = record.result["primary_artifact"]
         self.assertEqual(record.result["route_kind"], "direct_professional_note")
         self.assertIn("Responsible AI Fellowship", artifact["title"])
-        self.assertIn("fellowship thread", artifact["sections"][0]["text"].lower())
-        self.assertIn("agendas", artifact["sections"][0]["text"].lower())
-        self.assertIn("feedback", artifact["sections"][0]["text"].lower())
-        self.assertNotIn("looks like source material", artifact["sections"][0]["text"].lower())
-        self.assertIn("consolidate", artifact["sections"][1]["text"].lower())
-        self.assertNotIn("toggle this calendar", artifact["sections"][1]["text"].lower())
-        self.assertIn("fellowship", artifact["framing_line"].lower())
-        self.assertIn("reference", artifact["framing_line"].lower())
+        self.assertIn("RAI Interactive Journal", artifact["summary"])
+        self.assertNotIn("pulls together", artifact["summary"].lower())
+        self.assertNotIn("reusable reference note", artifact["summary"].lower())
+        self.assertEqual(
+            artifact["sections"][0]["text"],
+            "Be able to toggle this calendar on and off as needed",
+        )
 
     def test_transcript_quality_check_marks_production_credit_audio_as_noisy(self):
         quality = transcript_quality_check(
@@ -1214,7 +1522,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Trends in American Socialization Time",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The average time Americans spend socializing in person has decreased.",
+                "summary": "The average time Americans spend socializing in person has decreased.",
                 "next_step": "Consider discussing the implications of these social trends in upcoming curriculum materials.",
             }
 
@@ -1252,7 +1560,7 @@ class WorkflowServiceTests(unittest.TestCase):
                     "This note captures reflections on the significance of time and value in "
                     "experiential settings, which can inform future lesson planning."
                 ),
-                "key_point": (
+                "summary": (
                     "Extended experiences can feel shorter than they are, indicating a high level "
                     "of engagement and enjoyment."
                 ),
@@ -1296,7 +1604,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "Jordan thinks the result needs to feel more like a saved object.",
+                "summary": "Jordan thinks the result needs to feel more like a saved object.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -1321,9 +1629,9 @@ class WorkflowServiceTests(unittest.TestCase):
         artifact = record.result["primary_artifact"]
         self.assertEqual(record.result["route_kind"], "direct_professional_note")
         self.assertEqual(note_calls, [False])
-        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
+        self.assertEqual([section["label"] for section in artifact["sections"]], [])
         self.assertIn("mixed audio", artifact["framing_line"].lower())
-        self.assertIn("saved object", artifact["sections"][0]["text"].lower())
+        self.assertIn("saved object", artifact["summary"].lower())
 
     def test_clean_voice_transcript_with_explicit_action_keeps_next_step(self):
         repo = FakeRepository()
@@ -1334,7 +1642,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "Jordan wants the result card to feel more durable and grounded.",
+                "summary": "Jordan wants the result card to feel more durable and grounded.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -1357,8 +1665,8 @@ class WorkflowServiceTests(unittest.TestCase):
 
         artifact = record.result["primary_artifact"]
         self.assertEqual(note_calls, [True])
-        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point", "Next step"])
-        self.assertIn("Revise the result card", artifact["sections"][1]["text"])
+        self.assertEqual([section["label"] for section in artifact["sections"]], ["Next step"])
+        self.assertIn("Revise the result card", artifact["sections"][0]["text"])
 
     def test_clean_voice_transcript_without_action_signal_does_not_invent_next_step(self):
         repo = FakeRepository()
@@ -1369,7 +1677,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "Jordan wants the result card to feel more durable and grounded.",
+                "summary": "Jordan wants the result card to feel more durable and grounded.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -1392,7 +1700,7 @@ class WorkflowServiceTests(unittest.TestCase):
 
         artifact = record.result["primary_artifact"]
         self.assertEqual(note_calls, [False])
-        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
+        self.assertEqual([section["label"] for section in artifact["sections"]], [])
         self.assertNotIn("Next step", artifact["body"])
         self.assertIn("worth revisiting", artifact["framing_line"].lower())
         self.assertNotIn("practical artifact", artifact["framing_line"].lower())
@@ -1410,7 +1718,7 @@ class WorkflowServiceTests(unittest.TestCase):
                         "This note captures reflections on the significance of time and value in "
                         "experiential settings, which can inform future lesson planning."
                     ),
-                    "key_point": (
+                    "summary": (
                         "Extended experiences can feel shorter than they are, indicating a high level "
                         "of engagement and enjoyment."
                     ),
@@ -1419,7 +1727,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Restaurant review on tasting menu pacing",
                 "framing_line": "A saved note shaped around one grounded takeaway.",
-                "key_point": (
+                "summary": (
                     "The reviewer argues that a long tasting menu feels worthwhile when each course stays memorable."
                 ),
                 "next_step": "",
@@ -1446,7 +1754,7 @@ class WorkflowServiceTests(unittest.TestCase):
         self.assertEqual(captured_profiles[0]["profession"], "professional")
         self.assertIn("restaurant review", artifact["title"].lower())
         self.assertNotIn("lesson", artifact["framing_line"].lower())
-        self.assertNotIn("student", artifact["sections"][0]["text"].lower())
+        self.assertNotIn("student", artifact["summary"].lower())
 
     def test_service_preserves_teacher_profile_for_teaching_note(self):
         repo = FakeRepository()
@@ -1457,7 +1765,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "AP Computer Science curriculum planning",
                 "framing_line": "A saved teaching note with one concrete next step.",
-                "key_point": "The first unit needs a tighter pacing plan for students who are new to programming.",
+                "summary": "The first unit needs a tighter pacing plan for students who are new to programming.",
                 "next_step": "Revise the first unit before August planning week.",
             }
 
@@ -1488,7 +1796,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Restaurant review on tasting menu pacing",
                 "framing_line": "A saved note shaped around one grounded takeaway.",
-                "key_point": "The reviewer argues the tasting menu feels worth the time when each course stays memorable.",
+                "summary": "The reviewer argues the tasting menu feels worth the time when each course stays memorable.",
                 "next_step": "",
             }
 
@@ -1521,7 +1829,7 @@ class WorkflowServiceTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "The result needs a stronger title and one clear next step.",
+                "summary": "The result needs a stronger title and one clear next step.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -1549,14 +1857,18 @@ class WorkflowServiceTests(unittest.TestCase):
             "Met with Jordan about the workflows page for Memnon.",
         )
 
-    def test_voice_note_rewrites_action_heavy_title_and_key_point(self):
+    def test_voice_note_rewrites_action_heavy_title(self):
+        # Summary no longer rejects action-describing proposed text (that was a
+        # single-sentence key_point constraint to avoid duplicating next_step;
+        # keeping them distinct is now the prompt's job -- see ai.py). Title
+        # rewriting away from action-heavy raw text is unchanged.
         repo = FakeRepository()
 
         def fake_ai(source_text, context_hint, profile, api_key, allow_next_step=True):
             return {
                 "title": "Revision Needed for Workflows Page Result Card Ahead of Next Demo",
                 "framing_line": "This note captures key takeaways from a meeting regarding necessary updates to the workflows page.",
-                "key_point": "Revise the result card before the next demo to ensure it aligns with expectations.",
+                "summary": "Jordan flagged that the workflows page result card needs a stronger title.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -1584,11 +1896,11 @@ class WorkflowServiceTests(unittest.TestCase):
             "Workflows Page conversation with Jordan",
         )
         self.assertEqual(
-            artifact["sections"][0]["text"],
-            "The result needs a stronger title and one clear next step",
+            artifact["summary"],
+            "Jordan flagged that the workflows page result card needs a stronger title.",
         )
         self.assertEqual(
-            artifact["sections"][1]["text"],
+            artifact["sections"][0]["text"],
             "Revise the result card before the next demo",
         )
 

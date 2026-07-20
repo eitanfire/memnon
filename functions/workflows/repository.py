@@ -97,10 +97,11 @@ class FirestoreWorkflowRepository:
             {"threading": threading, "updated_at": firestore.SERVER_TIMESTAMP},
         )
 
-    def update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str):
+    def update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str, feedback_note: str = ""):
         self._doc(uid, capture_id).update(
             {
                 "feedback_choice": feedback_choice,
+                "feedback_note": feedback_note,
                 "feedback_updated_at": firestore.SERVER_TIMESTAMP,
             },
         )

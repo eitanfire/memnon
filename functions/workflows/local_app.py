@@ -12,9 +12,9 @@ from .blueprint import create_workflows_blueprint
 from .service import (
     WorkflowService,
     _should_surface_next_step,
-    derive_key_point,
     derive_next_step,
     derive_specific_title,
+    derive_summary,
 )
 
 DEFAULT_STORAGE_PATH = Path(__file__).resolve().parents[2] / ".local" / "workflow-captures.json"
@@ -51,9 +51,12 @@ class InMemoryWorkflowRepository:
         items.sort(key=lambda item: item.get("created_at", ""), reverse=True)
         return items[:limit]
 
-    def update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str, feedback_updated_at: str):
+    def update_capture_feedback(
+        self, uid: str, capture_id: str, feedback_choice: str, feedback_note: str, feedback_updated_at: str
+    ):
         record = self.records[(uid, capture_id)]
         record["feedback_choice"] = feedback_choice
+        record["feedback_note"] = feedback_note
         record["feedback_updated_at"] = feedback_updated_at
 
 
@@ -91,8 +94,10 @@ class FileBackedWorkflowRepository(InMemoryWorkflowRepository):
         self._persist()
         return capture_id
 
-    def update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str, feedback_updated_at: str):
-        super().update_capture_feedback(uid, capture_id, feedback_choice, feedback_updated_at)
+    def update_capture_feedback(
+        self, uid: str, capture_id: str, feedback_choice: str, feedback_note: str, feedback_updated_at: str
+    ):
+        super().update_capture_feedback(uid, capture_id, feedback_choice, feedback_note, feedback_updated_at)
         self._persist()
 
 
@@ -113,7 +118,7 @@ def _local_note_generator(source_text, context_hint, profile, api_key, allow_nex
     return {
         "title": derive_specific_title(source_text, context_hint, "Saved note"),
         "framing_line": "Shaped from your note into one saved result worth reopening.",
-        "key_point": derive_key_point(source_text, context_hint, ""),
+        "summary": derive_summary(source_text, context_hint, ""),
         "next_step": next_step,
     }
 
@@ -139,15 +144,15 @@ def _local_social_post_generator(source_text, context_hint, profile, api_key):
 
 def _local_professional_analysis_generator(source_text, context_hint, profile, api_key):
     del context_hint, profile, api_key
-    key_point = derive_key_point(source_text, "", "")
+    summary = derive_summary(source_text, "", "")
     return {
         "title": "Professional analysis",
         "framing_line": "A concise professional read grounded in the source material.",
-        "body": key_point,
+        "body": summary,
         "sections": [
-            {"label": "Read", "text": key_point},
+            {"label": "Read", "text": summary},
         ],
-        "copy_text": key_point,
+        "copy_text": summary,
     }
 
 

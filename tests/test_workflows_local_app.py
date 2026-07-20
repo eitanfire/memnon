@@ -24,7 +24,7 @@ class WorkflowsLocalAppTests(unittest.TestCase):
                 note_generator=lambda *_args, **_kwargs: {
                     "title": "Workflows page conversation with Jordan",
                     "framing_line": "A saved note shaped around one concrete next step.",
-                    "key_point": "The result card still feels too generic.",
+                    "summary": "The result card still feels too generic.",
                     "next_step": "Revise the result card.",
                 },
                 now_provider=lambda: "2026-06-29T12:00:00Z",
@@ -67,81 +67,86 @@ class WorkflowsLocalAppTests(unittest.TestCase):
             )
 
     def test_local_app_accepts_audio_capture_multipart(self):
-        app = create_local_app(
-            transcribe_audio=lambda _audio, _filename, _api_key: (
-                "Met with Jordan today about the workflows result page. "
-                "Action: revise the result card before the next demo."
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "workflow-captures.json"
+            app = create_local_app(
+                storage_path=str(storage_path),
+                transcribe_audio=lambda _audio, _filename, _api_key: (
+                    "Met with Jordan today about the workflows result page. "
+                    "Action: revise the result card before the next demo."
+                ),
             )
-        )
-        client = app.test_client()
-        headers = {"Authorization": "Bearer dev-local-token"}
+            client = app.test_client()
+            headers = {"Authorization": "Bearer dev-local-token"}
 
-        response = client.post(
-            "/api/workflows/captures",
-            headers=headers,
-            data={
-                "context_hint": "product review",
-                "file": (io.BytesIO(b"fake-audio"), "voice-note.webm", "audio/webm"),
-            },
-            content_type="multipart/form-data",
-        )
+            response = client.post(
+                "/api/workflows/captures",
+                headers=headers,
+                data={
+                    "context_hint": "product review",
+                    "file": (io.BytesIO(b"fake-audio"), "voice-note.webm", "audio/webm"),
+                },
+                content_type="multipart/form-data",
+            )
 
-        self.assertEqual(response.status_code, 201)
-        payload = response.get_json()
-        self.assertEqual(payload["input_type"], "voice")
-        self.assertEqual(payload["source_event"]["input_type"], "voice")
-        self.assertIn(
-            "Voice note",
-            payload["result"]["primary_artifact"]["metadata_line"],
-        )
-        self.assertIn(
-            "Product review",
-            payload["result"]["primary_artifact"]["metadata_line"],
-        )
+            self.assertEqual(response.status_code, 201)
+            payload = response.get_json()
+            self.assertEqual(payload["input_type"], "voice")
+            self.assertEqual(payload["source_event"]["input_type"], "voice")
+            self.assertIn(
+                "Voice note",
+                payload["result"]["primary_artifact"]["metadata_line"],
+            )
+            self.assertIn(
+                "Product review",
+                payload["result"]["primary_artifact"]["metadata_line"],
+            )
 
     def test_local_app_creates_and_fetches_capture(self):
-        app = create_local_app()
-        client = app.test_client()
-        headers = {"Authorization": "Bearer dev-local-token"}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "workflow-captures.json"
+            app = create_local_app(storage_path=str(storage_path))
+            client = app.test_client()
+            headers = {"Authorization": "Bearer dev-local-token"}
 
-        create_response = client.post(
-            "/api/workflows/captures",
-            headers=headers,
-            json={
-                "text": (
-                    "I want to turn this messy product reflection into one useful professional note for the next build step. "
-                    "Action: revise the summary before tomorrow's review."
-                ),
-                "context_hint": "product review",
-            },
-        )
+            create_response = client.post(
+                "/api/workflows/captures",
+                headers=headers,
+                json={
+                    "text": (
+                        "I want to turn this messy product reflection into one useful professional note for the next build step. "
+                        "Action: revise the summary before tomorrow's review."
+                    ),
+                    "context_hint": "product review",
+                },
+            )
 
-        self.assertEqual(create_response.status_code, 201)
-        payload = create_response.get_json()
-        self.assertIn("capture_id", payload)
+            self.assertEqual(create_response.status_code, 201)
+            payload = create_response.get_json()
+            self.assertIn("capture_id", payload)
 
-        fetch_response = client.get(
-            f"/api/workflows/captures/{payload['capture_id']}",
-            headers=headers,
-        )
-        self.assertEqual(fetch_response.status_code, 200)
-        fetched = fetch_response.get_json()
-        self.assertEqual(fetched["capture_id"], payload["capture_id"])
-        self.assertEqual(fetched["result"]["route_kind"], "direct_professional_note")
-        self.assertEqual(
-            fetched["result"]["primary_artifact"]["status"],
-            "Saved and shaped",
-        )
-        self.assertIn(
-            "Pasted note",
-            fetched["result"]["primary_artifact"]["metadata_line"],
-        )
-        self.assertIn("sections", fetched["result"]["primary_artifact"])
-        self.assertEqual(
-            [section["label"] for section in fetched["result"]["primary_artifact"]["sections"]],
-            ["Key point", "Next step"],
-        )
-        self.assertIn("source_excerpt", fetched["result"]["primary_artifact"])
+            fetch_response = client.get(
+                f"/api/workflows/captures/{payload['capture_id']}",
+                headers=headers,
+            )
+            self.assertEqual(fetch_response.status_code, 200)
+            fetched = fetch_response.get_json()
+            self.assertEqual(fetched["capture_id"], payload["capture_id"])
+            self.assertEqual(fetched["result"]["route_kind"], "direct_professional_note")
+            self.assertEqual(
+                fetched["result"]["primary_artifact"]["status"],
+                "Saved and shaped",
+            )
+            self.assertIn(
+                "Pasted note",
+                fetched["result"]["primary_artifact"]["metadata_line"],
+            )
+            self.assertIn("sections", fetched["result"]["primary_artifact"])
+            self.assertEqual(
+                [section["label"] for section in fetched["result"]["primary_artifact"]["sections"]],
+                ["Next step"],
+            )
+            self.assertIn("source_excerpt", fetched["result"]["primary_artifact"])
 
     def test_local_app_feedback_persists_when_saved_result_is_fetched(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -187,48 +192,50 @@ class WorkflowsLocalAppTests(unittest.TestCase):
             self.assertIn("feedback_updated_at", fetched)
 
     def test_local_app_returns_distinct_saved_note_states(self):
-        app = create_local_app()
-        client = app.test_client()
-        headers = {"Authorization": "Bearer dev-local-token"}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "workflow-captures.json"
+            app = create_local_app(storage_path=str(storage_path))
+            client = app.test_client()
+            headers = {"Authorization": "Bearer dev-local-token"}
 
-        weak_response = client.post(
-            "/api/workflows/captures",
-            headers=headers,
-            json={
-                "text": "follow up tomorrow",
-                "context_hint": "",
-            },
-        )
-        ambiguous_response = client.post(
-            "/api/workflows/captures",
-            headers=headers,
-            json={
-                "text": (
-                    "Not sure what this should become. Something about the product direction I think. "
-                    "Could be a note to myself, a follow-up, or maybe just something to hold onto."
-                ),
-                "context_hint": "",
-            },
-        )
+            weak_response = client.post(
+                "/api/workflows/captures",
+                headers=headers,
+                json={
+                    "text": "follow up tomorrow",
+                    "context_hint": "",
+                },
+            )
+            ambiguous_response = client.post(
+                "/api/workflows/captures",
+                headers=headers,
+                json={
+                    "text": (
+                        "Not sure what this should become. Something about the product direction I think. "
+                        "Could be a note to myself, a follow-up, or maybe just something to hold onto."
+                    ),
+                    "context_hint": "",
+                },
+            )
 
-        self.assertEqual(weak_response.status_code, 201)
-        self.assertEqual(ambiguous_response.status_code, 201)
-        self.assertEqual(
-            weak_response.get_json()["result"]["saved_note_artifact"]["state"],
-            "weak_signal",
-        )
-        self.assertEqual(
-            weak_response.get_json()["result"]["saved_note_artifact"]["status"],
-            "Saved as a small note",
-        )
-        self.assertEqual(
-            ambiguous_response.get_json()["result"]["saved_note_artifact"]["state"],
-            "needs_direction",
-        )
-        self.assertEqual(
-            ambiguous_response.get_json()["result"]["saved_note_artifact"]["status"],
-            "Saved, needs direction",
-        )
+            self.assertEqual(weak_response.status_code, 201)
+            self.assertEqual(ambiguous_response.status_code, 201)
+            self.assertEqual(
+                weak_response.get_json()["result"]["saved_note_artifact"]["state"],
+                "weak_signal",
+            )
+            self.assertEqual(
+                weak_response.get_json()["result"]["saved_note_artifact"]["status"],
+                "Saved as a small note",
+            )
+            self.assertEqual(
+                ambiguous_response.get_json()["result"]["saved_note_artifact"]["state"],
+                "needs_direction",
+            )
+            self.assertEqual(
+                ambiguous_response.get_json()["result"]["saved_note_artifact"]["status"],
+                "Saved, needs direction",
+            )
 
     def test_local_app_allows_localhost_and_127_static_origins(self):
         app = create_local_app()

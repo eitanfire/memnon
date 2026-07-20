@@ -76,9 +76,10 @@ class FakeRepository:
         record["threading"] = dict(threading)
         return record
 
-    def update_capture_feedback(self, uid, capture_id, feedback_choice, feedback_updated_at):
+    def update_capture_feedback(self, uid, capture_id, feedback_choice, feedback_note, feedback_updated_at):
         record = self.records[(uid, capture_id)]
         record["feedback_choice"] = feedback_choice
+        record["feedback_note"] = feedback_note
         record["feedback_updated_at"] = feedback_updated_at
         return record
 
@@ -92,7 +93,7 @@ class WorkflowApiTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -141,7 +142,7 @@ class WorkflowApiTests(unittest.TestCase):
         )
         self.assertEqual(
             [section["label"] for section in fetched["result"]["primary_artifact"]["sections"]],
-            ["Key point", "Next step"],
+            ["Next step"],
         )
         self.assertEqual(fetched["source_event"]["input_type"], "text")
         self.assertEqual(len(bridge_calls), 1)
@@ -155,7 +156,7 @@ class WorkflowApiTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -207,7 +208,7 @@ class WorkflowApiTests(unittest.TestCase):
             return {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             }
 
@@ -266,7 +267,7 @@ class WorkflowApiTests(unittest.TestCase):
             return {
                 "title": "Workshop plan draft",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The plan needs one tighter opener and one clear follow-up.",
+                "summary": "The plan needs one tighter opener and one clear follow-up.",
                 "next_step": "Tighten the opening before sharing it.",
             }
 
@@ -407,7 +408,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -441,7 +442,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -475,7 +476,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -510,7 +511,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -546,7 +547,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -573,7 +574,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -611,7 +612,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -644,7 +645,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -679,7 +680,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -726,7 +727,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs a different thread choice.",
+                "summary": "The result needs a different thread choice.",
                 "next_step": "Record the alternate thread decision.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -776,7 +777,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Voice capture product direction",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs its own new thread.",
+                "summary": "The result needs its own new thread.",
                 "next_step": "Create the thread from the chooser flow.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -823,7 +824,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -864,7 +865,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -906,7 +907,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Product direction conversation with Jordan",
                 "framing_line": "Shaped from your note into one practical artifact.",
-                "key_point": "The result needs to feel more like a saved object than a generated response.",
+                "summary": "The result needs to feel more like a saved object than a generated response.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -940,7 +941,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -970,7 +971,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args: {
                 "title": "Unused",
                 "framing_line": "Unused",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "Unused",
             },
             now_provider=lambda: "2026-07-01T18:00:00Z",
@@ -1000,7 +1001,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "BoulderJS meetup recap",
                 "framing_line": "A saved result shaped around the strongest public takeaway.",
-                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "summary": "The meetup recap should become a public-facing post for the community.",
                 "next_step": "",
             },
             now_provider=lambda: "2026-07-03T12:00:00Z",
@@ -1056,7 +1057,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Small note",
                 "framing_line": "Saved quietly.",
-                "key_point": "Unused",
+                "summary": "Unused",
                 "next_step": "",
             },
             now_provider=lambda: "2026-07-03T12:00:00Z",
@@ -1104,7 +1105,7 @@ class WorkflowApiTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "BoulderJS meetup recap",
                 "framing_line": "A saved result shaped around the strongest public takeaway.",
-                "key_point": "The meetup recap should become a public-facing post for the community.",
+                "summary": "The meetup recap should become a public-facing post for the community.",
                 "next_step": "",
             },
             now_provider=lambda: "2026-07-03T12:00:00Z",

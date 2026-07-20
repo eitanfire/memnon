@@ -36,6 +36,8 @@ from .routing import build_source_event, route_text_capture
 
 
 GENERIC_TITLES = {
+    "saved",
+    "saved note",
     "suggested note",
     "professional note",
     "product idea note",
@@ -135,18 +137,30 @@ EDUCATION_OUTPUT_MARKERS = (
     "ap computer science",
 )
 
-NEXT_STEP_OVERLAP_STOPWORDS = {
-    "the",
-    "and",
-    "that",
-    "this",
-    "with",
-    "from",
-    "into",
-    "your",
-    "before",
-    "after",
-    "whether",
+COLLOQUIAL_NOISE_TOKENS = {
+    "yeah",
+    "yep",
+    "nope",
+    "anyway",
+    "anyways",
+    "kinda",
+    "sorta",
+    "like",
+    "uh",
+    "um",
+}
+
+INVALID_PERSON_TOKENS = {
+    "no",
+    "yeah",
+    "yes",
+    "right",
+    "okay",
+    "ok",
+    "anyway",
+    "anyways",
+    "good",
+    "important",
 }
 
 VALID_FEEDBACK_CHOICES = {"useful", "not_useful"}
@@ -170,21 +184,73 @@ def _title_case_phrase(value: str) -> str:
     return " ".join(words)
 
 
+def _truncate_with_word_boundary(text: str, limit: int) -> str:
+    normalized = _normalize_text(text)
+    if len(normalized) <= limit:
+        return normalized
+    slice_end = max(1, limit - 1)
+    trimmed = normalized[:slice_end]
+    if len(normalized) > slice_end and normalized[slice_end].isalnum() and trimmed[-1].isalnum():
+        last_space = trimmed.rfind(" ")
+        if last_space > 20:
+            trimmed = trimmed[:last_space]
+    return trimmed.rstrip() + "..."
+
+
+def _ensure_excerpt_starts_on_word_boundary(source_text: str, excerpt: str) -> str:
+    normalized_source = _normalize_text(source_text)
+    normalized_excerpt = _normalize_text(excerpt)
+    if not normalized_source or not normalized_excerpt:
+        return normalized_excerpt
+
+    idx = normalized_source.find(normalized_excerpt)
+    if idx <= 0:
+        return normalized_excerpt
+
+    if normalized_source[idx - 1].isalnum() and normalized_excerpt[0].isalnum():
+        start = idx
+        while start > 0 and normalized_source[start - 1].isalnum():
+            start -= 1
+        end = min(len(normalized_source), start + len(normalized_excerpt))
+        normalized_excerpt = normalized_source[start:end].strip()
+
+    return normalized_excerpt
+
+
 def _extract_source_excerpt(source_text: str, limit: int = 160) -> str:
     normalized = re.sub(r"\s+", " ", source_text or "").strip()
     if not normalized:
         return ""
-    sentence_matches = re.findall(r"(.{1,%d}?[.!?])(?:\s|$)" % limit, normalized)
-    for candidate in sentence_matches:
-        excerpt = candidate.strip()
+    sentences = _sentence_list(normalized)
+    for sentence in sentences:
+        excerpt = _truncate_with_word_boundary(sentence, limit)
         if not _looks_like_low_signal_excerpt(excerpt):
-            return excerpt
-    sentence_match = re.match(r"(.{1,%d}?[.!?])(?:\s|$)" % limit, normalized)
-    if sentence_match:
-        return sentence_match.group(1).strip()
+            return _ensure_excerpt_starts_on_word_boundary(normalized, excerpt)
+    if sentences:
+        return _ensure_excerpt_starts_on_word_boundary(normalized, _truncate_with_word_boundary(sentences[0], limit))
     if len(normalized) <= limit:
         return normalized
-    return normalized[: limit - 1].rstrip() + "…"
+    return _truncate_with_word_boundary(normalized, limit)
+
+
+def _looks_like_verbatim_source_quote(source_text: str, quote: str) -> bool:
+    normalized_source = _normalize_text(source_text).lower()
+    normalized_quote = _normalize_text(quote).strip(" .\"'‘’“”").lower()
+    if len(normalized_quote) < 12:
+        return False
+    return normalized_quote in normalized_source
+
+
+def _resolve_source_quote(source_text: str, proposed_quote: str, *, input_type: str, limit: int = 200) -> str:
+    if _looks_like_verbatim_source_quote(source_text, proposed_quote):
+        cleaned = _normalize_text(proposed_quote).strip(" .\"'‘’“”")
+        normalized_source = _normalize_text(source_text)
+        return _ensure_excerpt_starts_on_word_boundary(
+            normalized_source, _truncate_with_word_boundary(cleaned, limit)
+        )
+    if input_type == "voice":
+        return _extract_voice_source_excerpt(source_text)
+    return _extract_source_excerpt(source_text)
 
 
 def _extract_voice_source_excerpt(source_text: str, limit: int = 160) -> str:
@@ -205,8 +271,8 @@ def _extract_voice_source_excerpt(source_text: str, limit: int = 160) -> str:
     if ranked:
         excerpt = ranked.strip()
         if len(excerpt) <= limit:
-            return excerpt
-        return excerpt[: limit - 1].rstrip() + "…"
+            return _ensure_excerpt_starts_on_word_boundary(source_text, excerpt)
+        return _ensure_excerpt_starts_on_word_boundary(source_text, _truncate_with_word_boundary(excerpt, limit))
     return _extract_source_excerpt(source_text, limit=limit)
 
 
@@ -251,7 +317,61 @@ def _format_capture_date(created_at: str) -> str:
     return parsed.strftime("%b %d, %Y")
 
 
-def _build_metadata_line(input_type: str, created_at: str, context_hint: str) -> str:
+def _clean_recording_filename_stem(filename: str) -> str:
+    stem = _normalize_text(filename)
+    if not stem:
+        return ""
+    stem = re.sub(r"\.[A-Za-z0-9]+$", "", stem)
+    stem = re.sub(r"\((?:\d+)\)$", "", stem).strip()
+    stem = re.sub(r"\s*[-–—]?\s*(?:direct|copy|take|v\d+)(?:[-_ ]?\d+)?$", "", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"\s*[-_]\d+$", "", stem)
+    # Remove leading session/code prefixes like "ZR 7-13" before readability checks.
+    stem = re.sub(r"^[A-Z]{2,5}\s+\d+(?:-\d+)*\s+", "", stem)
+    stem = re.sub(r"\s+", " ", stem)
+    return _normalize_text(stem).strip(" .,:;!-")
+
+
+def _file_context_label(source_filename: str) -> str:
+    filename = _normalize_text(source_filename)
+    if not filename:
+        return ""
+
+    stem = _clean_recording_filename_stem(filename)
+    if not stem:
+        return ""
+
+    looks_like_recording = bool(
+        re.search(r"\b(?:new|audio) recording\b", filename, flags=re.IGNORECASE)
+        or re.search(r"\b\d+\b", filename)
+        or re.search(r"-(?:\d+|direct|copy|take|v\d+)\b", filename, flags=re.IGNORECASE)
+    )
+    if not looks_like_recording:
+        return ""
+
+    # Suppress camera-roll or generic recorder defaults.
+    if re.match(r"^(?:img|dsc|pxl)[-_ ]?\d+$", stem, flags=re.IGNORECASE):
+        return ""
+    if re.match(r"^(?:new|audio) recording(?:\s+\d+|\s+\d{4}.*)?$", stem, flags=re.IGNORECASE):
+        return ""
+
+    words = re.findall(r"[A-Za-z][A-Za-z0-9&'-]*", stem)
+    if not words:
+        return ""
+
+    generic_words = {"recording", "audio", "voice", "capture", "note", "file", "untitled"}
+    if len(words) == 1 and words[0].lower() in generic_words:
+        return ""
+
+    # Conservative privacy guard: suppress likely person-name-only labels.
+    if re.match(r"^[A-Z][a-z]+(?: [A-Z][a-z]+){1,2}$", stem):
+        return ""
+
+    if len(stem) > 42:
+        return ""
+    return stem
+
+
+def _build_metadata_line(input_type: str, created_at: str, context_hint: str, *, source_filename: str = "") -> str:
     parts = []
     source_type = _describe_source_type(input_type)
     if source_type:
@@ -269,16 +389,35 @@ def _build_metadata_line(input_type: str, created_at: str, context_hint: str) ->
 
 def _build_compact_file_metadata_line(source_event: dict[str, object], created_at: str) -> str:
     parts = []
-    source_type = _describe_source_type(str(source_event.get("input_type") or ""))
-    if source_type:
-        parts.append(source_type)
     filename = _normalize_text(str(source_event.get("source_filename") or ""))
-    if filename and len(filename) <= 24:
-        parts.append(filename)
+    file_label = _file_context_label(filename)
+    if file_label:
+        parts.append(file_label)
+    else:
+        source_type = _describe_source_type(str(source_event.get("input_type") or ""))
+        if source_type:
+            parts.append(source_type)
     formatted_date = _format_capture_date(created_at)
     if formatted_date:
         parts.append(formatted_date)
     return " · ".join(parts)
+
+
+_DEV_FIXTURE_FILENAMES = {"sample-note.txt", "live-question.txt"}
+_DEV_FIXTURE_TITLES = {"saved", "saved note", "product direction i think note"}
+
+
+def _looks_like_dev_capture(record: dict) -> bool:
+    source_event = record.get("source_event") or {}
+    filename = _normalize_text(str(source_event.get("source_filename") or "")).lower()
+    if filename in _DEV_FIXTURE_FILENAMES:
+        return True
+    if filename:
+        return False
+    result = record.get("result") or {}
+    artifact = result.get("primary_artifact") or result.get("saved_note_artifact") or {}
+    title = _normalize_text(str(artifact.get("title") or "")).lower()
+    return title in _DEV_FIXTURE_TITLES
 
 
 def _normalize_clause(text: str) -> str:
@@ -330,6 +469,11 @@ def _looks_low_quality_title(value: str) -> bool:
     words = re.findall(r"[A-Za-z0-9'-]+", lowered)
     if len(words) > 9 or len(normalized) > 72:
         return True
+    colloquial_count = sum(1 for word in words if word in COLLOQUIAL_NOISE_TOKENS)
+    if colloquial_count >= 2:
+        return True
+    if len(words) >= 5 and colloquial_count >= 1:
+        return True
     if _looks_action_like_text(normalized):
         return True
     weak_title_patterns = (
@@ -339,6 +483,32 @@ def _looks_low_quality_title(value: str) -> bool:
         r"\bneeded\b",
     )
     return any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in weak_title_patterns)
+
+
+def _normalize_topic_candidate(value: str) -> str:
+    cleaned = _normalize_text(value)
+    if not cleaned:
+        return ""
+    cleaned = re.split(
+        r"\b(?:rather than|instead of|anyway|anyways|you know|i mean)\b",
+        cleaned,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    cleaned = cleaned.strip(" .,:;!-")
+    return cleaned
+
+
+def _looks_valid_person_token(value: str) -> bool:
+    token = _normalize_text(value)
+    if not token:
+        return False
+    lower = token.lower()
+    if lower in INVALID_PERSON_TOKENS:
+        return False
+    if len(lower) < 3:
+        return False
+    return True
 
 
 def _source_supports_education_context(source_text: str, context_hint: str) -> bool:
@@ -405,12 +575,23 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
         right = _title_case_phrase(split_match.group(3))
         return f"{split_match.group(1)} {left} vs {right}"
 
-    person_match = re.search(r"\bwith ([A-Z][a-z]+)\b", normalized)
+    person_match = re.search(r"\bwith ([A-Z][a-z]{2,}(?: [A-Z][a-z]{2,})?)\b", normalized)
     topic_match = re.search(r"\babout (?:the )?([a-z][a-z\s-]{3,50}?)(?:[,.!?]| and |$)", lower)
-    if person_match and topic_match:
-        topic = _title_case_phrase(topic_match.group(1))
-        if topic:
-            return f"{topic} conversation with {person_match.group(1)}"
+    if person_match and topic_match and _looks_valid_person_token(person_match.group(1)):
+        person = person_match.group(1)
+        has_person_context = bool(
+            re.search(
+                rf"\b(?:conversation|talked|spoke|met|meeting|call)\s+with\s+{re.escape(person)}\b",
+                normalized,
+                flags=re.IGNORECASE,
+            )
+        )
+        if not has_person_context:
+            person = ""
+        topic_candidate = _normalize_topic_candidate(topic_match.group(1))
+        topic = _title_case_phrase(topic_candidate)
+        if topic and person:
+            return f"{topic} conversation with {person}"
 
     reviewer_match = re.search(
         r"\breviewer says (?:the )?([a-z][a-z\s-]{2,40}?)(?: is | feels | seems | looks | can |,| but |$)",
@@ -440,9 +621,21 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
         return "Follow-up"
 
     if topic_match:
-        topic = _title_case_phrase(topic_match.group(1))
+        topic_candidate = _normalize_topic_candidate(topic_match.group(1))
+        topic = _title_case_phrase(topic_candidate)
         if topic:
             return topic
+
+    send_object_match = re.search(
+        r"\b(?:send|share)\s+(?:the |a |an |my |our )?([a-z][a-z\s'-]{2,30}?)\s+to\s+([A-Z][A-Za-z'-]{1,30})\b",
+        normalized,
+    )
+    if send_object_match and _looks_valid_person_token(send_object_match.group(2)):
+        obj = _title_case_phrase(_normalize_topic_candidate(send_object_match.group(1)))
+        person = send_object_match.group(2)
+        if obj:
+            return f"{obj} for {person}"
+        return f"Message to {person}"
 
     send_match = re.search(r"(?:send|share)\s+to\s+([A-Z][A-Za-z'-]+)", normalized)
     if send_match:
@@ -472,7 +665,18 @@ def _derive_topic_phrase(source_text: str, context_hint: str) -> str:
     return _title_case_phrase(" ".join(words[:6]))
 
 
-def derive_specific_title(source_text: str, context_hint: str, proposed_title: str, *, suffix: str = "") -> str:
+def _title_seed_words(text: str) -> list[str]:
+    return re.findall(r"[A-Za-z0-9'-]+", text or "")
+
+
+def derive_specific_title(
+    source_text: str,
+    context_hint: str,
+    proposed_title: str,
+    *,
+    suffix: str = "",
+    summary_hint: str = "",
+) -> str:
     proposed = re.sub(r"\s+", " ", proposed_title or "").strip(" .")
     if _generated_text_leaks_education_context(proposed, source_text, context_hint):
         proposed = ""
@@ -480,20 +684,39 @@ def derive_specific_title(source_text: str, context_hint: str, proposed_title: s
         return proposed
 
     topic = _derive_topic_phrase(source_text, context_hint)
+    if _looks_low_quality_title(topic) or topic.lower() in GENERIC_TITLES:
+        seed_words = _title_seed_words(summary_hint) or _title_seed_words(
+            _extract_source_excerpt(source_text, limit=90)
+        )
+        seed_topic = _title_case_phrase(" ".join(seed_words[:6]))
+        topic = (
+            _title_case_phrase(context_hint)
+            or (seed_topic if seed_topic.lower() not in GENERIC_TITLES else "")
+            or "Saved note"
+        )
     if suffix and not topic.lower().endswith(suffix.lower()):
         return f"{topic} {suffix}".strip()
     return topic
 
 
-def build_copy_text(title: str, sections: list[WorkflowArtifactSection]) -> str:
+def build_copy_text(title: str, sections: list[WorkflowArtifactSection], *, summary: str = "") -> str:
     lines = [title.strip()]
+    if summary.strip():
+        lines.append(summary.strip())
     for section in sections:
         if section.text.strip():
             lines.append(f"{section.label}: {section.text.strip()}")
     return "\n\n".join(lines).strip()
 
 
-def derive_next_step(source_text: str) -> str:
+def _split_compound_commitment_text(text: str) -> tuple[str, str]:
+    parts = re.split(r"\s+and\s+", text, maxsplit=1)
+    if len(parts) == 2 and _looks_action_like_text(parts[1]):
+        return parts[0].strip(" ."), parts[1].strip(" .")
+    return text.strip(" ."), ""
+
+
+def _derive_next_step_with_secondary(source_text: str) -> tuple[str, str]:
     normalized = _normalize_text(source_text)
     patterns = [
         r"(?:action|next step)\s*:\s*([^.!?]+)",
@@ -511,9 +734,20 @@ def derive_next_step(source_text: str) -> str:
         match = re.search(pattern, normalized, flags=re.IGNORECASE)
         if match:
             text = match.group(1).strip(" .")
-            if text:
-                return text[0].upper() + text[1:]
-    return ""
+            if not text:
+                continue
+            primary, secondary = _split_compound_commitment_text(text)
+            if primary:
+                primary = primary[0].upper() + primary[1:]
+            if secondary:
+                secondary = secondary[0].upper() + secondary[1:]
+            return primary, secondary
+    return "", ""
+
+
+def derive_next_step(source_text: str) -> str:
+    primary, _secondary = _derive_next_step_with_secondary(source_text)
+    return primary
 
 
 def _extract_direction_options(source_text: str, context_hint: str, likely_themes: list[str]) -> list[str]:
@@ -567,21 +801,34 @@ def _derive_ambiguous_reason(source_text: str, context_hint: str, likely_themes:
     topic_lower = topic.lower().removesuffix(" note")
 
     if "follow up" in lower or "follow-up" in lower:
-        return "This is worth keeping, but the right follow-up direction is not clear yet."
+        return "This note is worth keeping, but the follow-up direction is not clear yet."
     if "message to " in topic_lower:
-        return f"This is worth keeping, but it needs a clearer direction before it becomes a {topic_lower}."
+        return f"This note is worth keeping, but it needs clearer direction before turning into a {topic_lower}."
     if topic and topic_lower not in {"follow-up", "reflection", "saved note"}:
-        return f"This is worth keeping because it points toward {topic_lower}, but it still needs one clearer direction."
+        return f"This note appears related to {topic_lower}, but it needs one clear direction before acting on it."
     if "reflection" in lower:
-        return "This is worth keeping, but it needs a clearer direction before it becomes a stronger reflection."
+        return "This reflection is worth keeping, but it needs one clear direction before acting on it."
     if likely_themes:
-        return "This is worth keeping, but it needs a clearer direction before it turns into a stronger note."
-    return "This is worth keeping, but the direction is not clear yet."
+        return "This note is worth keeping, but it needs clearer direction before acting on it."
+    return "This note is worth keeping, but the direction is not clear yet."
 
 
-def _looks_generic_key_point(value: str) -> bool:
+def _looks_generic_summary(value: str) -> bool:
     lowered = _normalize_text(value).lower()
     return not lowered or "already points toward one useful direction" in lowered
+
+
+def _normalize_summary_text(text: str) -> str:
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in (text or "").splitlines()]
+    cleaned_lines = [line for line in lines if line]
+    if not cleaned_lines:
+        return ""
+    normalized = "\n".join(cleaned_lines)
+    return normalized[0].upper() + normalized[1:]
+
+
+def _summary_unavailable_floor() -> str:
+    return "A summary isn't available for this one — see the excerpt below from the original capture."
 
 
 def _derive_grounded_key_point(source_text: str) -> str:
@@ -655,91 +902,8 @@ def _looks_generic_next_step(value: str) -> bool:
     return not lowered or "clarify the single action this note is meant to support" in lowered
 
 
-def _derive_document_key_point(source_text: str, context_hint: str) -> str:
-    if not _looks_like_document_text(source_text, context_hint):
-        return ""
-    normalized_context = _normalize_text(context_hint)
-    lower = _normalize_text(source_text).lower()
-    labels = []
-    for hint, label in (
-        ("agendas", "agendas"),
-        ("agenda", "agendas"),
-        ("feedback", "feedback"),
-        ("directory", "reference materials"),
-        ("journal", "journal notes"),
-        ("notes", "notes"),
-        ("summary", "summaries"),
-        ("transcript", "transcript material"),
-    ):
-        if hint in lower and label not in labels:
-            labels.append(label)
-
-    subject = "This document"
-    if "fellowship" in normalized_context.lower():
-        subject = "The fellowship thread"
-    elif normalized_context:
-        subject = f"{_title_case_phrase(normalized_context)}"
-
-    details = ", ".join(labels[:3]) if labels else "related materials"
-    return f"{subject} pulls together {details} that belong in one reusable reference note."
-
-
-def _derive_document_next_step(source_text: str, context_hint: str) -> str:
-    if not _looks_like_document_text(source_text, context_hint):
-        return ""
-    if "fellowship" in _normalize_text(context_hint).lower():
-        return "Consolidate the agendas, feedback, and reference materials into one working fellowship note."
-    return "Consolidate the strongest takeaways, decisions, and reference material into one working note."
-
-
 def _has_explicit_action_marker(source_text: str) -> bool:
     return bool(re.search(r"(?:action|next step)\s*:", _normalize_text(source_text), flags=re.IGNORECASE))
-
-
-def _looks_extractive_next_step(source_text: str, next_step: str) -> bool:
-    normalized_source = _normalize_text(source_text).lower()
-    normalized_step = _normalize_text(next_step).lower().strip(".")
-    return bool(normalized_step) and normalized_step in normalized_source
-
-
-def _next_step_overlap_tokens(value: str) -> set[str]:
-    return {
-        token
-        for token in re.findall(r"[A-Za-z0-9]+", (value or "").lower())
-        if len(token) >= 4 and token not in NEXT_STEP_OVERLAP_STOPWORDS
-    }
-
-
-def _looks_supported_specific_next_step_variant(grounded_next_step: str, proposed_next_step: str) -> bool:
-    grounded_tokens = _next_step_overlap_tokens(grounded_next_step)
-    proposed_tokens = _next_step_overlap_tokens(proposed_next_step)
-    if not grounded_tokens or not proposed_tokens:
-        return False
-    overlap = len(grounded_tokens & proposed_tokens)
-    return overlap >= max(3, (len(proposed_tokens) + 1) // 2)
-
-
-def _looks_mismatched_specific_next_step(
-    source_text: str,
-    grounded_next_step: str,
-    proposed_next_step: str,
-) -> bool:
-    normalized_proposed = _normalize_text(proposed_next_step)
-    if not normalized_proposed or _looks_extractive_next_step(source_text, normalized_proposed):
-        return False
-    if _looks_supported_specific_next_step_variant(grounded_next_step, normalized_proposed):
-        return False
-
-    proposed_named_terms = _thread_named_terms(normalized_proposed)
-    source_named_terms = _thread_named_terms(source_text)
-    if proposed_named_terms and not (proposed_named_terms & source_named_terms):
-        return True
-
-    proposed_tokens = _next_step_overlap_tokens(normalized_proposed)
-    source_tokens = _next_step_overlap_tokens(source_text)
-    overlap = len(proposed_tokens & source_tokens)
-    novel_tokens = proposed_tokens - source_tokens
-    return overlap <= 2 and len(novel_tokens) >= 2
 
 
 def _looks_generic_framing_line(value: str) -> bool:
@@ -752,14 +916,14 @@ def _looks_generic_framing_line(value: str) -> bool:
         "practical artifact to review",
         "practical artifact",
     )
-    return lowered.startswith("this note ") or any(marker in lowered for marker in generic_markers)
+    return any(marker in lowered for marker in generic_markers)
 
 
 def derive_interpretation_line(
     source_text: str,
     context_hint: str,
     title: str,
-    key_point: str,
+    summary: str,
     next_step: str,
     proposed_interpretation_line: str,
 ) -> str:
@@ -772,9 +936,6 @@ def derive_interpretation_line(
 
     normalized_title = _normalize_text(title).lower()
     lower_source = _normalize_text(source_text).lower()
-
-    if _looks_like_document_text(source_text, context_hint):
-        return "Saved as a reusable reference note."
 
     if "product direction" in lower_source or "product direction" in normalized_title:
         if next_step:
@@ -789,8 +950,8 @@ def derive_interpretation_line(
     if next_step:
         return "Saved as a note with one clear next step."
 
-    if key_point:
-        return "Saved as a note with one grounded takeaway."
+    if summary:
+        return "Saved as a note with a grounded summary."
 
     return "Saved as a note worth keeping."
 
@@ -799,7 +960,7 @@ def derive_framing_line(
     source_text: str,
     context_hint: str,
     title: str,
-    key_point: str,
+    summary: str,
     next_step: str,
     proposed_framing_line: str,
 ) -> str:
@@ -808,14 +969,8 @@ def derive_framing_line(
     if not _looks_generic_framing_line(proposed_framing_line):
         return _normalize_clause(proposed_framing_line)
 
-    normalized_context = _normalize_text(context_hint)
     normalized_title = _normalize_text(title)
     lower_source = _normalize_text(source_text).lower()
-
-    if _looks_like_document_text(source_text, context_hint):
-        if normalized_context:
-            return f"A reusable reference note for {normalized_context}."
-        return "A reusable reference note shaped from the material you pasted."
 
     if "product direction" in lower_source or "product direction" in normalized_title.lower():
         if not next_step:
@@ -830,49 +985,34 @@ def derive_framing_line(
     if next_step:
         return "Saved as a note with one clear next step."
 
-    if key_point:
-        return "Saved as a note with one grounded takeaway."
+    if summary:
+        return "Saved as a note with a grounded summary."
 
     return "Saved as a note worth reopening."
 
 
-def derive_key_point(source_text: str, context_hint: str, proposed_key_point: str) -> str:
-    if _generated_text_leaks_education_context(proposed_key_point, source_text, context_hint):
-        proposed_key_point = ""
-    document_point = _derive_document_key_point(source_text, context_hint)
-    if document_point and _looks_generic_key_point(proposed_key_point):
-        return document_point
-    if not _looks_generic_key_point(proposed_key_point) and not _looks_action_like_text(proposed_key_point):
-        return _normalize_clause(proposed_key_point)
+def derive_summary(source_text: str, context_hint: str, proposed_summary: str) -> str:
+    if _generated_text_leaks_education_context(proposed_summary, source_text, context_hint):
+        proposed_summary = ""
+    if not _looks_generic_summary(proposed_summary):
+        return _normalize_summary_text(proposed_summary)
     grounded = _derive_grounded_key_point(source_text)
     if grounded:
         return grounded
     sentence_point = _derive_source_sentence_key_point(source_text)
     if sentence_point:
         return sentence_point
-    if document_point:
-        return document_point
-    return _normalize_clause(proposed_key_point)
+    return ""
 
 
 def derive_artifact_next_step(source_text: str, context_hint: str, proposed_next_step: str) -> str:
     if _generated_text_leaks_education_context(proposed_next_step, source_text, context_hint):
         proposed_next_step = ""
-    document_next_step = _derive_document_next_step(source_text, context_hint)
     grounded = derive_next_step(source_text)
-    if document_next_step and (
-        _looks_generic_next_step(proposed_next_step)
-        or (_looks_extractive_next_step(source_text, proposed_next_step) and not _has_explicit_action_marker(source_text))
-    ):
-        return document_next_step
     if not _looks_generic_next_step(proposed_next_step):
-        if grounded and _looks_mismatched_specific_next_step(source_text, grounded, proposed_next_step):
-            return grounded
         return _normalize_clause(proposed_next_step)
     if grounded:
         return grounded
-    if document_next_step:
-        return document_next_step
     return _normalize_clause(proposed_next_step)
 
 
@@ -888,7 +1028,9 @@ def _source_supports_next_step(source_text: str, context_hint: str, *, input_typ
         return True
     if re.match(r"^review\b(?!\s+of\b)", normalized, flags=re.IGNORECASE):
         return True
-    if re.search(r"\bby (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b", normalized, flags=re.IGNORECASE):
+    if re.match(r"^(need to|have to|must)\b", normalized, flags=re.IGNORECASE):
+        return True
+    if re.search(r"\b(?:by|on) (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b", normalized, flags=re.IGNORECASE):
         return True
     if input_type == "voice":
         return has_explicit_action_signal(source_text)
@@ -901,8 +1043,8 @@ def _should_surface_next_step(source_text: str, context_hint: str, next_step: st
     return bool(next_step.strip())
 
 
-def _build_primary_sections(key_point: str, next_step: str) -> list[WorkflowArtifactSection]:
-    sections = [WorkflowArtifactSection(label="Key point", text=key_point)]
+def _build_primary_sections(next_step: str) -> list[WorkflowArtifactSection]:
+    sections = []
     if next_step:
         sections.append(WorkflowArtifactSection(label="Next step", text=next_step))
     return sections
@@ -1270,7 +1412,25 @@ class WorkflowService:
         records[(uid, capture_id)]["updated_at"] = now
         _persist_repository_state(self.repository)
 
-    def _repository_update_capture_feedback(self, uid: str, capture_id: str, feedback_choice: str, now: str) -> None:
+    def _repository_update_capture_result(
+        self, uid: str, capture_id: str, result: dict, routing: dict, event_manifest: dict, now: str
+    ) -> None:
+        if hasattr(self.repository, "update_capture_result"):
+            self.repository.update_capture_result(uid, capture_id, result, routing, event_manifest, now)
+            return
+
+        records = getattr(self.repository, "records", None)
+        if not isinstance(records, dict) or (uid, capture_id) not in records:
+            raise KeyError(capture_id)
+        records[(uid, capture_id)]["result"] = result
+        records[(uid, capture_id)]["routing"] = routing
+        records[(uid, capture_id)]["event_manifest"] = event_manifest
+        records[(uid, capture_id)]["updated_at"] = now
+        _persist_repository_state(self.repository)
+
+    def _repository_update_capture_feedback(
+        self, uid: str, capture_id: str, feedback_choice: str, feedback_note: str, now: str
+    ) -> None:
         if hasattr(self.repository, "update_capture_feedback"):
             update_feedback = self.repository.update_capture_feedback
             try:
@@ -1279,15 +1439,16 @@ class WorkflowService:
                 signature = None
 
             if signature and "feedback_updated_at" in signature.parameters:
-                update_feedback(uid, capture_id, feedback_choice, now)
+                update_feedback(uid, capture_id, feedback_choice, feedback_note, now)
             else:
-                update_feedback(uid, capture_id, feedback_choice)
+                update_feedback(uid, capture_id, feedback_choice, feedback_note)
             return
 
         records = getattr(self.repository, "records", None)
         if not isinstance(records, dict) or (uid, capture_id) not in records:
             raise KeyError(capture_id)
         records[(uid, capture_id)]["feedback_choice"] = feedback_choice
+        records[(uid, capture_id)]["feedback_note"] = feedback_note
         records[(uid, capture_id)]["feedback_updated_at"] = now
         _persist_repository_state(self.repository)
 
@@ -1429,6 +1590,7 @@ class WorkflowService:
         capture_id: str,
         *,
         feedback_choice: str,
+        feedback_note: str = "",
     ) -> dict:
         if feedback_choice not in VALID_FEEDBACK_CHOICES:
             raise ValueError("invalid feedback choice")
@@ -1438,7 +1600,46 @@ class WorkflowService:
             raise KeyError(capture_id)
 
         now = self.now_provider()
-        self._repository_update_capture_feedback(uid, capture_id, feedback_choice, now)
+        self._repository_update_capture_feedback(uid, capture_id, feedback_choice, feedback_note, now)
+        updated = self.repository.get_capture(uid, capture_id)
+        return self._hydrate_capture_record(
+            uid,
+            updated,
+            include_contextual_suggestions=True,
+        )
+
+    def regenerate_capture(self, uid: str, capture_id: str) -> dict:
+        record = self.repository.get_capture(uid, capture_id)
+        if record is None:
+            raise KeyError(capture_id)
+
+        source_event = dict(record.get("source_event") or {})
+        source_text = str(source_event.get("source_text") or "")
+        if not source_text.strip():
+            raise ValueError("no source text available to regenerate")
+        context_hint = str(record.get("context_hint") or "")
+        input_type = str(record.get("input_type") or source_event.get("input_type") or "text")
+
+        now = self.now_provider()
+        profile = self.repository.load_user_profile(uid)
+        source_event["profile_snapshot"] = profile
+
+        decision, voice_quality, primary_artifact, saved_note_artifact, result = self._build_capture_result(
+            source_text, context_hint, input_type, profile, source_event, capture_id, now
+        )
+
+        event_manifest = dict(record.get("event_manifest") or {})
+        event_manifest["source_event"] = source_event
+        event_manifest["routing"] = decision.to_dict()
+        event_manifest["transcript_quality"] = voice_quality or {}
+        event_manifest["artifact_count"] = 1 if primary_artifact else 0
+        merged_record = dict(record)
+        merged_record["result"] = result
+        merged_record["routing"] = decision.to_dict()
+        merged_record["event_manifest"] = event_manifest
+        event_manifest["contextual_suggestions"] = evaluate_contextual_suggestions(merged_record)
+
+        self._repository_update_capture_result(uid, capture_id, result, decision.to_dict(), event_manifest, now)
         updated = self.repository.get_capture(uid, capture_id)
         return self._hydrate_capture_record(
             uid,
@@ -1503,7 +1704,12 @@ class WorkflowService:
             str(derived_source_event.get("source_preview") or source_text)
         )[:240]
 
-        metadata_line = _build_metadata_line(input_type, now, context_hint)
+        metadata_line = _build_metadata_line(
+            input_type,
+            now,
+            context_hint,
+            source_filename=str(source_event.get("source_filename") or ""),
+        )
         source_excerpt = (
             _extract_voice_source_excerpt(source_text)
             if input_type == "voice"
@@ -1663,33 +1869,16 @@ class WorkflowService:
             "suggested_at": self.now_provider(),
         }
 
-    def create_text_capture(
+    def _build_capture_result(
         self,
-        uid: str,
         source_text: str,
         context_hint: str,
-        *,
-        capture_id: str | None = None,
-        input_type: str = "text",
-        source_metadata: dict[str, object] | None = None,
-        include_teaching_context: bool | None = None,
+        input_type: str,
+        profile: dict,
+        source_event: dict,
+        capture_id: str,
+        now: str,
     ):
-        capture_id = capture_id or f"cap-{secrets.token_hex(6)}"
-        now = self.now_provider()
-        profile = self.repository.load_user_profile(uid)
-        source_event = build_source_event(
-            source_text,
-            context_hint,
-            capture_id,
-            now,
-            input_type=input_type,
-        )
-        if source_metadata:
-            for key in SOURCE_METADATA_FIELDS:
-                value = source_metadata.get(key)
-                if value not in (None, ""):
-                    source_event[key] = value
-        source_event["profile_snapshot"] = profile
         decision = route_text_capture(source_text, context_hint, profile)
         voice_quality = None
         allow_next_step = True
@@ -1697,7 +1886,12 @@ class WorkflowService:
             voice_quality = transcript_quality_check(source_text)
             decision = _apply_voice_quality(decision, voice_quality)
             allow_next_step = voice_quality["quality"] == "clean" and has_explicit_action_signal(source_text)
-        metadata_line = _build_metadata_line(source_event["input_type"], now, context_hint)
+        metadata_line = _build_metadata_line(
+            source_event["input_type"],
+            now,
+            context_hint,
+            source_filename=str(source_event.get("source_filename") or ""),
+        )
 
         primary_artifact = None
         saved_note_artifact = None
@@ -1709,7 +1903,18 @@ class WorkflowService:
                 note_profile,
                 allow_next_step=allow_next_step,
             )
-            key_point = derive_key_point(source_text, context_hint, generated.get("key_point", ""))
+            if _looks_generic_summary(generated.get("summary", "")):
+                retry = self._call_note_generator(
+                    source_text,
+                    context_hint,
+                    note_profile,
+                    allow_next_step=allow_next_step,
+                )
+                if not _looks_generic_summary(retry.get("summary", "")):
+                    generated = retry
+            summary = derive_summary(source_text, context_hint, generated.get("summary", ""))
+            if not summary.strip():
+                summary = _summary_unavailable_floor()
             next_step = ""
             if allow_next_step:
                 next_step = derive_artifact_next_step(
@@ -1719,37 +1924,36 @@ class WorkflowService:
                 ).strip()
             if not _should_surface_next_step(source_text, context_hint, next_step, input_type=input_type):
                 next_step = ""
-            sections = _build_primary_sections(key_point, next_step)
-            title = derive_specific_title(source_text, context_hint, generated.get("title", ""))
+            sections = _build_primary_sections(next_step)
+            title = derive_specific_title(source_text, context_hint, generated.get("title", ""), summary_hint=summary)
             if title.lower().endswith(" note"):
                 title = title[:-5].rstrip()
             framing_line = derive_framing_line(
                 source_text,
                 context_hint,
                 title,
-                key_point,
+                summary,
                 next_step,
                 generated.get("framing_line", ""),
             )
             if input_type == "voice" and voice_quality and voice_quality["quality"] == "mixed":
                 framing_line = _voice_mixed_framing_line()
-            source_excerpt = (
-                _extract_voice_source_excerpt(source_text)
-                if input_type == "voice"
-                else _extract_source_excerpt(source_text)
+            source_excerpt = _resolve_source_quote(
+                source_text, generated.get("source_quote", ""), input_type=input_type
             )
             primary_artifact = WorkflowArtifact(
                 artifact_id=f"{capture_id}-primary",
                 kind="professional_note",
                 title=title,
                 framing_line=framing_line,
-                body=build_copy_text(title, sections),
+                body=build_copy_text(title, sections, summary=summary),
                 status="Saved and shaped",
                 primary_action="Copy",
                 metadata_line=metadata_line,
+                summary=summary,
                 source_excerpt=source_excerpt,
                 sections=sections,
-                copy_text=build_copy_text(title, sections),
+                copy_text=build_copy_text(title, sections, summary=summary),
                 secondary_actions=["Edit", "Regenerate"],
             ).to_dict()
         else:
@@ -1781,7 +1985,7 @@ class WorkflowService:
                 )
             elif decision.saved_note_state == "needs_direction":
                 saved_status = "Saved, needs direction"
-                saved_framing = "Saved. The direction is not clear yet, but the thought is worth keeping."
+                saved_framing = "Saved for now. The direction is not clear yet, but the note is worth keeping."
                 saved_sections.append(
                     WorkflowArtifactSection(
                         label="Why keep this",
@@ -1816,7 +2020,7 @@ class WorkflowService:
                 source_text,
                 context_hint,
                 title if primary_artifact else saved_title,
-                key_point if primary_artifact else "",
+                summary if primary_artifact else "",
                 next_step if primary_artifact else "",
                 decision.interpretation_line,
             ),
@@ -1830,6 +2034,39 @@ class WorkflowService:
         ).to_dict()
         result.pop("related_thread", None)
         result.pop("contextual_suggestions", None)
+        return decision, voice_quality, primary_artifact, saved_note_artifact, result
+
+    def create_text_capture(
+        self,
+        uid: str,
+        source_text: str,
+        context_hint: str,
+        *,
+        capture_id: str | None = None,
+        input_type: str = "text",
+        source_metadata: dict[str, object] | None = None,
+        include_teaching_context: bool | None = None,
+    ):
+        capture_id = capture_id or f"cap-{secrets.token_hex(6)}"
+        now = self.now_provider()
+        profile = self.repository.load_user_profile(uid)
+        source_event = build_source_event(
+            source_text,
+            context_hint,
+            capture_id,
+            now,
+            input_type=input_type,
+        )
+        if source_metadata:
+            for key in SOURCE_METADATA_FIELDS:
+                value = source_metadata.get(key)
+                if value not in (None, ""):
+                    source_event[key] = value
+        source_event["profile_snapshot"] = profile
+
+        decision, voice_quality, primary_artifact, saved_note_artifact, result = self._build_capture_result(
+            source_text, context_hint, input_type, profile, source_event, capture_id, now
+        )
 
         record = WorkflowCaptureRecord(
             capture_id=capture_id,
@@ -1918,4 +2155,7 @@ class WorkflowService:
             "route_kind": result.get("route_kind") or "",
             "created_at": record.get("created_at"),
             "next_route": f"/workflows/result/{capture_id}",
+            "feedback_choice": record.get("feedback_choice") or "",
+            "feedback_note": record.get("feedback_note") or "",
+            "looks_like_dev_data": _looks_like_dev_capture(record),
         }

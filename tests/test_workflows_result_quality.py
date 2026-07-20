@@ -69,7 +69,7 @@ def build_service():
         note_generator=lambda *_args, **_kwargs: {
             "title": "Professional note",
             "framing_line": "Shaped from your note into one practical artifact.",
-            "key_point": "The note already points toward one useful direction and is worth shaping into a concrete next step.",
+            "summary": "The note already points toward one useful direction and is worth shaping into a concrete next step.",
             "next_step": "Revise the result card before the next demo.",
         },
         now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -84,7 +84,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Teacher Planning Note",
                 "framing_line": "A teacher note worth keeping for future lesson planning.",
-                "key_point": "This should help with classroom planning next week.",
+                "summary": "This should help with classroom planning next week.",
                 "next_step": "Revise the result card before the next demo.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -138,7 +138,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
                     {
                         "title": "Saved note",
                         "framing_line": "Shaped from your note into one saved result worth reopening.",
-                        "key_point": "The key is one useful saved result, not more workflow options.",
+                        "summary": "The key is one useful saved result, not more workflow options.",
                         "next_step": "",
                     }
                 )
@@ -147,7 +147,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
                     {
                         "title": "Saved note",
                         "framing_line": "A teacher note worth keeping for future lesson planning.",
-                        "key_point": "The key is one useful saved result, not more workflow options.",
+                        "summary": "The key is one useful saved result, not more workflow options.",
                         "next_step": "",
                     }
                 )
@@ -192,7 +192,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
         artifact = record.result["primary_artifact"]
         self.assertTrue("Jordan" in artifact["title"] or "Workflows" in artifact["title"])
         self.assertTrue(artifact["source_excerpt"].startswith("Met with Jordan"))
-        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point", "Next step"])
+        self.assertEqual([section["label"] for section in artifact["sections"]], ["Next step"])
         self.assertNotIn(artifact["title"].lower(), {"professional note", "suggested note", "saved note"})
         self.assertNotIn("professional note worth shaping", record.result["interpretation_line"].lower())
         self.assertNotIn("professional note worth shaping", artifact["framing_line"].lower())
@@ -207,13 +207,23 @@ class WorkflowResultQualityTests(unittest.TestCase):
         self.assertTrue(artifact["source_excerpt"])
         self.assertNotIn("teacher", artifact["framing_line"].lower())
         self.assertNotEqual(
-            artifact["sections"][0]["text"].lower().rstrip("."),
+            artifact["summary"].lower().rstrip("."),
             PRODUCT_IDEA.split(".")[0].lower().rstrip("."),
         )
         self.assertNotIn("competitive with capture-first apps", artifact["framing_line"].lower())
 
     def test_follow_up_note_prefers_action_shaped_next_step(self):
-        service = build_service()
+        service = WorkflowService(
+            repository=FakeRepository(),
+            note_generator=lambda *_args, **_kwargs: {
+                "title": "Follow-up with Jordan",
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "summary": "The title still needs a check for specificity before it ships.",
+                "next_step": "Send Jordan the revised result card draft by Thursday.",
+            },
+            now_provider=lambda: "2026-06-27T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
 
         record = service.create_text_capture("user-1", FOLLOW_UP_NOTE, "")
         artifact = record.result["primary_artifact"]
@@ -226,7 +236,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Saved note",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "Jordan needs a clearer read on whether the result title is specific enough.",
+                "summary": "Jordan needs a clearer read on whether the result title is specific enough.",
                 "next_step": "Send Jordan the revised lesson plan by Thursday.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -269,7 +279,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
         record = service.create_text_capture("user-1", PRODUCT_IDEA, "")
         artifact = record.result["primary_artifact"]
         labels = [section["label"] for section in artifact["sections"]]
-        self.assertEqual(labels, ["Key point"])
+        self.assertEqual(labels, [])
 
     def test_principle_style_should_statement_does_not_surface_next_step(self):
         service = WorkflowService(
@@ -277,7 +287,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Saved note",
                 "framing_line": "A saved note shaped around one concrete next step.",
-                "key_point": "Memnon should save weak input honestly instead of pretending it knows what to do.",
+                "summary": "Memnon should save weak input honestly instead of pretending it knows what to do.",
                 "next_step": "Save weak input honestly instead of pretending it knows what to do.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -287,7 +297,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
         record = service.create_text_capture("user-1", PRINCIPLE_NOTE, "")
         artifact = record.result["primary_artifact"]
 
-        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
+        self.assertEqual([section["label"] for section in artifact["sections"]], [])
         self.assertNotIn("Next step", artifact["body"])
         self.assertNotIn("professional note worth shaping", record.result["interpretation_line"].lower())
         self.assertNotIn("crucial adjustment", artifact["framing_line"].lower())
@@ -301,7 +311,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
             note_generator=lambda *_args, **_kwargs: {
                 "title": "Workflows page review",
                 "framing_line": "A saved conversation note with one concrete follow-up to carry forward.",
-                "key_point": "The note still feels generic.",
+                "summary": "The note still feels generic.",
                 "next_step": "Review the workflows page with Jordan.",
             },
             now_provider=lambda: "2026-06-27T16:00:00Z",
@@ -311,5 +321,5 @@ class WorkflowResultQualityTests(unittest.TestCase):
         record = service.create_text_capture("user-1", source_text, "")
         artifact = record.result["primary_artifact"]
 
-        self.assertEqual([section["label"] for section in artifact["sections"]], ["Key point"])
+        self.assertEqual([section["label"] for section in artifact["sections"]], [])
         self.assertNotIn("Next step", artifact["body"])

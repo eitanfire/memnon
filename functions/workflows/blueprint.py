@@ -287,7 +287,21 @@ def create_workflows_blueprint(
                 uid,
                 capture_id,
                 feedback_choice=(payload.get("feedback_choice") or "").strip(),
+                feedback_note=(payload.get("feedback_note") or "").strip()[:500],
             )
+        except (KeyError, ValueError) as error:
+            return _error_response(error)
+        return jsonify(_sanitize_capture_payload(updated))
+
+    @blueprint.route("/captures/<capture_id>/regenerate", methods=["POST"])
+    def regenerate_capture(capture_id: str):
+        uid = verify_token(request)
+        if not uid:
+            return jsonify({"error": "unauthorized"}), 401
+
+        service = service_provider()
+        try:
+            updated = service.regenerate_capture(uid, capture_id)
         except (KeyError, ValueError) as error:
             return _error_response(error)
         return jsonify(_sanitize_capture_payload(updated))
