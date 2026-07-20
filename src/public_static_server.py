@@ -93,6 +93,7 @@ class PublicStaticHandler(SimpleHTTPRequestHandler):
             payload = json.dumps({"error": "Local API upstream unavailable."}).encode("utf-8")
             self.send_response(502)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             if self.command != "HEAD":
@@ -107,15 +108,25 @@ class PublicStaticHandler(SimpleHTTPRequestHandler):
             "date",
             "server",
             "transfer-encoding",
+            "cache-control",
         }
         for key, value in headers:
             if key.lower() in excluded_headers:
                 continue
             self.send_header(key, value)
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
+
+    NO_CACHE_EXTENSIONS = (".html", ".js", ".css")
+
+    def end_headers(self):
+        path_only = self.path.split("?", 1)[0]
+        if path_only.endswith(self.NO_CACHE_EXTENSIONS) or path_only in ("", "/"):
+            self.send_header("Cache-Control", "no-cache, max-age=0, must-revalidate")
+        super().end_headers()
 
     def _serve_static(self, method: str):
         if self._proxy_api_request():
