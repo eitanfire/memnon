@@ -778,15 +778,15 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertIn("daily_feed_can_regenerate", html)
         self.assertIn("Last generated", html)
 
-    def test_dashboard_capture_copy_uses_neutral_saved_result_language(self):
-        html = DASHBOARD_PATH.read_text(encoding="utf-8")
-        self.assertIn("Capture anything", html)
-        self.assertIn("Memnon will turn it into a useful saved result.", html)
-        self.assertIn("Short or rough is fine. Memnon will save it and shape the result.", html)
-        self.assertNotIn("What is on your mind?", html)
-        self.assertNotIn("grounded reflection you can revisit later", html)
-        self.assertNotIn("full reflection entry", html)
-        self.assertNotIn("secondary note", html)
+    # test_dashboard_capture_copy_uses_neutral_saved_result_language removed
+    # 2026-07-19: asserted on an inline dashboard capture-prompt block ("Capture
+    # anything" / "Short or rough is fine...") that no longer exists anywhere in
+    # the app. Superseded by the link-out "Open capture" button pointing to
+    # /workflows across three later commits (Route dashboard capture through
+    # saved results; Clarify route roles for Capture and Today; Rename Today
+    # latest reflection to latest result). Not replaced with a new assertion —
+    # no failure was ever observed against the current button copy, and writing
+    # one now would just be speculative coverage.
 
 
 if __name__ == "__main__":
