@@ -1,0 +1,147 @@
+name: Wave1 Gates
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/wave1_batch_upload.py
+      - scripts/catchup_upload_all_transcripts.py
+      - scripts/audit_label_collisions.py
+      - functions/workflows/service.py
+      - tests/test_workflows_service.py
+
+jobs:
+  verify-gate-plumbing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Verify scripts expose collision gate flags
+        run: |
+          python scripts/wave1_batch_upload.py --help | grep -q "skip-collision-gate"
+          python scripts/catchup_upload_all_transcripts.py --help | grep -q "skip-collision-gate"
+          python scripts/audit_label_collisions.py --help | grep -q "fail-on-collision"
+          python scripts/audit_label_collisions.py --help | grep -q "--storage"
+          python scripts/audit_label_collisions.py --help | grep -q "--report"
+
+      - name: Verify collision gate passes without duplicate
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+            "records": {
+              "cap-1": {
+                "capture_id": "cap-1",
+                "created_at": "2026-07-17T10:00:00Z",
+                "source_event": {
+                  "input_type": "file",
+                  "source_filename": "a.txt",
+                },
+                "result": {
+                  "primary_artifact": {
+                    "title": "First",
+                    "metadata_line": "Team Sync Notes \u00b7 Jul 17",
+                  }
+                },
+              },
+              "cap-2": {
+                "capture_id": "cap-2",
+                "created_at": "2026-07-18T14:00:00Z",
+                "source_event": {
+                  "input_type": "file",
+                  "source_filename": "b.txt",
+                },
+                "result": {
+                  "primary_artifact": {
+                    "title": "Second",
+                    "metadata_line": "Team Sync Notes \u00b7 Jul 18",
+                  }
+                },
+              },
+            }
+          }
+
+          Path(os.environ["FIXTURE_PATH"]).write_text(
+            json.dumps(payload),
+            encoding="utf-8",
+          )
+          PY
+
+          python scripts/audit_label_collisions.py \
+            --fail-on-collision \
+            --storage "$FIXTURE_PATH" \
+            --report "$REPORT_PATH"
+        env:
+          FIXTURE_PATH: ${{ runner.temp }}/collision-pass-fixture.json
+          REPORT_PATH: ${{ runner.temp }}/collision-pass-report.csv
+
+      - name: Verify collision gate fails on real duplicate
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+            "records": {
+              "cap-1": {
+                "capture_id": "cap-1",
+                "created_at": "2026-07-17T10:00:00Z",
+                "source_event": {
+                  "input_type": "file",
+                  "source_filename": "a.txt",
+                },
+                "result": {
+                  "primary_artifact": {
+                    "title": "First",
+                    "metadata_line": "Team Sync Notes \u00b7 Jul 17",
+                  }
+                },
+              },
+              "cap-2": {
+                "capture_id": "cap-2",
+                "created_at": "2026-07-17T14:00:00Z",
+                "source_event": {
+                  "input_type": "file",
+                  "source_filename": "b.txt",
+                },
+                "result": {
+                  "primary_artifact": {
+                    "title": "Second",
+                    "metadata_line": "Team Sync Notes \u00b7 Jul 17",
+                  }
+                },
+              },
+            }
+          }
+
+          Path(os.environ["FIXTURE_PATH"]).write_text(
+            json.dumps(payload),
+            encoding="utf-8",
+          )
+          PY
+
+          if python scripts/audit_label_collisions.py \
+            --fail-on-collision \
+            --storage "$FIXTURE_PATH" \
+            --report "$REPORT_PATH"; then
+            echo "expected non-zero exit when collisions exist"
+            exit 1
+          fi
+        env:
+          FIXTURE_PATH: ${{ runner.temp }}/collision-fail-fixture.json
+          REPORT_PATH: ${{ runner.temp }}/collision-fail-report.csv
+
+      - name: Run workflow service tests
+        run: python -m unittest tests.test_workflows_service -v
