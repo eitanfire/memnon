@@ -24,6 +24,9 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Install dependencies
+        run: pip install -r requirements-saas.txt
+
       - name: Verify scripts expose collision gate flags
         run: |
           python scripts/wave1_batch_upload.py --help | grep -q "skip-collision-gate"

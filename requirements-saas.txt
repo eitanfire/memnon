@@ -6,3 +6,6 @@ gunicorn>=21.0.0
 google-api-python-client>=2.0.0
 google-auth-oauthlib>=1.0.0
 google-auth-httplib2>=0.2.0
+
+# Wave 1 dev-tooling scripts (scripts/wave1_batch_upload.py, scripts/catchup_upload_all_transcripts.py)
+requests>=2.31.0
