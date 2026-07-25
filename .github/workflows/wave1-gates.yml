@@ -32,8 +32,8 @@ jobs:
           python scripts/wave1_batch_upload.py --help | grep -q "skip-collision-gate"
           python scripts/catchup_upload_all_transcripts.py --help | grep -q "skip-collision-gate"
           python scripts/audit_label_collisions.py --help | grep -q "fail-on-collision"
-          python scripts/audit_label_collisions.py --help | grep -q "--storage"
-          python scripts/audit_label_collisions.py --help | grep -q "--report"
+          python scripts/audit_label_collisions.py --help | grep -q -- "--storage"
+          python scripts/audit_label_collisions.py --help | grep -q -- "--report"
 
       - name: Verify collision gate passes without duplicate
         run: |
