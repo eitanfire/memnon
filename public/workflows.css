@@ -626,6 +626,34 @@ body.workflows-page {
   vertical-align: middle;
 }
 
+.workflows-duplicate-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f4e8d8;
+  color: #9a6b1f;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.workflows-needs-score-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #dcebf4;
+  color: #1f6a94;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 .workflows-saved-results-meta {
   margin: 0;
   color: #6a635d;
