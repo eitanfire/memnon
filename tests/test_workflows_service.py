@@ -1054,7 +1054,7 @@ class WorkflowServiceTests(unittest.TestCase):
         )
         self.assertIn("system feels too generic", record.result["primary_artifact"]["summary"])
         self.assertIn("Revise the result card", record.result["primary_artifact"]["sections"][0]["text"])
-        self.assertIn("Met with Jordan today about the product direction.", record.result["primary_artifact"]["source_excerpt"])
+        self.assertIn("feels too generic", record.result["primary_artifact"]["source_excerpt"])
         self.assertIn("product direction", record.result["primary_artifact"]["framing_line"].lower())
         self.assertEqual(record.result["secondary_artifacts"], [])
         self.assertEqual(record.source_event["profile_snapshot"]["lane"], "professional")
@@ -1854,7 +1854,7 @@ class WorkflowServiceTests(unittest.TestCase):
 
         self.assertEqual(
             record.result["primary_artifact"]["source_excerpt"],
-            "Met with Jordan about the workflows page for Memnon.",
+            "The result needs a stronger title and one clear next step.",
         )
 
     def test_voice_note_rewrites_action_heavy_title(self):

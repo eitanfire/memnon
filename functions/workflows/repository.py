@@ -106,6 +106,27 @@ class FirestoreWorkflowRepository:
             },
         )
 
+    def update_capture_result(
+        self,
+        uid: str,
+        capture_id: str,
+        result: dict,
+        routing: dict,
+        event_manifest: dict,
+        now: str,
+        generator: str = "",
+    ):
+        del now
+        self._doc(uid, capture_id).update(
+            {
+                "result": result,
+                "routing": routing,
+                "event_manifest": event_manifest,
+                "generator": generator,
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            },
+        )
+
     def touch_context_activity(self, uid: str, context_id: str, now: str):
         self._context_doc(uid, context_id).set(
             {

@@ -115,6 +115,7 @@ def _workflow_service():
         ),
         social_post_generator=generate_social_post,
         professional_analysis_generator=generate_professional_analysis,
+        generator_label="llm",
     )
 
 

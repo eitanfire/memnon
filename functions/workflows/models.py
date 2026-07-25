@@ -83,6 +83,7 @@ class WorkflowCaptureRecord:
     feedback_choice: str | None = None
     feedback_note: str | None = None
     feedback_updated_at: str | None = None
+    generator: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
