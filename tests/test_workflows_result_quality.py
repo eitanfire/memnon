@@ -191,7 +191,7 @@ class WorkflowResultQualityTests(unittest.TestCase):
         record = service.create_text_capture("user-1", MEETING_DEBRIEF, "")
         artifact = record.result["primary_artifact"]
         self.assertTrue("Jordan" in artifact["title"] or "Workflows" in artifact["title"])
-        self.assertTrue(artifact["source_excerpt"].startswith("Met with Jordan"))
+        self.assertIn("too generic", artifact["source_excerpt"])
         self.assertEqual([section["label"] for section in artifact["sections"]], ["Next step"])
         self.assertNotIn(artifact["title"].lower(), {"professional note", "suggested note", "saved note"})
         self.assertNotIn("professional note worth shaping", record.result["interpretation_line"].lower())

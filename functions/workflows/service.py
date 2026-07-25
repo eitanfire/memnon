@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import hashlib
 import inspect
 import secrets
 import re
@@ -241,16 +242,79 @@ def _looks_like_verbatim_source_quote(source_text: str, quote: str) -> bool:
     return normalized_quote in normalized_source
 
 
-def _resolve_source_quote(source_text: str, proposed_quote: str, *, input_type: str, limit: int = 200) -> str:
-    if _looks_like_verbatim_source_quote(source_text, proposed_quote):
+_QUOTE_ALIGNMENT_STOPWORDS = {
+    "the", "a", "an", "and", "or", "but", "if", "so", "to", "of", "in", "on",
+    "for", "with", "at", "by", "is", "are", "was", "were", "be", "been", "being",
+    "this", "that", "these", "those", "it", "its", "as", "from", "into", "about",
+    "we", "you", "i", "they", "he", "she", "them", "his", "her", "their", "our",
+    "your", "my", "not", "do", "does", "did", "have", "has", "had", "will",
+    "would", "can", "could", "should", "just", "like", "get", "got", "one",
+}
+
+
+def _quote_alignment_words(value: str) -> set[str]:
+    words = re.findall(r"[a-z0-9']+", (value or "").lower())
+    return {word for word in words if word not in _QUOTE_ALIGNMENT_STOPWORDS and len(word) > 2}
+
+
+def _quote_aligns_with_summary(quote: str, summary: str) -> bool:
+    summary_words = _quote_alignment_words(summary)
+    quote_words = _quote_alignment_words(quote)
+    if not summary_words or not quote_words:
+        return False
+    return len(summary_words & quote_words) >= 1
+
+
+_MIN_CANDIDATES_FOR_STRICT_ALIGNMENT = 4
+
+
+def _select_quote_aligned_with_summary(source_text: str, summary: str, limit: int = 200) -> str:
+    summary_words = _quote_alignment_words(summary)
+
+    candidates: list[str] = []
+    for sentence in split_transcript_sentences(source_text):
+        normalized = sentence.strip()
+        if not normalized or _looks_like_low_signal_excerpt(normalized) or _looks_action_like_text(normalized):
+            continue
+        candidates.append(normalized)
+
+    if not candidates:
+        return ""
+
+    best_sentence = ""
+    best_overlap = 0
+    if summary_words:
+        for candidate in candidates:
+            overlap = len(summary_words & _quote_alignment_words(candidate))
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_sentence = candidate
+
+    if best_overlap >= 1:
+        excerpt = best_sentence
+    elif len(candidates) < _MIN_CANDIDATES_FOR_STRICT_ALIGNMENT:
+        # Few enough candidates that there's no real risk of grabbing the wrong
+        # part of the source, so fall back to the best-scored sentence instead
+        # of omitting the quote entirely.
+        excerpt = sorted(candidates, key=score_transcript_sentence, reverse=True)[0]
+    else:
+        return ""
+
+    if len(excerpt) <= limit:
+        return _ensure_excerpt_starts_on_word_boundary(source_text, excerpt)
+    return _ensure_excerpt_starts_on_word_boundary(source_text, _truncate_with_word_boundary(excerpt, limit))
+
+
+def _resolve_source_quote(source_text: str, proposed_quote: str, summary: str, *, limit: int = 200) -> str:
+    if _looks_like_verbatim_source_quote(source_text, proposed_quote) and _quote_aligns_with_summary(
+        proposed_quote, summary
+    ):
         cleaned = _normalize_text(proposed_quote).strip(" .\"'‘’“”")
         normalized_source = _normalize_text(source_text)
         return _ensure_excerpt_starts_on_word_boundary(
             normalized_source, _truncate_with_word_boundary(cleaned, limit)
         )
-    if input_type == "voice":
-        return _extract_voice_source_excerpt(source_text)
-    return _extract_source_excerpt(source_text)
+    return _select_quote_aligned_with_summary(source_text, summary, limit=limit)
 
 
 def _extract_voice_source_excerpt(source_text: str, limit: int = 160) -> str:
@@ -420,6 +484,17 @@ def _looks_like_dev_capture(record: dict) -> bool:
     return title in _DEV_FIXTURE_TITLES
 
 
+def _duplicate_content_hash(source_text: str) -> str:
+    normalized = _normalize_text(source_text).lower()
+    if len(normalized) < 40:
+        return ""
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _duplicate_filename_key(source_event: dict) -> str:
+    return _normalize_text(str(source_event.get("source_filename") or "")).lower()
+
+
 def _normalize_clause(text: str) -> str:
     cleaned = _normalize_text(text).strip(" .,:;!-")
     if not cleaned:
@@ -430,6 +505,8 @@ def _normalize_clause(text: str) -> str:
 def _looks_like_low_signal_excerpt(value: str) -> bool:
     normalized = _normalize_text(value)
     if not normalized:
+        return True
+    if re.search(r"\[[^\[\]]+\]", normalized):
         return True
     words = re.findall(r"[A-Za-z0-9'-]+", normalized.lower())
     if len(words) <= 3:
@@ -1228,11 +1305,13 @@ class WorkflowService:
         continuity_bridge_writer=None,
         social_post_generator=None,
         professional_analysis_generator=None,
+        generator_label: str = "llm",
     ):
         self.repository = repository
         self.note_generator = note_generator
         self.now_provider = now_provider
         self.api_key_provider = api_key_provider
+        self.generator_label = generator_label
         self.continuity_bridge_writer = continuity_bridge_writer
         self.social_post_generator = social_post_generator
         self.professional_analysis_generator = professional_analysis_generator
@@ -1413,10 +1492,17 @@ class WorkflowService:
         _persist_repository_state(self.repository)
 
     def _repository_update_capture_result(
-        self, uid: str, capture_id: str, result: dict, routing: dict, event_manifest: dict, now: str
+        self,
+        uid: str,
+        capture_id: str,
+        result: dict,
+        routing: dict,
+        event_manifest: dict,
+        now: str,
+        generator: str = "",
     ) -> None:
         if hasattr(self.repository, "update_capture_result"):
-            self.repository.update_capture_result(uid, capture_id, result, routing, event_manifest, now)
+            self.repository.update_capture_result(uid, capture_id, result, routing, event_manifest, now, generator)
             return
 
         records = getattr(self.repository, "records", None)
@@ -1425,6 +1511,7 @@ class WorkflowService:
         records[(uid, capture_id)]["result"] = result
         records[(uid, capture_id)]["routing"] = routing
         records[(uid, capture_id)]["event_manifest"] = event_manifest
+        records[(uid, capture_id)]["generator"] = generator
         records[(uid, capture_id)]["updated_at"] = now
         _persist_repository_state(self.repository)
 
@@ -1637,9 +1724,12 @@ class WorkflowService:
         merged_record["result"] = result
         merged_record["routing"] = decision.to_dict()
         merged_record["event_manifest"] = event_manifest
+        merged_record["generator"] = self.generator_label
         event_manifest["contextual_suggestions"] = evaluate_contextual_suggestions(merged_record)
 
-        self._repository_update_capture_result(uid, capture_id, result, decision.to_dict(), event_manifest, now)
+        self._repository_update_capture_result(
+            uid, capture_id, result, decision.to_dict(), event_manifest, now, self.generator_label
+        )
         updated = self.repository.get_capture(uid, capture_id)
         return self._hydrate_capture_record(
             uid,
@@ -1770,6 +1860,7 @@ class WorkflowService:
             created_at=now,
             updated_at=now,
             threading={},
+            generator=self.generator_label,
         )
         self.repository.save_capture(uid, record)
         return self._hydrate_capture_record(
@@ -1939,7 +2030,7 @@ class WorkflowService:
             if input_type == "voice" and voice_quality and voice_quality["quality"] == "mixed":
                 framing_line = _voice_mixed_framing_line()
             source_excerpt = _resolve_source_quote(
-                source_text, generated.get("source_quote", ""), input_type=input_type
+                source_text, generated.get("source_quote", ""), summary
             )
             primary_artifact = WorkflowArtifact(
                 artifact_id=f"{capture_id}-primary",
@@ -2084,6 +2175,7 @@ class WorkflowService:
             created_at=now,
             updated_at=now,
             threading={},
+            generator=self.generator_label,
         )
         record.event_manifest["contextual_suggestions"] = evaluate_contextual_suggestions(record.to_dict())
         suggestion = self.suggest_context_for_capture(uid, record.to_dict())
@@ -2131,7 +2223,22 @@ class WorkflowService:
     def list_capture_summaries(self, uid: str, limit: int = 50):
         records = list(self.repository.list_captures(uid, limit=limit))
         records.sort(key=lambda item: self._capture_sort_key(item), reverse=True)
-        return [self._build_capture_summary(record) for record in records]
+
+        hash_counts: dict[str, int] = {}
+        filename_counts: dict[str, int] = {}
+        for record in records:
+            source_event = record.get("source_event") or {}
+            content_hash = _duplicate_content_hash(str(source_event.get("source_text") or ""))
+            if content_hash:
+                hash_counts[content_hash] = hash_counts.get(content_hash, 0) + 1
+            filename_key = _duplicate_filename_key(source_event)
+            if filename_key:
+                filename_counts[filename_key] = filename_counts.get(filename_key, 0) + 1
+
+        return [
+            self._build_capture_summary(record, hash_counts=hash_counts, filename_counts=filename_counts)
+            for record in records
+        ]
 
     def _capture_sort_key(self, record: dict) -> str:
         created_at = record.get("created_at")
@@ -2139,7 +2246,13 @@ class WorkflowService:
             return created_at.isoformat()
         return str(created_at or "")
 
-    def _build_capture_summary(self, record: dict) -> dict:
+    def _build_capture_summary(
+        self,
+        record: dict,
+        *,
+        hash_counts: dict[str, int] | None = None,
+        filename_counts: dict[str, int] | None = None,
+    ) -> dict:
         result = record.get("result") or {}
         artifact = result.get("primary_artifact") or result.get("saved_note_artifact") or {}
         capture_id = record.get("capture_id", "")
@@ -2147,6 +2260,13 @@ class WorkflowService:
         metadata_line = artifact.get("metadata_line") or ""
         if source_event.get("input_type") == "file":
             metadata_line = _build_compact_file_metadata_line(source_event, str(record.get("created_at") or ""))
+
+        content_hash = _duplicate_content_hash(str(source_event.get("source_text") or ""))
+        filename_key = _duplicate_filename_key(source_event)
+        looks_like_possible_duplicate = (
+            bool(content_hash) and (hash_counts or {}).get(content_hash, 0) > 1
+        ) or (bool(filename_key) and (filename_counts or {}).get(filename_key, 0) > 1)
+
         return {
             "capture_id": capture_id,
             "title": artifact.get("title") or "Saved note",
@@ -2158,4 +2278,5 @@ class WorkflowService:
             "feedback_choice": record.get("feedback_choice") or "",
             "feedback_note": record.get("feedback_note") or "",
             "looks_like_dev_data": _looks_like_dev_capture(record),
+            "looks_like_possible_duplicate": looks_like_possible_duplicate,
         }

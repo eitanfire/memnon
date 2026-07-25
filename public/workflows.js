@@ -1042,7 +1042,7 @@ function renderSavedResultsBody(items) {
           return `
             <article class="workflows-saved-results-item" data-capture-id="${escapeHtml(item.capture_id || "")}">
               <div class="workflows-saved-results-item-header">
-                <h3>${escapeHtml(item.title || "Saved note")}${item.looks_like_dev_data ? ' <span class="workflows-dev-data-tag">Dev/QA</span>' : ""}</h3>
+                <h3>${escapeHtml(item.title || "Saved note")}${item.looks_like_dev_data ? ' <span class="workflows-dev-data-tag">Dev/QA</span>' : ""}${item.looks_like_possible_duplicate ? ' <span class="workflows-duplicate-tag">Possible duplicate</span>' : ""}${!item.looks_like_dev_data && !item.feedback_choice ? ' <span class="workflows-needs-score-tag">Needs a score</span>' : ""}</h3>
                 <a class="workflows-saved-results-link" href="${escapeHtml(item.next_route || "/workflows")}">Open</a>
               </div>
               <p class="workflows-saved-results-meta">${escapeHtml(item.metadata_line || item.status || "")}</p>
@@ -1296,7 +1296,6 @@ function renderPrimaryArtifact(payload, options = {}) {
     title: artifact.title,
     metadataLine: resolveResultMetadataLine(payload, artifact),
     interpretationLine: payload.result.interpretation_line,
-    framingLine: artifact.framing_line,
     bodyHtml,
     actions,
   });
@@ -1949,7 +1948,7 @@ function wireResultFeedbackControls(card, payload, options = {}) {
       if (!feedbackChoice) {
         return;
       }
-      const input = noteForm.querySelector("#feedback-note-input");
+      const input = noteForm.querySelector("input");
       const feedbackNote = (input?.value || "").trim();
 
       setStatusTone("Saving note...", "working");

@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Flask, jsonify
 from flask_cors import CORS
 
+from .ai import generate_professional_note, load_openai_api_key
 from .blueprint import create_workflows_blueprint
 from .service import (
     WorkflowService,
@@ -170,13 +171,25 @@ def create_local_app(storage_path: str | None = None, transcribe_audio=None):
 
     effective_storage_path = storage_path or os.environ.get("WORKFLOWS_LOCAL_STORAGE_PATH") or str(DEFAULT_STORAGE_PATH)
     repository = FileBackedWorkflowRepository(effective_storage_path)
+
+    use_real_llm = os.environ.get("WORKFLOWS_LOCAL_USE_REAL_LLM", "").strip().lower() in ("1", "true", "yes")
+    if use_real_llm:
+        note_generator = generate_professional_note
+        api_key_provider = load_openai_api_key
+        generator_label = "llm"
+    else:
+        note_generator = _local_note_generator
+        api_key_provider = lambda: "local-dev"
+        generator_label = "heuristic"
+
     service = WorkflowService(
         repository=repository,
-        note_generator=_local_note_generator,
+        note_generator=note_generator,
         now_provider=lambda: datetime.now().astimezone().isoformat(),
-        api_key_provider=lambda: "local-dev",
+        api_key_provider=api_key_provider,
         social_post_generator=_local_social_post_generator,
         professional_analysis_generator=_local_professional_analysis_generator,
+        generator_label=generator_label,
     )
     app.register_blueprint(
         create_workflows_blueprint(
