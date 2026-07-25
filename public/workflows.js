@@ -1126,6 +1126,7 @@ function wireSavedResultsListFeedbackControls(card) {
           feedbackButton.classList.toggle("is-selected", isSelected);
           feedbackButton.setAttribute("aria-pressed", isSelected ? "true" : "false");
         }
+        item?.querySelector(".workflows-needs-score-tag")?.remove();
         if (item && !item.querySelector("[data-feedback-note-form]")) {
           const actionsBlock = item.querySelector(".workflows-feedback-actions");
           actionsBlock?.insertAdjacentHTML(
