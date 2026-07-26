@@ -1763,6 +1763,54 @@ def _load_latest_daily_feed_episode(uid: str) -> dict | None:
     return payload
 
 
+class _DailyFeedSilenceSkip(Exception):
+    """Raised when a quiet day should produce no episode at all (not an error)."""
+
+
+SILENCE_STUB_AUDIO_PATH = Path(__file__).resolve().parent / "assets" / "audio" / "silence-stub.mp3"
+SILENCE_STUB_DURATION_SECONDS = 9
+SILENCE_STUB_TITLE = "No new captures — share a thought today"
+SILENCE_STUB_DESCRIPTION = "Nothing new since your last episode. This is a short, fixed reminder, not a generated briefing."
+
+
+def _publish_silence_stub_episode(uid: str, episode_id: str, force: bool = False) -> dict:
+    audio_bytes = SILENCE_STUB_AUDIO_PATH.read_bytes()
+    storage_path = _upload_daily_feed_audio(uid, episode_id, audio_bytes)
+    episode_payload = {
+        "date_key": episode_id,
+        "published_at": firestore.SERVER_TIMESTAMP,
+        "episode_type": "silence_stub",
+        "title": SILENCE_STUB_TITLE,
+        "description": SILENCE_STUB_DESCRIPTION,
+        "audio_storage_path": storage_path,
+        "audio_size_bytes": len(audio_bytes),
+        "duration_seconds": SILENCE_STUB_DURATION_SECONDS,
+        "segments_used": [],
+        "context_sources_used": [],
+        "script_text": SILENCE_STUB_DESCRIPTION,
+        "script_segments": {},
+        "audio_mix_meta": {"used_music_beds": False, "is_static_stub": True},
+        "script_meta": {"has_time_anchor": False, "has_continuity_anchor": False},
+        "generation_meta": {"generation_mode": "silence_stub"},
+    }
+    _daily_feed_episode_ref(uid, episode_id).set(episode_payload, merge=True)
+    _get_db().collection("users").document(uid).set({
+        "daily_feed_last_generated_for": episode_id,
+        "daily_feed_last_generated_at": firestore.SERVER_TIMESTAMP,
+        "daily_feed_last_published_episode_id": episode_id,
+        "daily_feed_last_error": firestore.DELETE_FIELD,
+        "daily_feed_last_error_at": firestore.DELETE_FIELD,
+    }, merge=True)
+    _log_usage_event(uid, "generated_daily_feed_episode", {
+        "episode_type": "silence_stub",
+        "date_key": episode_id,
+        "forced": force,
+    })
+    saved = _daily_feed_episode_ref(uid, episode_id).get().to_dict() or episode_payload
+    saved["id"] = episode_id
+    return saved
+
+
 def _build_daily_feed_status(uid: str, user_data: dict, now_utc: datetime | None = None) -> dict:
     enabled = _coerce_bool((user_data or {}).get("daily_feed_enabled"), False)
     timezone_name = _safe_timezone_name((user_data or {}).get("daily_feed_timezone"))
@@ -2278,7 +2326,16 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         }
 
     recent_notes_available = _daily_feed_has_recent_reflection(notes, local_now)
-    episode_type = "standard" if recent_notes_available else "fallback"
+
+    if not recent_notes_available and not force:
+        latest_episode = _load_latest_daily_feed_episode(uid)
+        if (latest_episode or {}).get("episode_type") == "silence_stub":
+            raise _DailyFeedSilenceSkip(
+                "No new captures since the last stub episode; staying silent today."
+            )
+        return _publish_silence_stub_episode(uid, episode_id, force=force)
+
+    episode_type = "standard"
 
     def _save_episode_from_result(result: dict, selected_type: str, weather_applied: bool = False) -> dict:
         time_anchor = _safe_string(result.get("time_anchor"))
@@ -4559,6 +4616,8 @@ def daily_feed_worker(event: scheduler_fn.ScheduledEvent) -> None:
                 "daily_feed_last_attempted_at": firestore.SERVER_TIMESTAMP,
             }, merge=True)
             _build_daily_feed_episode(uid, user_data, now_utc=now_utc)
+        except _DailyFeedSilenceSkip as skip:
+            print(f"Daily feed silent [{uid}]: {skip}")
         except Exception as exc:
             print(f"Daily feed error [{uid}]: {exc}")
             _get_db().collection("users").document(uid).set({

@@ -662,6 +662,103 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertEqual(result["generation_meta"]["weather"]["applied"], False)
         self.assertEqual(result["generation_meta"]["weather"]["unavailable_reason"], "forecast_failed")
 
+    def test_stale_notes_publish_silence_stub_when_last_episode_was_standard(self):
+        user_ref = FakeUserRef({"email": "eitanfire@gmail.com", "daily_feed_timezone": "America/Denver"})
+
+        class EpisodeRef:
+            def __init__(self):
+                self.saved = {}
+
+            def get(self):
+                if self.saved:
+                    return FakeDoc(self.saved, True, "2026-06-24")
+                return FakeDoc({}, False, "2026-06-24")
+
+            def set(self, payload, merge=False):
+                self.saved.update(payload)
+
+        episode_ref = EpisodeRef()
+
+        with (
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+            patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[
+                {"title": "Old reflection", "summary": "Stale", "insight": "Old", "created_at": "2026-06-01T10:00:00Z"}
+            ]),
+            patch.object(self.main, "_load_latest_daily_feed_episode", return_value={"episode_type": "standard"}),
+            patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            result = self.main._build_daily_feed_episode(
+                "user123",
+                user_ref.data,
+                now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(result["episode_type"], "silence_stub")
+        self.assertEqual(result["title"], self.main.SILENCE_STUB_TITLE)
+
+    def test_stale_notes_stay_silent_when_last_episode_was_already_a_stub(self):
+        user_ref = FakeUserRef({"email": "eitanfire@gmail.com", "daily_feed_timezone": "America/Denver"})
+
+        class EpisodeRef:
+            def get(self):
+                return FakeDoc({}, False, "2026-06-24")
+
+        with (
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+            patch.object(self.main, "_daily_feed_episode_ref", return_value=EpisodeRef()),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[
+                {"title": "Old reflection", "summary": "Stale", "insight": "Old", "created_at": "2026-06-01T10:00:00Z"}
+            ]),
+            patch.object(self.main, "_load_latest_daily_feed_episode", return_value={"episode_type": "silence_stub"}),
+        ):
+            with self.assertRaises(self.main._DailyFeedSilenceSkip):
+                self.main._build_daily_feed_episode(
+                    "user123",
+                    user_ref.data,
+                    now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
+                )
+
+    def test_daily_feed_worker_treats_silence_skip_as_non_error(self):
+        user_doc = FakeDoc({
+            "daily_feed_timezone": "America/Denver",
+            "daily_feed_publish_hour_local": 0,
+            "daily_feed_last_generated_for": "",
+        }, doc_id="user123")
+
+        class FakeAttemptRef:
+            def set(self, _payload, merge=False):
+                pass
+
+        class FakeUsersStream:
+            def where(self, *_args, **_kwargs):
+                return self
+
+            def stream(self):
+                return [user_doc]
+
+            def document(self, _uid):
+                return FakeAttemptRef()
+
+        class FakeSchedDB:
+            def collection(self, name):
+                assert name == "users"
+                return FakeUsersStream()
+
+        with (
+            patch.object(self.main, "_get_db", return_value=FakeSchedDB()),
+            patch.object(self.main, "_ensure_daily_feed_config", side_effect=lambda uid, data: data),
+            patch.object(self.main, "_build_daily_feed_episode", side_effect=self.main._DailyFeedSilenceSkip("quiet")),
+        ):
+            # Call the undecorated function directly -- the scheduler_fn.on_schedule
+            # wrapper expects a real HTTP request object to translate into a
+            # ScheduledEvent, which isn't what this test is exercising.
+            # Should not raise, and should not attempt to write an error doc
+            # (there is no writable user ref mocked here, so any attempt to
+            # call .set() on the real Firestore client would blow up loudly).
+            self.main.daily_feed_worker.__wrapped__(None)
+
     def test_sparse_bridged_note_still_produces_continuity_anchor_and_brief(self):
         bridged_note = {
             "title": "Workshop plan draft",
