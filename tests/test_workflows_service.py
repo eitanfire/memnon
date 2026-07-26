@@ -172,6 +172,45 @@ class WorkflowServiceTests(unittest.TestCase):
             "workshop-plan.md",
         )
 
+    def test_regenerate_capture_re_triggers_continuity_bridge_with_fresh_content(self):
+        repo = FakeRepository()
+        bridge_calls = []
+        generated = {
+            "title": "Original title",
+            "framing_line": "Original framing.",
+            "summary": "Original summary text.",
+            "next_step": "Original next step.",
+        }
+        service = WorkflowService(
+            repository=repo,
+            note_generator=lambda *_args, **_kwargs: generated,
+            now_provider=lambda: "2026-07-02T16:00:00Z",
+            api_key_provider=lambda: "test-key",
+            continuity_bridge_writer=lambda **payload: bridge_calls.append(payload),
+        )
+
+        record = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the product direction. Action: revise the result card.",
+            context_hint="product review",
+        )
+        self.assertEqual(len(bridge_calls), 1)
+        self.assertIn("Original summary text", bridge_calls[0]["capture_record"]["result"]["primary_artifact"]["summary"])
+
+        generated = {
+            "title": "Regenerated title",
+            "framing_line": "Regenerated framing.",
+            "summary": "Regenerated summary text, materially different from the first pass.",
+            "next_step": "Regenerated next step.",
+        }
+        service.regenerate_capture("user-1", record.capture_id)
+
+        self.assertEqual(len(bridge_calls), 2)
+        self.assertIn(
+            "Regenerated summary text",
+            bridge_calls[1]["capture_record"]["result"]["primary_artifact"]["summary"],
+        )
+
     def test_immediate_capture_includes_contextual_suggestions_when_signal_is_clear(self):
         repo = FakeRepository()
         service = WorkflowService(
