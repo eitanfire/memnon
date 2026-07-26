@@ -1731,6 +1731,20 @@ class WorkflowService:
             uid, capture_id, result, decision.to_dict(), event_manifest, now, self.generator_label
         )
         updated = self.repository.get_capture(uid, capture_id)
+        if self.continuity_bridge_writer is not None:
+            persisted_context_value = profile.get("include_teaching_context")
+            effective_include_teaching_context = (
+                persisted_context_value if isinstance(persisted_context_value, bool) else True
+            )
+            try:
+                self.continuity_bridge_writer(
+                    uid=uid,
+                    profile=profile,
+                    capture_record=updated,
+                    include_teaching_context=effective_include_teaching_context,
+                )
+            except Exception as exc:
+                print(f"[{uid}] Warning: continuity bridge write failed on regenerate: {exc}")
         return self._hydrate_capture_record(
             uid,
             updated,
