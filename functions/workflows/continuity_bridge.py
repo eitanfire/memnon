@@ -65,11 +65,13 @@ def build_daily_feed_continuity_note(
     title = _normalize_text(artifact.get("title")) or "Saved result"
     summary = (
         _normalize_text(artifact.get("framing_line"))
+        or _normalize_text(artifact.get("summary"))
         or _normalize_text(result_payload.get("interpretation_line"))
         or _normalize_text(source_event.get("source_preview"))
     )
     insight = (
-        _artifact_section_text(artifact, "key point")
+        _normalize_text(artifact.get("summary"))
+        or _artifact_section_text(artifact, "key point")
         or _artifact_section_text(artifact, "why keep this")
         or _normalize_text(artifact.get("source_excerpt"))
         or _normalize_text(source_event.get("source_preview"))
