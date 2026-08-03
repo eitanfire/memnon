@@ -6,20 +6,53 @@ import unittest
 from pathlib import Path
 
 
-class WorkflowsStaticContractTests(unittest.TestCase):
-    def test_firebase_routes_workflows_paths_to_workflows_html(self):
+REPO_ROOT = Path("/Users/eitan/memnon")
+TODAY_PATH = REPO_ROOT / "public" / "today.html"
+
+
+class TodayStaticContractTests(unittest.TestCase):
+    # ── Core/Today Consolidation v1: routing and single-component structure ──
+
+    def test_workflows_html_is_retired(self):
+        self.assertFalse(
+            (REPO_ROOT / "public" / "workflows.html").exists(),
+            "workflows.html must be deleted, not left as an unreachable stub "
+            "(docs/superpowers/specs/2026-08-01-memnon-core-today-consolidation-v1.md §9)",
+        )
+
+    def test_dashboard_html_is_retired(self):
+        self.assertFalse(
+            (REPO_ROOT / "public" / "dashboard.html").exists(),
+            "dashboard.html is renamed/merged into today.html, not left behind as a second file",
+        )
+
+    def test_firebase_redirects_old_routes_to_today(self):
+        payload = json.loads(Path("firebase.json").read_text(encoding="utf-8"))
+        redirects = payload["hosting"]["redirects"]
+
+        self.assertIn({"source": "/dashboard", "destination": "/today", "type": 301}, redirects)
+        self.assertIn({"source": "/workflows", "destination": "/today", "type": 301}, redirects)
+        self.assertIn(
+            {"source": "/workflows/:path*", "destination": "/today/:path*", "type": 301},
+            redirects,
+        )
+
+    def test_firebase_routes_today_paths_to_today_html(self):
         payload = json.loads(Path("firebase.json").read_text(encoding="utf-8"))
         rewrites = payload["hosting"]["rewrites"]
 
         self.assertIn(
-            {
-                "source": "workflows{,/**}",
-                "destination": "/workflows.html",
-            },
+            {"source": "today{,/**}", "destination": "/today.html"},
+            rewrites,
+        )
+        # The old workflows{,/**} rewrite must be gone -- that route redirects now,
+        # it doesn't serve content, so a stale rewrite rule would mean dual-serving.
+        self.assertNotIn(
+            {"source": "workflows{,/**}", "destination": "/workflows.html"},
             rewrites,
         )
 
-    def test_hosting_cache_headers_force_revalidation_for_dashboard_and_workflows_assets(self):
+    def test_hosting_cache_headers_force_revalidation_for_today_and_capture_assets(self):
         payload = json.loads(Path("firebase.json").read_text(encoding="utf-8"))
         header_rules = payload["hosting"].get("headers", [])
 
@@ -32,10 +65,8 @@ class WorkflowsStaticContractTests(unittest.TestCase):
         }
 
         expected = {
-            "dashboard": "no-cache, max-age=0, must-revalidate",
-            "dashboard.html": "no-cache, max-age=0, must-revalidate",
-            "workflows{,/**}": "no-cache, max-age=0, must-revalidate",
-            "workflows.html": "no-cache, max-age=0, must-revalidate",
+            "today{,/**}": "no-cache, max-age=0, must-revalidate",
+            "today.html": "no-cache, max-age=0, must-revalidate",
             "workflows.js": "no-cache, max-age=0, must-revalidate",
             "workflows_url_helpers.js": "no-cache, max-age=0, must-revalidate",
             "workflows.css": "no-cache, max-age=0, must-revalidate",
@@ -51,11 +82,219 @@ class WorkflowsStaticContractTests(unittest.TestCase):
                 f"unexpected Cache-Control for {source}",
             )
 
-    def test_workflows_shell_has_required_copy_and_mount_points(self):
-        html = Path("public/workflows.html").read_text(encoding="utf-8")
+    def test_today_page_contains_both_sections_structurally_separated(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("<title>Memnon Capture</title>", html)
-        self.assertNotIn("<title>Memnon Workflows</title>", html)
+        today_index = html.index('class="dashboard-capture-title">Today<')
+        capture_index = html.index('id="workflows-app"')
+        self.assertLess(today_index, capture_index, "Today section must precede the Capture section in document order")
+
+        # The Capture section must be visually demoted, not a co-equal panel --
+        # this is the class the section-break CSS hooks into.
+        self.assertIn('id="workflows-app" class="workflows-shell workflows-section-secondary"', html)
+
+    def test_capture_section_uses_the_same_literal_component_not_a_rebuild(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        # Every mount point workflows.js queries must be present verbatim --
+        # this is the "same literal component, not a duplicated implementation"
+        # constraint from the consolidation spec, §6 and §10.
+        for element_id in (
+            "capture-form",
+            "capture-surface",
+            "record-trigger",
+            "upload-trigger",
+            "show-paste",
+            "capture-file",
+            "file-selection-state",
+            "clear-upload",
+            "paste-panel",
+            "capture-text",
+            "capture-context",
+            "capture-submit",
+            "workflows-status",
+            "workflows-auth-prompt",
+            "workflows-signin",
+            "result-view",
+            "loading-card",
+            "primary-artifact-card",
+            "saved-note-card",
+            "source-text-panel",
+            "source-text-content",
+        ):
+            self.assertIn(f'id="{element_id}"', html, f"missing capture component mount point: {element_id}")
+
+        # Exactly one capture form on the page -- not a second/rebuilt implementation.
+        self.assertEqual(html.count('id="capture-form"'), 1)
+        self.assertEqual(html.count('id="record-trigger"'), 1)
+
+        self.assertIn('type="module" src="/workflows.js"', html)
+        self.assertIn('href="/workflows.css"', html)
+
+    def test_today_open_capture_button_opens_in_place_not_a_page_navigation(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+
+        # The single record button lives with Today, immediately -- and activating
+        # it must not navigate to a different page (spec §5).
+        self.assertIn('id="today-open-capture"', html)
+        self.assertNotIn('id="today-open-capture" class="btn btn-primary capture-mode-btn" href="/workflows"', html)
+        self.assertIn('href="#workflows-app"', html)
+        self.assertIn("today-open-capture", js)
+        self.assertIn("focusCaptureComponent", js)
+        self.assertIn("event.preventDefault()", js)
+
+    def test_deep_link_routes_scroll_to_capture_section_not_today_top(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+
+        # §4a: /today/result/:id and /today/saved must land directly on that
+        # content, not require a scroll past Today's orientation content.
+        self.assertIn("landOnCaptureSection", js)
+        self.assertIn("scrollIntoView", js)
+        handler_start = js.index("async function handleCurrentRoute")
+        handler_end = js.index("\n}", js.index("mountWorkflowsApp"))
+        handler_body = js[handler_start:handler_end]
+        self.assertIn("landOnCaptureSection();", handler_body)
+
+    def test_route_paths_point_at_today_not_workflows(self):
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+
+        self.assertIn('"/today/saved"', js)
+        self.assertIn("/today/result/", js)
+        self.assertNotIn('"/workflows/saved"', js)
+        self.assertNotIn("/workflows/result/", js)
+
+        parse_route_start = js.index("function parseWorkflowsRoute")
+        parse_route_end = js.index("\n}", parse_route_start)
+        parse_route_body = js[parse_route_start:parse_route_end]
+        self.assertIn('"/today.html"', parse_route_body)
+        self.assertIn('|| "/today"', parse_route_body)
+        self.assertIn(r"\/today\/result\/", parse_route_body)
+
+    def test_firebase_init_guards_against_duplicate_app(self):
+        # Today's own inline script and workflows.js both touch Firebase; on one
+        # page they must not both call initializeApp() unconditionally.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+
+        for source, label in ((html, "today.html"), (js, "workflows.js")):
+            self.assertIn("getApps().length ? getApp() : initializeApp(firebaseConfig)", source, f"{label} missing Firebase duplicate-app guard")
+
+    def test_backend_next_route_points_at_today(self):
+        blueprint = (REPO_ROOT / "functions" / "workflows" / "blueprint.py").read_text(encoding="utf-8")
+        service = (REPO_ROOT / "functions" / "workflows" / "service.py").read_text(encoding="utf-8")
+        main = (REPO_ROOT / "functions" / "main.py").read_text(encoding="utf-8")
+
+        for source, label in ((blueprint, "blueprint.py"), (service, "service.py"), (main, "main.py")):
+            self.assertNotIn("/workflows/result/", source, f"{label} still generates the old page route")
+            self.assertIn("/today/result/", source, f"{label} should generate the new page route")
+
+    # ── Service worker (unchanged by this milestone) ──
+
+    def test_service_worker_only_intercepts_share_target_posts(self):
+        sw = (REPO_ROOT / "public" / "sw.js").read_text(encoding="utf-8")
+
+        self.assertIn('url.pathname !== "/share-target" || event.request.method !== "POST"', sw)
+        self.assertIn("event.respondWith(handleShareTarget(event.request));", sw)
+        self.assertNotIn("event.respondWith(fetch(event.request))", sw)
+
+    # ── Today section framing (carried over from dashboard contract) ──
+
+    def test_today_is_framed_as_today(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("<title>Memnon Today</title>", html)
+        self.assertIn(">Today<", html)
+        self.assertIn("Daily Brief", html)
+
+    def test_today_replaces_reflection_context_panel_with_context_settings_link(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("Context settings", html)
+        self.assertNotIn("Reflection Context", html)
+        self.assertNotIn("next reflection", html)
+        self.assertNotIn("Use teaching context", html)
+        self.assertNotIn("Teaching context: On", html)
+        self.assertNotIn("Teaching context:", html)
+        self.assertNotIn("Voices:", html)
+        self.assertNotIn("Frameworks:", html)
+        self.assertNotIn("Mode: Complete reflection", html)
+        self.assertNotIn("Tune Reflection", html)
+        self.assertNotIn("Choose a workflow", html)
+        self.assertNotIn("Choose a note type", html)
+        self.assertNotIn("reflection or workflow", html)
+
+    def test_today_uses_latest_result_language_for_latest_return_surface(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("Latest result", html)
+        self.assertIn("Latest complete result", html)
+        self.assertIn("Loading your latest result…", html)
+        self.assertIn("Loading the latest result text…", html)
+        self.assertIn("Your latest result text will appear here after processing.", html)
+        self.assertNotIn("Latest reflection", html)
+        self.assertNotIn("Latest complete reflection", html)
+        self.assertNotIn("Loading your latest reflection…", html)
+        self.assertNotIn("Loading the latest reflection text…", html)
+        self.assertNotIn("Your latest reflection text will appear here after processing.", html)
+
+    def test_today_does_not_reacquire_management_dashboard_features(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        # Guarded explicitly in the consolidation spec §6 -- the merged page
+        # must not read as a management dashboard/control center.
+        self.assertNotIn("Manage", html)
+        self.assertNotIn('id="analytics-panel"', html)
+        self.assertNotIn('id="review-queue"', html)
+
+    def test_share_target_audio_falls_back_to_upload_status_when_share_status_is_hidden(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        start = html.index("async function checkSharedFile()")
+        end = html.index("function getSharedFileFromIDB()", start)
+        snippet = html[start:end]
+
+        script = f"""
+const vm = require("vm");
+const uploadStatus = {{ style: {{}}, textContent: "" }};
+const context = {{
+  window: {{ location: {{ search: "?shared=1" }} }},
+  history: {{ replaceState: () => {{}} }},
+  routes: {{ today: "/today" }},
+  document: {{
+    getElementById(id) {{
+      if (id === "share-status") return null;
+      if (id === "upload-status") return uploadStatus;
+      return null;
+    }},
+  }},
+  getSharedFileFromIDB: async () => null,
+  uploadAudio: async () => {{}},
+}};
+vm.createContext(context);
+vm.runInContext({snippet!r}, context);
+(async () => {{
+  await context.checkSharedFile();
+  if (uploadStatus.textContent !== "⚠️ No shared file found.") {{
+    throw new Error(`unexpected status text: ${{uploadStatus.textContent}}`);
+  }}
+}})().catch((error) => {{
+  console.error(error);
+  process.exit(1);
+}});
+"""
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+    # ── Capture surface copy and mount points (carried over from workflows contract) ──
+
+    def test_workflows_shell_has_required_copy_and_mount_points(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
         self.assertIn(">Capture<", html)
         self.assertIn("Capture a thought", html)
         self.assertIn("Speak, drop a file, or paste something messy.", html)
@@ -84,7 +323,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
     def test_workflows_js_contains_capture_and_result_api_paths(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
         helper = Path("public/workflows_url_helpers.js").read_text(encoding="utf-8")
-        html = Path("public/workflows.html").read_text(encoding="utf-8")
+        html = TODAY_PATH.read_text(encoding="utf-8")
 
         self.assertIn("/api/workflows/captures", js)
         self.assertIn("/api/workflows/contexts", js)
@@ -118,7 +357,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
 
     def test_workflows_shell_exposes_signed_out_sign_in_path(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
-        html = Path("public/workflows.html").read_text(encoding="utf-8")
+        html = TODAY_PATH.read_text(encoding="utf-8")
 
         self.assertIn("Sign in with Google", html)
         self.assertIn("Draft now, sign in to save.", html)
@@ -212,7 +451,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
             }
 
             const snippets = [
-              "const SAVED_RESULTS_PATH = '/workflows/saved';",
+              "const SAVED_RESULTS_PATH = '/today/saved';",
               extractBetween("function escapeHtml", "function setStatus"),
               extractBetween("function formatLocalCaptureDate", "function describeSourceType"),
               extractBetween("function describeSourceType", "function buildMetadataLine"),
@@ -686,7 +925,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               { isImmediateResult: false },
             );
             const savedList = context.renderSavedResultsBody([
-              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note", feedback_choice: "" },
+              { capture_id: "cap-1", title: "Saved note", next_route: "/today/result/cap-1", metadata_line: "Pasted note", feedback_choice: "" },
             ]);
 
             if (!immediate.includes("How was this result?") || !immediate.includes("Useful") || !immediate.includes("Not useful")) {
@@ -781,7 +1020,7 @@ class WorkflowsStaticContractTests(unittest.TestCase):
               { isImmediateResult: false },
             );
             const savedList = context.renderSavedResultsBody([
-              { capture_id: "cap-1", title: "Saved note", next_route: "/workflows/result/cap-1", metadata_line: "Pasted note" },
+              { capture_id: "cap-1", title: "Saved note", next_route: "/today/result/cap-1", metadata_line: "Pasted note" },
             ]);
 
             if (none.trim() !== "") {

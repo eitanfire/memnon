@@ -133,7 +133,7 @@ def _workflow_capture_compat_response(record):
     return jsonify({
         "ok": True,
         "capture_id": record.capture_id,
-        "next_route": f"/workflows/result/{record.capture_id}",
+        "next_route": f"/today/result/{record.capture_id}",
         "note": _workflow_capture_note_label(record),
         "reflection_audio": None,
     })

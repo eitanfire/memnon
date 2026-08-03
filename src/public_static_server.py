@@ -20,7 +20,6 @@ def rewrite_public_path(raw_path: str) -> str:
     path = parsed.path or "/"
 
     static_routes = {
-        "/dashboard": "/dashboard.html",
         "/research": "/research.html",
         "/setup": "/setup.html",
         "/privacy": "/privacy.html",

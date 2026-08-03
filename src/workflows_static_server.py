@@ -6,14 +6,14 @@ from pathlib import Path
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 
-WORKFLOWS_ENTRYPOINT = "/workflows.html"
+WORKFLOWS_ENTRYPOINT = "/today.html"
 
 
 def rewrite_workflows_path(raw_path: str) -> str:
     parsed = urlsplit(raw_path)
     path = parsed.path or "/"
 
-    if path in {"/workflows", "/workflows/", "/workflows/saved"} or path.startswith("/workflows/result/"):
+    if path in {"/today", "/today/", "/today/saved"} or path.startswith("/today/result/"):
         rewritten = SplitResult(
             scheme="",
             netloc="",

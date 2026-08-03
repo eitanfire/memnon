@@ -9,7 +9,7 @@
     ],
     "headers": [
       {
-        "source": "dashboard",
+        "source": "today{,/**}",
         "headers": [
           {
             "key": "Cache-Control",
@@ -18,25 +18,7 @@
         ]
       },
       {
-        "source": "dashboard.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "workflows{,/**}",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "workflows.html",
+        "source": "today.html",
         "headers": [
           {
             "key": "Cache-Control",
@@ -90,6 +72,23 @@
         ]
       }
     ],
+    "redirects": [
+      {
+        "source": "/dashboard",
+        "destination": "/today",
+        "type": 301
+      },
+      {
+        "source": "/workflows",
+        "destination": "/today",
+        "type": 301
+      },
+      {
+        "source": "/workflows/:path*",
+        "destination": "/today/:path*",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "source": "api{,/**}",
@@ -99,8 +98,8 @@
         }
       },
       {
-        "source": "workflows{,/**}",
-        "destination": "/workflows.html"
+        "source": "today{,/**}",
+        "destination": "/today.html"
       },
       {
         "source": "**",
