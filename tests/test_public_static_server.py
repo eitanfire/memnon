@@ -91,16 +91,24 @@ class PublicStaticServerTests(unittest.TestCase):
         connection.close()
         return status, response_headers, payload
 
-    def test_dashboard_route_rewrites_to_dashboard_html(self):
-        status, _headers, body = self.request("GET", "/dashboard")
+    def test_today_route_rewrites_to_today_html(self):
+        status, _headers, body = self.request("GET", "/today")
         self.assertEqual(status, 200)
         self.assertIn(b"Memnon Today", body)
         self.assertIn(b"Open capture", body)
 
-    def test_workflows_route_rewrites_to_workflows_html(self):
-        status, _headers, body = self.request("GET", "/workflows/result/example")
+    def test_today_result_route_rewrites_to_today_html(self):
+        status, _headers, body = self.request("GET", "/today/result/example")
         self.assertEqual(status, 200)
         self.assertIn(b"Capture a thought", body)
+
+    def test_retired_dashboard_route_does_not_rewrite(self):
+        status, _headers, _body = self.request("GET", "/dashboard")
+        self.assertEqual(status, 404)
+
+    def test_retired_workflows_route_does_not_rewrite(self):
+        status, _headers, _body = self.request("GET", "/workflows")
+        self.assertEqual(status, 404)
 
     def test_api_get_is_proxied_instead_of_dropping_connection(self):
         status, headers, body = self.request("GET", "/api/workflows/captures")

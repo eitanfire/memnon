@@ -1163,7 +1163,7 @@ class WorkflowServiceTests(unittest.TestCase):
 
         self.assertEqual([item["capture_id"] for item in items], [second.capture_id, first.capture_id])
         self.assertEqual(items[0]["title"], second.result["primary_artifact"]["title"])
-        self.assertEqual(items[0]["next_route"], f"/workflows/result/{second.capture_id}")
+        self.assertEqual(items[0]["next_route"], f"/today/result/{second.capture_id}")
         self.assertEqual(items[0]["status"], "Saved and shaped")
         self.assertEqual(items[1]["title"], first.result["saved_note_artifact"]["title"])
         self.assertEqual(items[1]["status"], "Saved as a small note")

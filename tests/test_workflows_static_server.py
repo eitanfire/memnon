@@ -49,31 +49,35 @@ class WorkflowsStaticServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"Memnon", body)
 
-    def test_workflows_html_returns_ok(self):
-        status, body = self.request("/workflows.html")
+    def test_today_html_returns_ok(self):
+        status, body = self.request("/today.html")
         self.assertEqual(status, 200)
         self.assertIn(b"Capture a thought", body)
 
-    def test_workflows_route_rewrites_to_workflows_html(self):
-        status, body = self.request("/workflows")
+    def test_today_route_rewrites_to_today_html(self):
+        status, body = self.request("/today")
         self.assertEqual(status, 200)
         self.assertIn(b"Capture a thought", body)
 
-    def test_workflows_result_route_rewrites_to_workflows_html(self):
-        status, body = self.request("/workflows/result/example")
+    def test_today_result_route_rewrites_to_today_html(self):
+        status, body = self.request("/today/result/example")
         self.assertEqual(status, 200)
         self.assertIn(b"Capture a thought", body)
 
-    def test_workflows_saved_route_rewrites_to_workflows_html(self):
-        status, body = self.request("/workflows/saved")
+    def test_today_saved_route_rewrites_to_today_html(self):
+        status, body = self.request("/today/saved")
         self.assertEqual(status, 200)
         self.assertIn(b"Capture a thought", body)
+
+    def test_retired_workflows_route_does_not_rewrite(self):
+        status, _body = self.request("/workflows")
+        self.assertEqual(status, 404)
 
     def test_missing_asset_returns_404(self):
         status, _body = self.request("/missing-file.js")
         self.assertEqual(status, 404)
 
-    def test_runner_script_serves_workflows_route(self):
+    def test_runner_script_serves_today_route(self):
         port = self.port + 1000
         process = subprocess.Popen(
             [
@@ -94,7 +98,7 @@ class WorkflowsStaticServerTests(unittest.TestCase):
                     self.fail(f"runner exited early\nstdout:\n{stdout}\nstderr:\n{stderr}")
                 try:
                     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=1)
-                    connection.request("GET", "/workflows")
+                    connection.request("GET", "/today")
                     response = connection.getresponse()
                     body = response.read()
                     connection.close()

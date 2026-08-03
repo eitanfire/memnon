@@ -2288,7 +2288,7 @@ class WorkflowService:
             "status": artifact.get("status") or "",
             "route_kind": result.get("route_kind") or "",
             "created_at": record.get("created_at"),
-            "next_route": f"/workflows/result/{capture_id}",
+            "next_route": f"/today/result/{capture_id}",
             "feedback_choice": record.get("feedback_choice") or "",
             "feedback_note": record.get("feedback_note") or "",
             "looks_like_dev_data": _looks_like_dev_capture(record),

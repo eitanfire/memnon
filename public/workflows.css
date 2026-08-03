@@ -9,6 +9,17 @@ body.workflows-page {
   padding: 16px 20px 72px;
 }
 
+/* Today/Core consolidation: the capture surface is structurally secondary to
+   Today's orientation content, not a co-equal panel. A visible section break
+   (background shift + top border) makes that scroll-depth demotion legible
+   instead of the merged page reading as one undifferentiated feed. */
+.workflows-section-secondary {
+  background: #f6f3ee;
+  border-top: 1px solid #e4ded3;
+  margin-top: 8px;
+  padding-top: 40px;
+}
+
 .workflows-header h1 {
   margin: 0 0 6px;
   font-size: clamp(2rem, 4vw, 2.4rem);

@@ -80,7 +80,7 @@ Artifact shape for both `primary_artifact` and `saved_note_artifact`:
 - `secondary_actions: string[]`
 
 Persistence rule:
-- The stored payload must be sufficient to re-render `/workflows/result/:id` without re-running routing or generation.
+- The stored payload must be sufficient to re-render `/today/result/:id` without re-running routing or generation.
 
 Optional internal `event_manifest.contextual_suggestions` fields:
 - `origin: "original_capture" | "derived_result"`

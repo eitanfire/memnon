@@ -152,7 +152,7 @@ def create_workflows_blueprint(
                     },
                 )
                 body = _sanitize_capture_payload(record.to_dict())
-                body["next_route"] = f"/workflows/result/{record.capture_id}"
+                body["next_route"] = f"/today/result/{record.capture_id}"
                 return jsonify(body), 201
 
             content_type = (uploaded.mimetype or uploaded.content_type or "").lower()
@@ -228,7 +228,7 @@ def create_workflows_blueprint(
             )
 
         body = _sanitize_capture_payload(record.to_dict())
-        body["next_route"] = f"/workflows/result/{record.capture_id}"
+        body["next_route"] = f"/today/result/{record.capture_id}"
         return jsonify(body), 201
 
     @blueprint.route("/captures/<capture_id>", methods=["GET"])
@@ -323,7 +323,7 @@ def create_workflows_blueprint(
         except (KeyError, ValueError) as error:
             return _error_response(error)
         body = _sanitize_capture_payload(created)
-        body["next_route"] = f"/workflows/result/{body['capture_id']}"
+        body["next_route"] = f"/today/result/{body['capture_id']}"
         return jsonify(body), 201
 
     @blueprint.route("/captures/<capture_id>/context-decision", methods=["POST"])

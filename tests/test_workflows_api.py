@@ -603,7 +603,7 @@ class WorkflowApiTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(len(payload["items"]), 1)
         self.assertEqual(payload["items"][0]["capture_id"], capture_id)
-        self.assertEqual(payload["items"][0]["next_route"], f"/workflows/result/{capture_id}")
+        self.assertEqual(payload["items"][0]["next_route"], f"/today/result/{capture_id}")
 
     def test_list_active_contexts_returns_active_threads_only(self):
         repo = FakeRepository()
@@ -1046,7 +1046,7 @@ class WorkflowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         payload = response.get_json()
         self.assertNotEqual(payload["capture_id"], capture.capture_id)
-        self.assertEqual(payload["next_route"], f"/workflows/result/{payload['capture_id']}")
+        self.assertEqual(payload["next_route"], f"/today/result/{payload['capture_id']}")
         self.assertNotIn("contextual_suggestions", payload["result"])
         self.assertNotIn("contextual_suggestions", payload.get("event_manifest") or {})
 

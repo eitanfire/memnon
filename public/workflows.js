@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getAuth,
   onAuthStateChanged,
@@ -23,7 +23,7 @@ const firebaseConfig = {
   appId: "1:714155490867:web:f382fddb58a596bede6d46",
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const params = new URLSearchParams(window.location.search);
 const callbackToken = params.get("token");
@@ -46,7 +46,7 @@ const API_ORIGIN = isStaticLocalhost ? LOCAL_API_ORIGIN : "";
 const API_CAPTURES_PATH = "/api/workflows/captures";
 const API_CONTEXTS_PATH = "/api/workflows/contexts";
 const AUTH_START_URL = "https://api-4hth6oktaa-uc.a.run.app/auth/start";
-const SAVED_RESULTS_PATH = "/workflows/saved";
+const SAVED_RESULTS_PATH = "/today/saved";
 const PENDING_CAPTURE_KEY = "memnon_workflows_pending_capture_v1";
 const LOCAL_DEV_ID_TOKEN = "local-dev-token";
 const SCRIPT_LOADED_AT = new Date().toISOString();
@@ -157,11 +157,11 @@ console.log("workflows.js loaded", {
 
 function parseWorkflowsRoute(pathname) {
   const normalized =
-    pathname === "/workflows.html" ? "/workflows" : pathname.replace(/\/+$/, "") || "/workflows";
+    pathname === "/today.html" ? "/today" : pathname.replace(/\/+$/, "") || "/today";
   if (normalized === SAVED_RESULTS_PATH) {
     return { screen: "saved" };
   }
-  const match = normalized.match(/^\/workflows\/result\/([^/]+)$/);
+  const match = normalized.match(/^\/today\/result\/([^/]+)$/);
   if (match) {
     return { screen: "result", captureId: decodeURIComponent(match[1]) };
   }
@@ -1043,7 +1043,7 @@ function renderSavedResultsBody(items) {
             <article class="workflows-saved-results-item" data-capture-id="${escapeHtml(item.capture_id || "")}">
               <div class="workflows-saved-results-item-header">
                 <h3>${escapeHtml(item.title || "Saved note")}${item.looks_like_dev_data ? ' <span class="workflows-dev-data-tag">Dev/QA</span>' : ""}${item.looks_like_possible_duplicate ? ' <span class="workflows-duplicate-tag">Possible duplicate</span>' : ""}${!item.looks_like_dev_data && !item.feedback_choice ? ' <span class="workflows-needs-score-tag">Needs a score</span>' : ""}</h3>
-                <a class="workflows-saved-results-link" href="${escapeHtml(item.next_route || "/workflows")}">Open</a>
+                <a class="workflows-saved-results-link" href="${escapeHtml(item.next_route || "/today")}">Open</a>
               </div>
               <p class="workflows-saved-results-meta">${escapeHtml(item.metadata_line || item.status || "")}</p>
               <div class="workflows-feedback-actions workflows-feedback-actions--compact" role="group" aria-label="Result feedback options">
@@ -1229,7 +1229,7 @@ function renderSavedNote(payload, options = {}) {
       ${renderResultFeedback(payload, options)}
     `,
     actions: [
-      { html: '<a class="btn btn-outline" href="/workflows/saved">View saved results</a>' },
+      { html: '<a class="btn btn-outline" href="/today/saved">View saved results</a>' },
       { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
     ],
   });
@@ -1281,7 +1281,7 @@ function renderPrimaryArtifact(payload, options = {}) {
 
   const actions = [
     { html: `<button type="button" class="btn btn-primary" id="copy-artifact-body">${escapeHtml(artifact.primary_action || "Copy note")}</button>` },
-    { html: '<a class="btn btn-outline" href="/workflows/saved">View saved results</a>' },
+    { html: '<a class="btn btn-outline" href="/today/saved">View saved results</a>' },
     { html: '<button type="button" class="btn btn-outline" id="start-another-capture">Start another capture</button>' },
   ];
   if (isLegacySchemaArtifact(artifact)) {
@@ -1339,7 +1339,7 @@ function renderPrimaryArtifact(payload, options = {}) {
 
 function wireReturnToCapture() {
   document.getElementById("start-another-capture")?.addEventListener("click", () => {
-    history.pushState({}, "", "/workflows");
+    history.pushState({}, "", "/today");
     resetResultCards();
     resetCaptureForm();
     showCaptureScreen();
@@ -1456,7 +1456,7 @@ async function submitCapture(text, contextHint) {
   try {
     const payload = await createCapture(text, contextHint);
     clearPendingCapture();
-    const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
+    const nextPath = `/today/result/${encodeURIComponent(payload.capture_id)}`;
     history.pushState({}, "", nextPath);
     const activeThreads = payload?.threading?.confirmed_context_id
       ? []
@@ -1543,7 +1543,7 @@ async function submitVoiceCapture(audioBlob, mimeType, contextHint) {
       contextHint,
     );
     clearPendingCapture();
-    const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
+    const nextPath = `/today/result/${encodeURIComponent(payload.capture_id)}`;
     history.pushState({}, "", nextPath);
     const activeThreads = payload?.threading?.confirmed_context_id
       ? []
@@ -1579,7 +1579,7 @@ async function submitFileCapture(file, contextHint) {
   try {
     const payload = await createFileCapture(file, contextHint);
     clearPendingCapture();
-    const nextPath = `/workflows/result/${encodeURIComponent(payload.capture_id)}`;
+    const nextPath = `/today/result/${encodeURIComponent(payload.capture_id)}`;
     history.pushState({}, "", nextPath);
     const activeThreads = payload?.threading?.confirmed_context_id
       ? []
@@ -1991,7 +1991,7 @@ function wireResultContextualSuggestionControls(card, payload, options = {}) {
       setStatusTone("Shaping that result...", "working");
       try {
         const created = await submitContextualSuggestion(captureId, suggestionType);
-        const nextPath = `/workflows/result/${encodeURIComponent(created.capture_id)}`;
+        const nextPath = `/today/result/${encodeURIComponent(created.capture_id)}`;
         history.pushState({}, "", nextPath);
         setStatus("");
         renderPayload(created, {
@@ -2097,6 +2097,16 @@ function applySignedOutState() {
   syncSubmitState();
 }
 
+function landOnCaptureSection() {
+  // Today's own content (Daily Brief, latest-result widgets) loads
+  // asynchronously and can still be expanding page height around this point,
+  // so one scroll call isn't reliable -- rescroll once more after layout has
+  // had a chance to settle.
+  const scrollToApp = () => document.getElementById("workflows-app")?.scrollIntoView({ behavior: "auto", block: "start" });
+  scrollToApp();
+  window.setTimeout(scrollToApp, 400);
+}
+
 async function handleCurrentRoute() {
   const route = parseWorkflowsRoute(window.location.pathname);
   if (!currentUser && !bypassRemoteAuth) {
@@ -2112,6 +2122,7 @@ async function handleCurrentRoute() {
       renderLoadError();
       setStatus("");
     }
+    landOnCaptureSection();
     return;
   }
 
@@ -2123,6 +2134,7 @@ async function handleCurrentRoute() {
       renderSavedResultsError();
       setStatus("");
     }
+    landOnCaptureSection();
     return;
   }
 
@@ -2130,6 +2142,19 @@ async function handleCurrentRoute() {
   setStatus("");
   syncSubmitState();
 }
+
+function focusCaptureComponent() {
+  const captureApp = document.getElementById("workflows-app");
+  captureApp?.scrollIntoView({ behavior: "smooth", block: "start" });
+  restorePendingCaptureToForm();
+  const recordTrigger = document.getElementById("record-trigger");
+  recordTrigger?.focus({ preventScroll: true });
+}
+
+// Exposed so a same-page entry point outside this module (the Today section's
+// "Open capture" button and "continue the thread" action) can open/focus the
+// one existing capture component in place, instead of navigating to it.
+window.memnonFocusCapture = focusCaptureComponent;
 
 export function mountWorkflowsApp() {
   const input = document.getElementById("capture-text");
@@ -2141,6 +2166,12 @@ export function mountWorkflowsApp() {
   const clearUpload = document.getElementById("clear-upload");
   const form = document.getElementById("capture-form");
   const signInLink = document.getElementById("workflows-signin");
+  const openCaptureLink = document.getElementById("today-open-capture");
+
+  openCaptureLink?.addEventListener("click", (event) => {
+    event.preventDefault();
+    focusCaptureComponent();
+  });
 
   input?.addEventListener("input", syncSubmitState);
   context?.addEventListener("input", syncSubmitState);

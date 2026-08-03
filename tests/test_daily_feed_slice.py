@@ -9,7 +9,7 @@ from unittest.mock import patch
 REPO_ROOT = Path("/Users/eitan/memnon")
 FUNCTIONS_DIR = REPO_ROOT / "functions"
 MAIN_PATH = FUNCTIONS_DIR / "main.py"
-DASHBOARD_PATH = REPO_ROOT / "public" / "dashboard.html"
+DASHBOARD_PATH = REPO_ROOT / "public" / "today.html"
 
 
 def load_main_module():
@@ -831,7 +831,7 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["capture_id"], "cap-text")
-        self.assertEqual(payload["next_route"], "/workflows/result/cap-text")
+        self.assertEqual(payload["next_route"], "/today/result/cap-text")
         self.assertEqual(payload["note"], "Saved dashboard note")
         self.assertEqual(fake_service.calls[0]["input_type"], "text")
         self.assertEqual(fake_service.calls[0]["include_teaching_context"], False)
@@ -864,7 +864,7 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["capture_id"], "cap-voice")
-        self.assertEqual(payload["next_route"], "/workflows/result/cap-voice")
+        self.assertEqual(payload["next_route"], "/today/result/cap-voice")
         self.assertEqual(payload["note"], "Saved voice result")
         self.assertEqual(fake_service.calls[0]["input_type"], "voice")
         self.assertEqual(fake_service.calls[0]["include_teaching_context"], False)
