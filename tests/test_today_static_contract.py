@@ -3,14 +3,79 @@ import re
 import subprocess
 import textwrap
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
 
 
-REPO_ROOT = Path("/Users/eitan/memnon")
+REPO_ROOT = Path("/Users/eitan/Sites/memnon")
 TODAY_PATH = REPO_ROOT / "public" / "today.html"
+
+_VOID_ELEMENTS = {
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr",
+}
+
+
+class _AncestryHTMLParser(HTMLParser):
+    """Records, for each element with an id="...", the (tag, class) of every
+    real DOM ancestor at the point that element opens. Lets a test assert
+    actual nesting instead of document-order string position, which a flat
+    substring index can't distinguish from "comes later but is a sibling."
+    Caller must strip <script>/<style> contents first -- this is not a full
+    HTML5 tokenizer and inline JS/CSS text will otherwise desync the tag stack.
+    """
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self._stack = []
+        self.ancestors_by_id = {}
+
+    def handle_starttag(self, tag, attrs):
+        attrs_dict = dict(attrs)
+        if "id" in attrs_dict:
+            self.ancestors_by_id[attrs_dict["id"]] = list(self._stack)
+        if tag not in _VOID_ELEMENTS:
+            self._stack.append((tag, attrs_dict.get("class", "")))
+
+    def handle_startendtag(self, tag, attrs):
+        attrs_dict = dict(attrs)
+        if "id" in attrs_dict:
+            self.ancestors_by_id[attrs_dict["id"]] = list(self._stack)
+
+    def handle_endtag(self, tag):
+        for i in range(len(self._stack) - 1, -1, -1):
+            if self._stack[i][0] == tag:
+                del self._stack[i:]
+                return
+
+
+def _strip_script_and_style(html):
+    html = re.sub(r"<script\b[^>]*>.*?</script>", "<script></script>", html, flags=re.S)
+    html = re.sub(r"<style\b[^>]*>.*?</style>", "<style></style>", html, flags=re.S)
+    return html
 
 
 class TodayStaticContractTests(unittest.TestCase):
+    """Static/string-level contract for public/today.html.
+
+    Standing practice for this file specifically (2026-08-07, UX Burden review):
+    structural or CSS changes to this page require confirmation via a real
+    browser render -- a CDP screenshot at realistic (1x DPI, ~1280px) scale,
+    not just this suite passing. This page has produced three real
+    regressions invisible to static/string inspection alone: a CLI
+    `--screenshot` false negative from async-timing (looked broken, wasn't),
+    an orphaned `width: 100%` rule that made a lone button render oversized
+    after its sibling was removed, and a real gap in this file's own coverage:
+    document-order string checks (`a_index < b_index`) can't tell "appears
+    later in the file" apart from "is actually nested inside" -- a one-line
+    slip that put Capture after, rather than inside, Today's card boundary
+    would have passed every prior assertion here. Closed with a small
+    `html.parser`-based ancestry check
+    (`test_capture_is_nested_inside_todays_card_boundary_not_a_second_card`),
+    confirmed to fail against a simulated version of exactly that slip before
+    being trusted. See docs/product-notes/today-capture-first-restore-2026-08-07.md.
+    """
+
     # ── Core/Today Consolidation v1: routing and single-component structure ──
 
     def test_workflows_html_is_retired(self):
@@ -89,9 +154,212 @@ class TodayStaticContractTests(unittest.TestCase):
         capture_index = html.index('id="workflows-app"')
         self.assertLess(today_index, capture_index, "Today section must precede the Capture section in document order")
 
-        # The Capture section must be visually demoted, not a co-equal panel --
-        # this is the class the section-break CSS hooks into.
-        self.assertIn('id="workflows-app" class="workflows-shell workflows-section-secondary"', html)
+    def test_capture_is_nested_inside_todays_card_boundary_not_a_second_card(self):
+        # Capture Restore (2026-08-07): the old separately-bordered "section
+        # break" is gone -- Capture now shares Today's one card boundary.
+        # "Clearly secondary, not co-equal weight" (spec §5) is carried by
+        # internal hierarchy instead; see
+        # test_record_control_is_the_dominant_element_in_the_merged_card and
+        # docs/product-notes/today-capture-first-restore-2026-08-07.md.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("workflows-section-secondary", html)
+
+        parser = _AncestryHTMLParser()
+        parser.feed(_strip_script_and_style(html))
+
+        self.assertIn("workflows-app", parser.ancestors_by_id, "id=\"workflows-app\" not found")
+        self.assertTrue(
+            any(cls.split() and "dashboard-capture-card" in cls.split() for _, cls in parser.ancestors_by_id["workflows-app"]),
+            "Capture (#workflows-app) must be a DOM descendant of .dashboard-capture-card, not a sibling section after it",
+        )
+
+    def test_record_control_is_the_dominant_element_in_the_merged_card(self):
+        # One shared card boundary is only safe if it doesn't flatten internal
+        # hierarchy into five equal-weight peers (header, intro, continuity,
+        # brief, capture). The record control's own card treatment must stay
+        # intact; everything else added around it must read as visibly
+        # quieter -- not just be asserted quieter in prose.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        workflows_css = Path("public/workflows.css").read_text(encoding="utf-8")
+
+        def rule_body(source, selector):
+            start = source.index(selector + " {")
+            end = source.index("}", start)
+            return source[start:end]
+
+        # The record button's own card -- untouched, still the visually
+        # heaviest element (bordered, backgrounded, shadowed).
+        record_card = rule_body(workflows_css, ".workflows-card")
+        for expected in ("border:", "background:", "box-shadow:"):
+            self.assertIn(expected, record_card)
+
+        # Simplified landing layout (2026-08-08): the merged-in "Capture"
+        # heading/subhead were retired outright rather than kept as a demoted
+        # kicker -- Today is the page's one heading now. Nothing to check
+        # here anymore; superseded by test_capture_heading_and_subhead_are_retired.
+
+        # The Daily Brief row must NOT be boxed -- no pill background/border
+        # competing visually with the record card. (Continuity line itself
+        # was retired in the same pass -- see test_continuity_line_is_retired.)
+        daily_brief_body = rule_body(html, ".daily-brief-line")
+        self.assertNotIn("background:", daily_brief_body, ".daily-brief-line must not be pill-boxed")
+        self.assertNotIn("border-radius: 999px", daily_brief_body, ".daily-brief-line must not be pill-boxed")
+
+        # The redundant inner memnon logo lockup (page nav already has one)
+        # must not reappear mid-card once Capture is merged in.
+        self.assertEqual(html.count('class="memnon-lockup'), 1)
+
+    # ── Daily Brief / continuity relocation into Capture (2026-08-07) ──
+    # Both were derived output from captures -- the same category as saved
+    # results and history, which already belonged to Capture, not Today's
+    # orientation role. A prior full run of this suite stayed green through
+    # that exact move without a single failure, which proved nothing: no
+    # existing test checked *where* these elements lived, only that they
+    # existed and were unboxed.
+
+    def test_today_intro_no_longer_claims_brief_and_continuity_live_there(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("Daily Brief and continuity from recent captures live here", html)
+
+    # ── Simplified landing layout (2026-08-08) ──
+    # Same lesson as above, one round later: round five's relocation tests
+    # (test_daily_brief_and_continuity_live_inside_capture_not_today,
+    # test_capture_subhead_is_a_single_merged_line_not_two_tiers,
+    # test_continuity_line_is_a_single_line_with_topic_and_continue_action)
+    # asserted a layout this round deliberately superseded -- replaced below,
+    # not left passing against copy/placement that no longer exists.
+
+    def test_capture_heading_and_subhead_are_retired(self):
+        # Today is the page's one heading now; Capture's own "Capture"
+        # h1/subhead are gone, not demoted -- the record control is the
+        # first thing a user sees after the Today heading and intro line.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        self.assertNotIn(">Capture<", html)
+        self.assertNotIn("Capture a thought", html)
+        self.assertNotIn("Turn it into something useful.", html)
+        self.assertNotIn("workflows-subhead-secondary", html)
+        # <main> keeps an accessible name even without a visible heading.
+        self.assertIn('id="workflows-app" class="workflows-shell" aria-label="Capture"', html)
+
+    def test_continuity_line_is_retired(self):
+        # Removed from the page entirely (not relocated) -- confirmed by the
+        # user rather than assumed, since two other readings were plausible
+        # (keep it off-sketch, or move it behind a link). Thread detection
+        # still runs at save time, so this doesn't lose safety; it loses a
+        # standing reminder that safety never depended on.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        js = Path("public/workflows.js").read_text(encoding="utf-8")
+        for needle in (
+            "reflection-continuation", "continuity-topic", "reflection-continue-btn",
+            "continuity-line", "renderReflectionContinuation", "continueReflectionThread",
+        ):
+            self.assertNotIn(needle, html, f"{needle} should be fully retired, not just hidden")
+        # Its only reason to exist was this feature -- retired alongside it,
+        # not left as an unreachable export.
+        self.assertNotIn("focusCaptureComponent", js)
+        self.assertNotIn("memnonFocusCapture", js)
+
+    def test_daily_brief_and_latest_result_moved_to_page_footer(self):
+        # Unlike continuity, these two were kept -- just relocated again, out
+        # of Capture's own landmark into the shared page footer below the
+        # divider, alongside saved-results/settings links.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        parser = _AncestryHTMLParser()
+        parser.feed(_strip_script_and_style(html))
+
+        for element_id in ("daily-brief-card",):
+            ancestors = parser.ancestors_by_id.get(element_id)
+            self.assertIsNotNone(ancestors, f'id="{element_id}" not found')
+            ancestor_classes = [cls for _, cls in ancestors]
+            self.assertTrue(
+                any("capture-quiet-rows" in cls.split() for cls in ancestor_classes),
+                f"#{element_id} must live in the page footer (.capture-quiet-rows)",
+            )
+            self.assertFalse(
+                any("workflows-shell" in cls.split() for cls in ancestor_classes),
+                f"#{element_id} must no longer be inside Capture's own landmark",
+            )
+
+        # Wireframe order: saved results, settings, latest result, brief.
+        saved_index = html.index('id="workflows-saved-link-row"')
+        settings_index = html.index('id="today-context-settings"')
+        latest_result_index = html.index('class="latest-result-details"')
+        daily_brief_index = html.index('id="daily-brief-card"')
+        self.assertLess(saved_index, settings_index)
+        self.assertLess(settings_index, latest_result_index)
+        self.assertLess(latest_result_index, daily_brief_index)
+
+    # ── Capture-First Hierarchy Restore (2026-08-07) ──
+    # Targeted regressions for the four asked-for changes, added because a
+    # broad suite staying green after this pass didn't prove any of these
+    # specific behaviors -- only that nothing it was already checking broke.
+    # See docs/product-notes/today-capture-first-restore-2026-08-07.md.
+
+    def test_capture_no_longer_sits_below_todays_own_secondary_content(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        capture_index = html.index('id="workflows-app"')
+        tasks_index = html.index('id="tasks-card"')
+        recent_notes_index = html.index('id="recent-notes-card"')
+
+        self.assertLess(
+            capture_index, tasks_index,
+            "Capture must precede Current Tasks -- it was previously the last element on the page",
+        )
+        self.assertLess(
+            capture_index, recent_notes_index,
+            "Capture must precede Recent Notes -- it was previously the last element on the page",
+        )
+
+    def test_latest_result_and_daily_brief_detail_default_collapsed(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        # A bare `<details ...>` tag with no `open` attribute renders collapsed
+        # by default -- this is what makes the one-line-by-default behavior
+        # real rather than asserted only in prose.
+        self.assertIn('<details class="latest-result-details">', html)
+        self.assertIn('<details class="daily-brief-disclosure">', html)
+        self.assertNotIn('<details class="latest-result-details" open', html)
+        self.assertNotIn('<details class="daily-brief-disclosure" open', html)
+
+    def test_daily_brief_mechanics_are_nested_inside_the_disclosure(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        disclosure_start = html.index('<details class="daily-brief-disclosure">')
+        disclosure_end = html.index("</details>", disclosure_start)
+        disclosure_body = html[disclosure_start:disclosure_end]
+
+        # The feed URL, Overcast/Share actions, and Apple Podcasts steps are
+        # the "mechanics" the ask wanted off the page by default -- they must
+        # live inside the disclosure, not exposed at the top level next to it.
+        for element_id in ("daily-brief-url-wrap", "daily-brief-overcast-btn", "daily-brief-apple-note"):
+            self.assertIn(f'id="{element_id}"', disclosure_body, f"{element_id} must be nested inside the How-to-listen disclosure")
+
+        # The always-visible one-liner (icon, state headline, primary action)
+        # must stay outside the disclosure, not require a click to see at all.
+        pre_disclosure = html[:disclosure_start]
+        daily_brief_line_start = pre_disclosure.rindex('<div class="daily-brief-line"')
+        always_visible = html[daily_brief_line_start:disclosure_start]
+        self.assertIn('id="daily-brief-title"', always_visible)
+        self.assertIn('id="daily-brief-enable"', always_visible)
+
+    def test_recent_notes_do_not_render_a_reflection_style_category_tag(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        load_notes_start = html.index("async function loadRecentNotes(uid)")
+        load_notes_end = html.index("\n    function formatTaskDueDate", load_notes_start)
+        load_notes_body = html[load_notes_start:load_notes_end]
+
+        # The per-note reflection-style pill ("Complete reflection" /
+        # "Practical guidance" / "Grounded reflection") predates the Latest
+        # Reflection Naming Cleanup and was never a genuine category the note
+        # content needed -- retired outright, not just hidden.
+        self.assertNotIn("styleLabel", load_notes_body)
+        self.assertNotIn("REFLECTION_STYLE_LABELS", load_notes_body)
+        self.assertNotIn("n.reflection_style", load_notes_body)
+
+        # The date pill is not a category tag and must survive.
+        self.assertIn('<span class="note-pill">${formatNoteDate(n.date)}</span>', load_notes_body)
 
     def test_capture_section_uses_the_same_literal_component_not_a_rebuild(self):
         html = TODAY_PATH.read_text(encoding="utf-8")
@@ -131,18 +399,23 @@ class TodayStaticContractTests(unittest.TestCase):
         self.assertIn('type="module" src="/workflows.js"', html)
         self.assertIn('href="/workflows.css"', html)
 
-    def test_today_open_capture_button_opens_in_place_not_a_page_navigation(self):
+    def test_open_capture_jump_link_is_removed_as_a_hollow_cta(self):
         html = TODAY_PATH.read_text(encoding="utf-8")
         js = Path("public/workflows.js").read_text(encoding="utf-8")
 
-        # The single record button lives with Today, immediately -- and activating
-        # it must not navigate to a different page (spec §5).
-        self.assertIn('id="today-open-capture"', html)
-        self.assertNotIn('id="today-open-capture" class="btn btn-primary capture-mode-btn" href="/workflows"', html)
-        self.assertIn('href="#workflows-app"', html)
-        self.assertIn("today-open-capture", js)
-        self.assertIn("focusCaptureComponent", js)
-        self.assertIn("event.preventDefault()", js)
+        # Capture Restore (2026-08-07): once Capture moved to sit immediately
+        # under Today's header, "Open capture" only ever scrolled a few pixels
+        # to a section already in view -- a second, hollow CTA stacked on the
+        # real one. Removed outright (UX Burden review) rather than kept
+        # because a test happened to require it; see
+        # docs/product-notes/today-capture-first-restore-2026-08-07.md.
+        self.assertNotIn('id="today-open-capture"', html)
+        self.assertNotIn("today-open-capture", js)
+
+        # focusCaptureComponent's last caller ("continue the thread") was
+        # itself retired in the simplified-landing pass (2026-08-08) -- see
+        # test_continuity_line_is_retired. It's gone too now, not kept
+        # unreachable on the theory a future caller might show up.
 
     def test_deep_link_routes_scroll_to_capture_section_not_today_top(self):
         js = Path("public/workflows.js").read_text(encoding="utf-8")
@@ -293,12 +566,11 @@ vm.runInContext({snippet!r}, context);
     # ── Capture surface copy and mount points (carried over from workflows contract) ──
 
     def test_workflows_shell_has_required_copy_and_mount_points(self):
+        # "Capture a thought..." copy was retired in the simplified-landing
+        # pass (2026-08-08), see test_capture_heading_and_subhead_are_retired
+        # -- this test now only covers the mount points, which are unchanged.
         html = TODAY_PATH.read_text(encoding="utf-8")
 
-        self.assertIn(">Capture<", html)
-        self.assertIn("Capture a thought", html)
-        self.assertIn("Speak, drop a file, or paste something messy.", html)
-        self.assertIn("Turn it into something useful.", html)
         self.assertIn('id="workflows-app"', html)
         self.assertIn('id="capture-form"', html)
         self.assertIn('id="capture-surface"', html)

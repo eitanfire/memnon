@@ -2143,19 +2143,6 @@ async function handleCurrentRoute() {
   syncSubmitState();
 }
 
-function focusCaptureComponent() {
-  const captureApp = document.getElementById("workflows-app");
-  captureApp?.scrollIntoView({ behavior: "smooth", block: "start" });
-  restorePendingCaptureToForm();
-  const recordTrigger = document.getElementById("record-trigger");
-  recordTrigger?.focus({ preventScroll: true });
-}
-
-// Exposed so a same-page entry point outside this module (the Today section's
-// "Open capture" button and "continue the thread" action) can open/focus the
-// one existing capture component in place, instead of navigating to it.
-window.memnonFocusCapture = focusCaptureComponent;
-
 export function mountWorkflowsApp() {
   const input = document.getElementById("capture-text");
   const context = document.getElementById("capture-context");
@@ -2166,12 +2153,6 @@ export function mountWorkflowsApp() {
   const clearUpload = document.getElementById("clear-upload");
   const form = document.getElementById("capture-form");
   const signInLink = document.getElementById("workflows-signin");
-  const openCaptureLink = document.getElementById("today-open-capture");
-
-  openCaptureLink?.addEventListener("click", (event) => {
-    event.preventDefault();
-    focusCaptureComponent();
-  });
 
   input?.addEventListener("input", syncSubmitState);
   context?.addEventListener("input", syncSubmitState);

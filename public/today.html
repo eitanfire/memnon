@@ -111,9 +111,8 @@
         0 18px 32px rgba(15, 23, 42, 0.08);
     }
     .capture-prompt-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      display: flex;
+      justify-content: center;
     }
     .capture-prompt-actions .capture-mode-btn {
       min-height: 52px;
@@ -183,6 +182,126 @@
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.74),
         0 14px 28px rgba(90, 68, 36, 0.08);
+    }
+    /* Capture Restore (2026-08-07) / Simplified landing (2026-08-08): Capture
+       is merged into Today's own card boundary -- one container, not a
+       second bordered box underneath. That only works if the container
+       doesn't flatten internal hierarchy: the record control stays the
+       single largest, most dominant element on the page.
+       See docs/product-notes/today-capture-first-restore-2026-08-07.md. */
+    .dashboard-capture-card .workflows-shell {
+      padding: 0;
+    }
+
+    .capture-quiet-rows {
+      display: grid;
+      gap: 10px;
+      max-width: 620px;
+      margin: 22px auto 0;
+      padding-top: 18px;
+      border-top: 1px solid #efe9de;
+    }
+    .capture-quiet-row {
+      margin: 0;
+    }
+    .latest-result-details {
+      margin: 0;
+    }
+    .latest-result-details > summary {
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #7b6546;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    /* The native marker was suppressed with nothing replacing it -- on touch
+       devices (no hover) there was zero visual signal these were tappable at
+       all. Rotating chevron gives an explicit affordance in both states. */
+    .latest-result-details > summary::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .latest-result-details[open] > summary::before {
+      transform: rotate(45deg);
+    }
+    .latest-result-details > summary::-webkit-details-marker {
+      display: none;
+    }
+    .latest-result-details[open] > summary {
+      margin-bottom: 10px;
+    }
+    .latest-result-details .recording-player-wrap {
+      padding-top: 4px;
+    }
+    .daily-brief-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.86rem;
+    }
+    .daily-brief-icon {
+      font-size: 1rem;
+    }
+    .daily-brief-title-inline {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #3f2f20;
+    }
+    .daily-brief-disclosure {
+      flex-basis: 100%;
+      margin-top: 8px;
+    }
+    .daily-brief-disclosure > summary {
+      cursor: pointer;
+      font-size: 0.76rem;
+      color: #7b6546;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+    }
+    .daily-brief-disclosure > summary::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .daily-brief-disclosure[open] > summary::before {
+      transform: rotate(45deg);
+    }
+    .daily-brief-disclosure > summary::-webkit-details-marker {
+      display: none;
+    }
+    .daily-brief-disclosure[open] > summary {
+      margin-bottom: 8px;
+    }
+    .archive-quiet-link {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #7b6546;
+      text-decoration: underline;
+      white-space: nowrap;
+    }
+    .archive-quiet-copy {
+      font-size: 0.76rem;
+      color: #8a8071;
     }
     .daily-brief-layout {
       display: grid;
@@ -547,27 +666,6 @@
       font-size: 0.78rem;
       color: #8a857d;
       line-height: 1.5;
-    }
-    .reflection-continuation {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid #ece5d9;
-    }
-    .reflection-continuation[hidden] {
-      display: none !important;
-    }
-    .reflection-continuation-prompt {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #473626;
-      line-height: 1.45;
-      margin-bottom: 6px;
-    }
-    .reflection-continuation-copy {
-      font-size: 0.79rem;
-      color: #746a5f;
-      line-height: 1.5;
-      margin-bottom: 10px;
     }
     .record-mark {
       font-size: 1.2rem;
@@ -940,118 +1038,187 @@
     <div class="card dashboard-primary-card dashboard-capture-card">
       <div class="dashboard-capture-intro">
         <h1 class="dashboard-capture-title">Today</h1>
-        <p class="dashboard-capture-description">
-          Daily Brief and continuity from recent captures live here. When you need something new, open Capture.
-        </p>
       </div>
-      <div class="capture-prompt-shell">
-        <div class="capture-prompt-actions">
-          <a id="today-open-capture" class="btn btn-primary capture-mode-btn" href="#workflows-app">
-            Open capture
+
+      <!-- Capture Restore (2026-08-07): merged into Today's own card boundary
+           rather than a separately-bordered section -- the spec's "clearly
+           secondary, not co-equal weight" requirement is now carried by
+           internal hierarchy (record control dominant, everything else below
+           reads as quiet supporting text), not by a hard visual break. See
+           docs/product-notes/today-capture-first-restore-2026-08-07.md. -->
+      <!-- Simplified landing layout (2026-08-08): Capture's own heading/subhead
+           and the continuity nudge are retired -- Today is the page's one
+           heading, the record control is the first thing after it. Latest
+           result and Daily Brief still exist, relocated to the footer below
+           the divider along with View saved results / Context settings. See
+           docs/product-notes/today-capture-first-restore-2026-08-07.md. -->
+      <main id="workflows-app" class="workflows-shell" aria-label="Capture">
+        <header class="workflows-header">
+          <div id="workflows-build-marker" class="workflows-debug-marker" hidden></div>
+          <pre id="workflows-debug-state" class="workflows-debug-state" hidden></pre>
+        </header>
+
+        <form id="capture-form" class="workflows-card">
+        <section id="capture-surface" class="workflows-capture-surface">
+          <button id="record-trigger" type="button" class="workflows-record-trigger">
+            <span class="workflows-record-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="4" width="6" height="11" rx="3"></rect>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
+                <path d="M12 17v3"></path>
+                <path d="M9 20h6"></path>
+              </svg>
+            </span>
+            <span class="workflows-record-label">Record now</span>
+          </button>
+
+          <div class="workflows-mode-row" aria-label="Other capture options">
+            <button type="button" id="upload-trigger" class="workflows-mode-link">Upload a file</button>
+            <span class="workflows-mode-divider" aria-hidden="true">·</span>
+            <button type="button" id="show-paste" class="workflows-mode-link">Paste text</button>
+          </div>
+
+          <input
+            id="capture-file"
+            name="capture-file"
+            type="file"
+            accept=".txt,.md,text/plain,text/markdown"
+            class="workflows-visually-hidden"
+          />
+
+          <div id="file-selection-state" class="workflows-file-selection" hidden>
+            <div class="workflows-file-selection-row">
+              <p id="file-selection-name" class="workflows-file-selection-name"></p>
+              <button type="button" id="clear-upload" class="btn btn-quiet">Clear</button>
+            </div>
+            <p id="file-selection-copy" class="workflows-file-selection-copy"></p>
+          </div>
+
+          <div id="paste-panel" class="workflows-paste-panel" hidden>
+            <label class="workflows-visually-hidden" for="capture-text">Paste text</label>
+            <textarea
+              id="capture-text"
+              name="capture-text"
+              rows="5"
+              placeholder="Paste a product thought, professional reflection, or note you want to shape."
+            ></textarea>
+          </div>
+        </section>
+
+        <div class="workflows-footer-row">
+          <label class="workflows-visually-hidden" for="capture-context">Anything this should keep in mind?</label>
+          <input
+            id="capture-context"
+            name="capture-context"
+            type="text"
+            placeholder="Anything this should keep in mind? (optional)"
+          />
+          <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
+        </div>
+
+        <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
+
+        <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
+          <p class="workflows-auth-copy">Draft now, sign in to save.</p>
+          <a
+            id="workflows-signin"
+            class="workflows-auth-link"
+            href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
+          >
+            Sign in with Google
           </a>
-          <a id="today-context-settings" class="btn btn-outline capture-mode-btn" href="/setup">
-            Context settings →
-          </a>
         </div>
-      </div>
-      <div class="dashboard-capture-secondary">
-        <div class="summary-tile summary-tile--latest">
-          <div>
-            <div class="summary-tile-kicker">Latest result</div>
-            <div class="summary-tile-title">Receive the latest return</div>
-            <div class="summary-tile-copy">Listen, read, and decide what thread to carry forward.</div>
-            <div class="recording-player-wrap">
-              <div class="recording-player-label" id="reflection-player-label">Latest complete result</div>
-              <div class="reflection-view-toggle" id="reflection-view-toggle">
-                <button id="reflection-view-listen" class="is-active" type="button">Listen</button>
-                <button id="reflection-view-read" type="button">Read</button>
-              </div>
-              <div id="reflection-audio-panel" class="reflection-panel">
-                <div id="reflection-player-container" class="recording-player">
-                  <div class="recording-player-empty">Loading your latest result…</div>
-                </div>
-              </div>
-              <div id="reflection-read-panel" class="reflection-panel reflection-read-panel" hidden>
-                <div id="reflection-read-content" class="recording-player-empty">Loading the latest result text…</div>
-              </div>
-              <div id="reflection-continuation" class="reflection-continuation" hidden>
-                <div class="reflection-continuation-prompt">Carry this forward in your next capture.</div>
-                <div class="reflection-continuation-copy">You can agree, push back, or continue the thread in your next voice note or written note.</div>
-                <button id="reflection-continue-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
-                  Continue the thread
-                </button>
-              </div>
+      </form>
+
+      <section id="result-view" class="workflows-result" hidden>
+        <article id="loading-card" class="card workflows-artifact-card workflows-loading-card" hidden></article>
+        <article id="primary-artifact-card" class="card workflows-artifact-card" hidden></article>
+        <article id="saved-note-card" class="card workflows-artifact-card" hidden></article>
+        <details id="source-text-panel" class="workflows-source-panel" hidden>
+          <summary>View source text</summary>
+          <pre id="source-text-content"></pre>
+        </details>
+      </section>
+    </main>
+
+    <!-- Simplified landing layout (2026-08-08): footer below the divider --
+         saved results / settings links, then Latest result and Daily Brief,
+         both unboxed and collapsed by default, same treatment as before. -->
+    <div class="capture-quiet-rows">
+      <p id="workflows-saved-link-row" class="capture-quiet-row" hidden>
+        <a id="workflows-saved-link" class="archive-quiet-link" href="/today/saved">View saved results</a>
+      </p>
+      <p class="capture-quiet-row">
+        <a id="today-context-settings" class="archive-quiet-link" href="/setup">Context settings →</a>
+      </p>
+
+      <details class="latest-result-details">
+        <summary>Latest result — listen or read</summary>
+        <div class="recording-player-wrap">
+          <div class="recording-player-label" id="reflection-player-label">Latest complete result</div>
+          <div class="reflection-view-toggle" id="reflection-view-toggle">
+            <button id="reflection-view-listen" class="is-active" type="button">Listen</button>
+            <button id="reflection-view-read" type="button">Read</button>
+          </div>
+          <div id="reflection-audio-panel" class="reflection-panel">
+            <div id="reflection-player-container" class="recording-player">
+              <div class="recording-player-empty">Loading your latest result…</div>
             </div>
           </div>
+          <div id="reflection-read-panel" class="reflection-panel reflection-read-panel" hidden>
+            <div id="reflection-read-content" class="recording-player-empty">Loading the latest result text…</div>
+          </div>
         </div>
-        <div class="summary-tile summary-tile--archive">
-          <div class="summary-tile-kicker">Archive</div>
-          <div class="archive-link-row">
-            <div>
-              <div class="summary-tile-title">Open the archive</div>
-              <div class="summary-tile-copy" style="margin-bottom:0;">Revisit saved reflections in Google Drive.</div>
+      </details>
+
+      <div class="daily-brief-line" id="daily-brief-card">
+        <span class="daily-brief-icon" aria-hidden="true">🎧</span>
+        <span class="daily-brief-title-inline" id="daily-brief-title">Turn on your private daily brief</span>
+        <button id="daily-brief-enable" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
+          Turn on daily brief
+        </button>
+        <details class="daily-brief-disclosure">
+          <summary>How to listen</summary>
+          <div class="daily-brief-copy" id="daily-brief-body-copy">
+            Memnon can send one spoken brief each morning to your private podcast feed.
+          </div>
+          <div class="daily-brief-meta" id="daily-brief-meta"></div>
+          <div id="daily-brief-url-wrap" class="daily-brief-url-wrap" hidden>
+            <label class="daily-brief-url-label" for="daily-brief-url">Private feed URL</label>
+            <div class="daily-brief-url-row">
+              <input id="daily-brief-url" type="text" readonly value="" />
+              <button id="daily-brief-copy-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Copy feed link
+              </button>
             </div>
-            <a id="notes-link" href="#" target="_blank"
-               class="btn btn-primary" style="padding:7px 12px; font-size:0.8rem;">
-              Open archive ↗
-            </a>
-          </div>
-          <div class="archive-inline-note">
-            <span id="archive-summary-copy">Each capture returns as a complete spoken reflection in your</span>
-            <strong>archive</strong>.
-          </div>
-        </div>
-      </div>
-      <div class="summary-tile summary-tile--daily-brief" id="daily-brief-card">
-        <div class="daily-brief-layout">
-          <div>
-            <div class="summary-tile-kicker">Today's brief</div>
-            <div class="daily-brief-title" id="daily-brief-title">Turn on your private daily brief</div>
-            <div class="daily-brief-copy" id="daily-brief-body-copy">
-              Memnon can send one spoken brief each morning to your private podcast feed.
+            <div class="daily-brief-action-row">
+              <button id="daily-brief-overcast-btn" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Subscribe in Overcast
+              </button>
+              <button id="daily-brief-share-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Share feed link
+              </button>
             </div>
-            <div class="daily-brief-meta" id="daily-brief-meta"></div>
+            <div class="daily-brief-help" id="daily-brief-help">
+              Use <strong>Subscribe in Overcast</strong> to add this feed to your podcasts. Use the feed link for Apple Podcasts or another app.
+            </div>
+            <div id="daily-brief-apple-note" class="daily-brief-apple-note">
+              <strong>Apple Podcasts:</strong> open <strong>Library</strong>, tap <strong>…</strong>, choose <strong>Add a Show by URL</strong>, then paste this private feed link.
+            </div>
           </div>
-          <div class="daily-brief-actions">
-            <button id="daily-brief-enable" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Turn on daily brief
-            </button>
+          <div id="daily-brief-status" class="capture-text-status daily-brief-status" aria-live="polite"></div>
+          <div id="daily-brief-admin-wrap" class="daily-brief-admin" hidden>
+            <span class="daily-brief-admin-label">Admin tools</span>
+            <div id="daily-brief-admin-copy" class="daily-brief-admin-copy"></div>
+            <div class="daily-brief-action-row">
+              <button id="daily-brief-regenerate-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Regenerate today's brief
+              </button>
+            </div>
           </div>
-        </div>
-        <div id="daily-brief-url-wrap" class="daily-brief-url-wrap" hidden>
-          <label class="daily-brief-url-label" for="daily-brief-url">Private feed URL</label>
-          <div class="daily-brief-url-row">
-            <input id="daily-brief-url" type="text" readonly value="" />
-            <button id="daily-brief-copy-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Copy feed link
-            </button>
-          </div>
-          <div class="daily-brief-action-row">
-            <button id="daily-brief-overcast-btn" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Subscribe in Overcast
-            </button>
-            <button id="daily-brief-share-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Share feed link
-            </button>
-          </div>
-          <div class="daily-brief-help" id="daily-brief-help">
-            Use <strong>Subscribe in Overcast</strong> to add this feed to your podcasts. Use the feed link for Apple Podcasts or another app.
-          </div>
-          <div id="daily-brief-apple-note" class="daily-brief-apple-note">
-            <strong>Apple Podcasts:</strong> open <strong>Library</strong>, tap <strong>…</strong>, choose <strong>Add a Show by URL</strong>, then paste this private feed link.
-          </div>
-        </div>
-        <div id="daily-brief-status" class="capture-text-status daily-brief-status" aria-live="polite"></div>
-        <div id="daily-brief-admin-wrap" class="daily-brief-admin" hidden>
-          <span class="daily-brief-admin-label">Admin tools</span>
-          <div id="daily-brief-admin-copy" class="daily-brief-admin-copy"></div>
-          <div class="daily-brief-action-row">
-            <button id="daily-brief-regenerate-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Regenerate today's brief
-            </button>
-          </div>
-        </div>
+        </details>
       </div>
+    </div>
     </div>
 
     <div class="card dashboard-secondary-card" id="tasks-card" style="display:none;">
@@ -1076,7 +1243,11 @@
           <h2 style="margin-bottom:6px;">Recent notes</h2>
           <p class="muted" style="margin:0;">A short record of recent returns and the voices in conversation.</p>
         </div>
+        <a id="notes-link" href="#" target="_blank" class="archive-quiet-link">Open archive ↗</a>
       </div>
+      <p class="archive-quiet-copy" style="margin:-6px 0 10px;">
+        <span id="archive-summary-copy">Each capture returns as a complete spoken reflection in your</span> <strong>archive</strong>.
+      </p>
       <div id="recent-notes-list" style="margin-top:14px;"></div>
     </div>
 
@@ -1114,105 +1285,6 @@
     -->
 
   </div>
-
-  <main id="workflows-app" class="workflows-shell workflows-section-secondary">
-    <header class="workflows-header">
-      <div class="memnon-lockup">
-        <img src="/brand/memnon-icon.svg" alt="">
-        <span class="memnon-wordmark">memnon</span>
-      </div>
-      <h1>Capture</h1>
-      <p class="workflows-subhead">Capture a thought. Speak, drop a file, or paste something messy.</p>
-      <p class="workflows-subhead-secondary">Turn it into something useful.</p>
-      <p id="workflows-saved-link-row" class="workflows-subhead-tertiary" hidden>
-        <a id="workflows-saved-link" class="workflows-saved-link" href="/today/saved">View saved results</a>
-      </p>
-      <div id="workflows-build-marker" class="workflows-debug-marker" hidden></div>
-      <pre id="workflows-debug-state" class="workflows-debug-state" hidden></pre>
-    </header>
-
-    <form id="capture-form" class="workflows-card">
-      <section id="capture-surface" class="workflows-capture-surface">
-        <button id="record-trigger" type="button" class="workflows-record-trigger">
-          <span class="workflows-record-badge" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="4" width="6" height="11" rx="3"></rect>
-              <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
-              <path d="M12 17v3"></path>
-              <path d="M9 20h6"></path>
-            </svg>
-          </span>
-          <span class="workflows-record-label">Record now</span>
-        </button>
-
-        <div class="workflows-mode-row" aria-label="Other capture options">
-          <button type="button" id="upload-trigger" class="workflows-mode-link">Upload a file</button>
-          <span class="workflows-mode-divider" aria-hidden="true">·</span>
-          <button type="button" id="show-paste" class="workflows-mode-link">Paste text</button>
-        </div>
-
-        <input
-          id="capture-file"
-          name="capture-file"
-          type="file"
-          accept=".txt,.md,text/plain,text/markdown"
-          class="workflows-visually-hidden"
-        />
-
-        <div id="file-selection-state" class="workflows-file-selection" hidden>
-          <div class="workflows-file-selection-row">
-            <p id="file-selection-name" class="workflows-file-selection-name"></p>
-            <button type="button" id="clear-upload" class="btn btn-quiet">Clear</button>
-          </div>
-          <p id="file-selection-copy" class="workflows-file-selection-copy"></p>
-        </div>
-
-        <div id="paste-panel" class="workflows-paste-panel" hidden>
-          <label class="workflows-visually-hidden" for="capture-text">Paste text</label>
-          <textarea
-            id="capture-text"
-            name="capture-text"
-            rows="5"
-            placeholder="Paste a product thought, professional reflection, or note you want to shape."
-          ></textarea>
-        </div>
-      </section>
-
-      <div class="workflows-footer-row">
-        <label class="workflows-visually-hidden" for="capture-context">Anything this should keep in mind?</label>
-        <input
-          id="capture-context"
-          name="capture-context"
-          type="text"
-          placeholder="Anything this should keep in mind? (optional)"
-        />
-        <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
-      </div>
-
-      <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
-
-      <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
-        <p class="workflows-auth-copy">Draft now, sign in to save.</p>
-        <a
-          id="workflows-signin"
-          class="workflows-auth-link"
-          href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
-        >
-          Sign in with Google
-        </a>
-      </div>
-    </form>
-
-    <section id="result-view" class="workflows-result" hidden>
-      <article id="loading-card" class="card workflows-artifact-card workflows-loading-card" hidden></article>
-      <article id="primary-artifact-card" class="card workflows-artifact-card" hidden></article>
-      <article id="saved-note-card" class="card workflows-artifact-card" hidden></article>
-      <details id="source-text-panel" class="workflows-source-panel" hidden>
-        <summary>View source text</summary>
-        <pre id="source-text-content"></pre>
-      </details>
-    </section>
-  </main>
 
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -1398,7 +1470,6 @@
         action_items: ["Name the expectation earlier", "Keep your tone calm and direct"],
       });
       setReflectionView("listen");
-      renderReflectionContinuation(hasMockReflection ? { id: "preview-note" } : null);
     }
 
     const setupLinks = document.querySelectorAll('a[href="/setup"]');
@@ -1947,19 +2018,6 @@
       `;
     }
 
-    function renderReflectionContinuation(note) {
-      latestReflectionNote = note || null;
-      const panel = document.getElementById("reflection-continuation");
-      if (!panel) return;
-
-      if (!note) {
-        panel.hidden = true;
-        return;
-      }
-
-      panel.hidden = false;
-    }
-
     function renderCaptureTextPanel(isOpen, options = {}) {
       const panel = document.getElementById("capture-text-panel");
       const input = document.getElementById("capture-text-input");
@@ -2041,29 +2099,6 @@
           saveBtn.disabled = false;
           saveBtn.setAttribute("aria-disabled", "false");
         }
-      }
-    }
-
-    function continueReflectionThread() {
-      const prefill = latestReflectionNote?.title
-        ? `In response to "${latestReflectionNote.title}"...`
-        : "In response to my last reflection...";
-      try {
-        sessionStorage.setItem(
-          "memnon_workflows_pending_capture_v1",
-          JSON.stringify({
-            text: prefill,
-            contextHint: "",
-            shouldResume: false,
-          })
-        );
-      } catch (error) {
-        console.error("Could not store pending capture:", error);
-      }
-      if (typeof window.memnonFocusCapture === "function") {
-        window.memnonFocusCapture();
-      } else {
-        document.getElementById("workflows-app")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     }
 
@@ -2219,7 +2254,6 @@
         }
         if (snap.empty) {
           renderLatestReflectionText(null);
-          renderReflectionContinuation(null);
           return;
         }
 
@@ -2236,8 +2270,6 @@
           }
           const div = document.createElement("div");
           div.className = "note-item";
-          const styleKey = n.reflection_style in REFLECTION_STYLE_LABELS ? n.reflection_style : null;
-          const styleLabel = styleKey ? REFLECTION_STYLE_LABELS[styleKey] : "";
           const voices = (n.influenced_by || [])
             .map((s) => s.author)
             .filter(Boolean);
@@ -2260,7 +2292,6 @@
             </div>
             <div class="note-meta">
               ${n.date ? `<span class="note-pill">${formatNoteDate(n.date)}</span>` : ""}
-              ${styleLabel ? `<span class="note-pill">${styleLabel}</span>` : ""}
             </div>
             <div class="note-summary">${n.summary || ""}</div>
             ${voiceLine ? `<div class="influenced-line"><strong>In conversation with</strong> ${uniqueVoices.slice(0, 3).join(", ")}</div>` : ""}
@@ -2274,7 +2305,6 @@
           list.appendChild(div);
         });
         renderLatestReflectionText(latestReflectionNote);
-        renderReflectionContinuation(latestReflectionNote);
       } catch(e) {
         console.error("Could not load recent notes:", e);
       }
@@ -2505,12 +2535,6 @@
     }
 
     document.getElementById("capture-text-save")?.addEventListener("click", saveWrittenReflection);
-    document.getElementById("reflection-continue-btn")?.addEventListener("click", async () => {
-      continueReflectionThread();
-      await logUsageEvent("continued_reflection_thread", {
-        note_id: latestReflectionNote?.id || "",
-      });
-    });
     document.getElementById("write-btn")?.addEventListener("click", async () => {
       const panel = document.getElementById("capture-text-panel");
       renderCaptureTextPanel(!!panel?.hidden);
