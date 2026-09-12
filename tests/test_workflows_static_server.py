@@ -52,22 +52,22 @@ class WorkflowsStaticServerTests(unittest.TestCase):
     def test_today_html_returns_ok(self):
         status, body = self.request("/today.html")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_today_route_rewrites_to_today_html(self):
         status, body = self.request("/today")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_today_result_route_rewrites_to_today_html(self):
         status, body = self.request("/today/result/example")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_today_saved_route_rewrites_to_today_html(self):
         status, body = self.request("/today/saved")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_retired_workflows_route_does_not_rewrite(self):
         status, _body = self.request("/workflows")
@@ -78,7 +78,13 @@ class WorkflowsStaticServerTests(unittest.TestCase):
         self.assertEqual(status, 404)
 
     def test_runner_script_serves_today_route(self):
-        port = self.port + 1000
+        # Ask the OS for a free port rather than self.port + 1000, which
+        # overflows whenever setUp happens to draw an ephemeral port above
+        # 64535 -- a flake that only shows up on some runs.
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -103,7 +109,7 @@ class WorkflowsStaticServerTests(unittest.TestCase):
                     body = response.read()
                     connection.close()
                     self.assertEqual(response.status, 200)
-                    self.assertIn(b"Capture a thought", body)
+                    self.assertIn(b'id="workflows-app"', body)
                     return
                 except OSError:
                     time.sleep(0.1)

@@ -172,6 +172,20 @@ def create_local_app(storage_path: str | None = None, transcribe_audio=None):
     effective_storage_path = storage_path or os.environ.get("WORKFLOWS_LOCAL_STORAGE_PATH") or str(DEFAULT_STORAGE_PATH)
     repository = FileBackedWorkflowRepository(effective_storage_path)
 
+    # Semantic thread matching is off locally unless a real key is present, so
+    # ordinary local dev stays offline and free. Export HUGGING_FACE_API_KEY to
+    # exercise the same path production uses -- the fastest way to confirm the
+    # model still answers before deploying.
+    hugging_face_api_key = os.environ.get("HUGGING_FACE_API_KEY", "").strip()
+    if hugging_face_api_key:
+        from hf_inference import embed_text
+
+        embedding_provider = lambda text: embed_text(text, hugging_face_api_key)
+        embedding_label = "hugging-face"
+    else:
+        embedding_provider = None
+        embedding_label = "disabled"
+
     use_real_llm = os.environ.get("WORKFLOWS_LOCAL_USE_REAL_LLM", "").strip().lower() in ("1", "true", "yes")
     if use_real_llm:
         note_generator = generate_professional_note
@@ -189,6 +203,7 @@ def create_local_app(storage_path: str | None = None, transcribe_audio=None):
         api_key_provider=api_key_provider,
         social_post_generator=_local_social_post_generator,
         professional_analysis_generator=_local_professional_analysis_generator,
+        embedding_provider=embedding_provider,
         generator_label=generator_label,
     )
     app.register_blueprint(
@@ -203,7 +218,11 @@ def create_local_app(storage_path: str | None = None, transcribe_audio=None):
 
     @app.get("/health")
     def health():
-        return jsonify({"ok": True})
+        return jsonify({
+            "ok": True,
+            "generator": generator_label,
+            "embeddings": embedding_label,
+        })
 
     return app
 

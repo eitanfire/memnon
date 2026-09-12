@@ -111,9 +111,8 @@
         0 18px 32px rgba(15, 23, 42, 0.08);
     }
     .capture-prompt-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      display: flex;
+      justify-content: center;
     }
     .capture-prompt-actions .capture-mode-btn {
       min-height: 52px;
@@ -183,6 +182,146 @@
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.74),
         0 14px 28px rgba(90, 68, 36, 0.08);
+    }
+    /* Capture Restore (2026-08-07) / Simplified landing (2026-08-08): Capture
+       is merged into Today's own card boundary -- one container, not a
+       second bordered box underneath. That only works if the container
+       doesn't flatten internal hierarchy: the record control stays the
+       single largest, most dominant element on the page.
+       See docs/product-notes/today-capture-first-restore-2026-08-07.md. */
+    .dashboard-capture-card .workflows-shell {
+      padding: 0;
+    }
+
+    .capture-quiet-rows {
+      display: grid;
+      gap: 10px;
+      max-width: 620px;
+      margin: 22px auto 0;
+      padding-top: 18px;
+      border-top: 1px solid #efe9de;
+    }
+    .capture-quiet-row {
+      margin: 0;
+    }
+    .standing-context {
+      display: grid;
+      gap: 3px;
+    }
+    .standing-context-line {
+      margin: 0;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: #6b5940;
+    }
+    .standing-context-muted {
+      color: #97846a;
+    }
+    .latest-result-details {
+      margin: 0;
+    }
+    .latest-result-details > summary {
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #7b6546;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    /* The native marker was suppressed with nothing replacing it -- on touch
+       devices (no hover) there was zero visual signal these were tappable at
+       all. Rotating chevron gives an explicit affordance in both states. */
+    .latest-result-details > summary::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .latest-result-details[open] > summary::before {
+      transform: rotate(45deg);
+    }
+    .latest-result-details > summary::-webkit-details-marker {
+      display: none;
+    }
+    .latest-result-details[open] > summary {
+      margin-bottom: 10px;
+    }
+    .latest-result-details .recording-player-wrap {
+      padding-top: 4px;
+    }
+    .daily-brief-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.86rem;
+    }
+    .daily-brief-icon {
+      font-size: 1rem;
+    }
+    .daily-brief-title-inline {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #3f2f20;
+    }
+    /* Resets #daily-brief-enable to plain link styling for the "off, has
+       material" state -- paired with .archive-quiet-link for the actual
+       color/underline. Only a .btn in the "ready to hear" state should read
+       as a loud control; every other state is quiet or absent. */
+    .daily-brief-link-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      cursor: pointer;
+    }
+    .daily-brief-disclosure {
+      flex-basis: 100%;
+      margin-top: 8px;
+    }
+    .daily-brief-disclosure > summary {
+      cursor: pointer;
+      font-size: 0.76rem;
+      color: #7b6546;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+    }
+    .daily-brief-disclosure > summary::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .daily-brief-disclosure[open] > summary::before {
+      transform: rotate(45deg);
+    }
+    .daily-brief-disclosure > summary::-webkit-details-marker {
+      display: none;
+    }
+    .daily-brief-disclosure[open] > summary {
+      margin-bottom: 8px;
+    }
+    .archive-quiet-link {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #7b6546;
+      text-decoration: underline;
+      white-space: nowrap;
     }
     .daily-brief-layout {
       display: grid;
@@ -449,40 +588,6 @@
     .recording-player-wrap:first-of-type {
       margin-top: 0;
     }
-    .reflection-view-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px;
-      margin-bottom: 10px;
-      border-radius: 999px;
-      background: rgba(247, 240, 229, 0.88);
-      border: 1px solid rgba(217, 195, 155, 0.7);
-    }
-    .reflection-view-toggle button {
-      border: none;
-      background: transparent;
-      color: #756754;
-      border-radius: 999px;
-      padding: 6px 11px;
-      font: inherit;
-      font-size: 0.76rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .reflection-view-toggle button.is-active {
-      background: #fffdfa;
-      color: #4a3a28;
-      box-shadow: 0 6px 14px rgba(90, 68, 36, 0.08);
-    }
-    .reflection-panel[hidden] {
-      display: none !important;
-    }
-    .reflection-read-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
     .reflection-read-title {
       font-size: 0.9rem;
       font-weight: 600;
@@ -520,54 +625,10 @@
       color: #7b6546;
       border: 1px solid rgba(206, 188, 161, 0.66);
     }
-    .recording-player-label {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #847564;
-      margin-bottom: 8px;
-    }
-    .recording-player-name {
-      font-size: 0.78rem;
-      color: #6a655c;
-      margin-bottom: 8px;
-      line-height: 1.45;
-      word-break: break-word;
-    }
-    .summary-tile.featured .recording-player-name {
-      font-size: 0.82rem;
-      color: #554735;
-    }
-    .recording-player audio {
-      width: 100%;
-      height: 34px;
-    }
     .recording-player-empty {
       font-size: 0.78rem;
       color: #8a857d;
       line-height: 1.5;
-    }
-    .reflection-continuation {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid #ece5d9;
-    }
-    .reflection-continuation[hidden] {
-      display: none !important;
-    }
-    .reflection-continuation-prompt {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #473626;
-      line-height: 1.45;
-      margin-bottom: 6px;
-    }
-    .reflection-continuation-copy {
-      font-size: 0.79rem;
-      color: #746a5f;
-      line-height: 1.5;
-      margin-bottom: 10px;
     }
     .record-mark {
       font-size: 1.2rem;
@@ -748,6 +809,14 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
+    /* Quiet, non-interactive -- metadata on a card already in view, not a
+       call to action (unlike the retired continuity nudge). Shown only
+       when a thread is actually confirmed on the capture. */
+    .note-thread-label {
+      font-size: 0.76rem;
+      color: #8a7d6d;
+      line-height: 1.4;
+    }
     .influenced-line {
       font-size: 0.79rem;
       color: #6d6459;
@@ -907,6 +976,16 @@
       .daily-brief-url-row {
         grid-template-columns: 1fr;
       }
+      /* Deliberate stack, not an accidental flex-wrap: below 640px the
+         icon+headline row and the control (whichever state it's in) each
+         get their own line instead of the control dropping into a partial
+         wrap wherever the headline's length happens to end. */
+      .daily-brief-line {
+        align-items: flex-start;
+      }
+      #daily-brief-enable {
+        flex: 1 0 100%;
+      }
     }
   </style>
 </head>
@@ -940,118 +1019,182 @@
     <div class="card dashboard-primary-card dashboard-capture-card">
       <div class="dashboard-capture-intro">
         <h1 class="dashboard-capture-title">Today</h1>
-        <p class="dashboard-capture-description">
-          Daily Brief and continuity from recent captures live here. When you need something new, open Capture.
-        </p>
       </div>
-      <div class="capture-prompt-shell">
-        <div class="capture-prompt-actions">
-          <a id="today-open-capture" class="btn btn-primary capture-mode-btn" href="#workflows-app">
-            Open capture
+
+      <!-- Capture Restore (2026-08-07): merged into Today's own card boundary
+           rather than a separately-bordered section -- the spec's "clearly
+           secondary, not co-equal weight" requirement is now carried by
+           internal hierarchy (record control dominant, everything else below
+           reads as quiet supporting text), not by a hard visual break. See
+           docs/product-notes/today-capture-first-restore-2026-08-07.md. -->
+      <!-- Simplified landing layout (2026-08-08): Capture's own heading/subhead
+           and the continuity nudge are retired -- Today is the page's one
+           heading, the record control is the first thing after it. Latest
+           result and Daily Brief still exist, relocated to the footer below
+           the divider along with View saved results / Context settings. See
+           docs/product-notes/today-capture-first-restore-2026-08-07.md. -->
+      <main id="workflows-app" class="workflows-shell" aria-label="Capture">
+        <header class="workflows-header">
+          <div id="workflows-build-marker" class="workflows-debug-marker" hidden></div>
+          <pre id="workflows-debug-state" class="workflows-debug-state" hidden></pre>
+        </header>
+
+        <form id="capture-form" class="workflows-card">
+        <section id="capture-surface" class="workflows-capture-surface">
+          <button id="record-trigger" type="button" class="workflows-record-trigger">
+            <span class="workflows-record-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="4" width="6" height="11" rx="3"></rect>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
+                <path d="M12 17v3"></path>
+                <path d="M9 20h6"></path>
+              </svg>
+            </span>
+            <span class="workflows-record-label">Record now</span>
+          </button>
+
+          <div class="workflows-mode-row" aria-label="Other capture options">
+            <button type="button" id="upload-trigger" class="workflows-mode-link">Upload a file</button>
+            <span class="workflows-mode-divider" aria-hidden="true">·</span>
+            <button type="button" id="show-paste" class="workflows-mode-link">Paste text</button>
+          </div>
+
+          <input
+            id="capture-file"
+            name="capture-file"
+            type="file"
+            accept=".txt,.md,text/plain,text/markdown"
+            class="workflows-visually-hidden"
+          />
+
+          <div id="file-selection-state" class="workflows-file-selection" hidden>
+            <div class="workflows-file-selection-row">
+              <p id="file-selection-name" class="workflows-file-selection-name"></p>
+              <button type="button" id="clear-upload" class="btn btn-quiet">Clear</button>
+            </div>
+            <p id="file-selection-copy" class="workflows-file-selection-copy"></p>
+          </div>
+
+          <div id="paste-panel" class="workflows-paste-panel" hidden>
+            <label class="workflows-visually-hidden" for="capture-text">Paste text</label>
+            <textarea
+              id="capture-text"
+              name="capture-text"
+              rows="5"
+              placeholder="Paste a product thought, professional reflection, or note you want to shape."
+            ></textarea>
+          </div>
+        </section>
+
+        <div class="workflows-footer-row">
+          <label class="workflows-visually-hidden" for="capture-context">Anything this should keep in mind?</label>
+          <input
+            id="capture-context"
+            name="capture-context"
+            type="text"
+            placeholder="Anything this should keep in mind? (optional)"
+          />
+          <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
+        </div>
+
+        <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
+
+        <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
+          <p class="workflows-auth-copy">Draft now, sign in to save.</p>
+          <a
+            id="workflows-signin"
+            class="workflows-auth-link"
+            href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
+          >
+            Sign in with Google
           </a>
-          <a id="today-context-settings" class="btn btn-outline capture-mode-btn" href="/setup">
-            Context settings →
-          </a>
         </div>
+      </form>
+
+      <section id="result-view" class="workflows-result" hidden>
+        <article id="loading-card" class="card workflows-artifact-card workflows-loading-card" hidden></article>
+        <article id="primary-artifact-card" class="card workflows-artifact-card" hidden></article>
+        <article id="saved-note-card" class="card workflows-artifact-card" hidden></article>
+        <details id="source-text-panel" class="workflows-source-panel" hidden>
+          <summary>View source text</summary>
+          <pre id="source-text-content"></pre>
+        </details>
+      </section>
+    </main>
+
+    <!-- Simplified landing layout (2026-08-08): footer below the divider --
+         saved results / settings links, then Latest result and Daily Brief,
+         both unboxed and collapsed by default, same treatment as before. -->
+    <div class="capture-quiet-rows">
+      <p id="workflows-saved-link-row" class="capture-quiet-row" hidden>
+        <a id="workflows-saved-link" class="archive-quiet-link" href="/today/saved">View saved results</a>
+      </p>
+      <!-- Standing context as state, not a link label (controller brief,
+           2026-09-12). Today previously exposed only a "Context settings"
+           link, so a user could not tell what standing context the app was
+           holding. The static default is the signed-out copy so the block
+           reads correctly with no JS and never sits on a loading string. -->
+      <div id="standing-context" class="capture-quiet-row standing-context">
+        <p id="standing-context-active" class="standing-context-line">Sign in to see the context Memnon is holding.</p>
+        <p id="standing-context-stored" class="standing-context-line standing-context-muted" hidden></p>
+        <a id="today-context-settings" class="archive-quiet-link" href="/setup">Context settings →</a>
       </div>
-      <div class="dashboard-capture-secondary">
-        <div class="summary-tile summary-tile--latest">
-          <div>
-            <div class="summary-tile-kicker">Latest result</div>
-            <div class="summary-tile-title">Receive the latest return</div>
-            <div class="summary-tile-copy">Listen, read, and decide what thread to carry forward.</div>
-            <div class="recording-player-wrap">
-              <div class="recording-player-label" id="reflection-player-label">Latest complete result</div>
-              <div class="reflection-view-toggle" id="reflection-view-toggle">
-                <button id="reflection-view-listen" class="is-active" type="button">Listen</button>
-                <button id="reflection-view-read" type="button">Read</button>
-              </div>
-              <div id="reflection-audio-panel" class="reflection-panel">
-                <div id="reflection-player-container" class="recording-player">
-                  <div class="recording-player-empty">Loading your latest result…</div>
-                </div>
-              </div>
-              <div id="reflection-read-panel" class="reflection-panel reflection-read-panel" hidden>
-                <div id="reflection-read-content" class="recording-player-empty">Loading the latest result text…</div>
-              </div>
-              <div id="reflection-continuation" class="reflection-continuation" hidden>
-                <div class="reflection-continuation-prompt">Carry this forward in your next capture.</div>
-                <div class="reflection-continuation-copy">You can agree, push back, or continue the thread in your next voice note or written note.</div>
-                <button id="reflection-continue-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
-                  Continue the thread
-                </button>
-              </div>
+
+      <details class="latest-result-details">
+        <summary>Latest result</summary>
+        <div class="recording-player-wrap">
+          <div id="reflection-read-content" class="recording-player-empty">Sign in to see your latest result.</div>
+        </div>
+      </details>
+
+      <div class="daily-brief-line" id="daily-brief-card">
+        <span class="daily-brief-icon" aria-hidden="true">🎧</span>
+        <span class="daily-brief-title-inline" id="daily-brief-title">Turn on your private daily brief</span>
+        <button id="daily-brief-enable" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
+          Turn on daily brief
+        </button>
+        <details class="daily-brief-disclosure">
+          <summary>How to listen</summary>
+          <div class="daily-brief-copy" id="daily-brief-body-copy">
+            Memnon can send one spoken brief each morning to your private podcast feed.
+          </div>
+          <div class="daily-brief-meta" id="daily-brief-meta"></div>
+          <div id="daily-brief-url-wrap" class="daily-brief-url-wrap" hidden>
+            <label class="daily-brief-url-label" for="daily-brief-url">Private feed URL</label>
+            <div class="daily-brief-url-row">
+              <input id="daily-brief-url" type="text" readonly value="" />
+              <button id="daily-brief-copy-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Copy feed link
+              </button>
+            </div>
+            <div class="daily-brief-action-row">
+              <button id="daily-brief-overcast-btn" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Subscribe in Overcast
+              </button>
+              <button id="daily-brief-share-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Share feed link
+              </button>
+            </div>
+            <div class="daily-brief-help" id="daily-brief-help">
+              Use <strong>Subscribe in Overcast</strong> to add this feed to your podcasts. Use the feed link for Apple Podcasts or another app.
+            </div>
+            <div id="daily-brief-apple-note" class="daily-brief-apple-note">
+              <strong>Apple Podcasts:</strong> open <strong>Library</strong>, tap <strong>…</strong>, choose <strong>Add a Show by URL</strong>, then paste this private feed link.
             </div>
           </div>
-        </div>
-        <div class="summary-tile summary-tile--archive">
-          <div class="summary-tile-kicker">Archive</div>
-          <div class="archive-link-row">
-            <div>
-              <div class="summary-tile-title">Open the archive</div>
-              <div class="summary-tile-copy" style="margin-bottom:0;">Revisit saved reflections in Google Drive.</div>
+          <div id="daily-brief-status" class="capture-text-status daily-brief-status" aria-live="polite"></div>
+          <div id="daily-brief-admin-wrap" class="daily-brief-admin" hidden>
+            <span class="daily-brief-admin-label">Admin tools</span>
+            <div id="daily-brief-admin-copy" class="daily-brief-admin-copy"></div>
+            <div class="daily-brief-action-row">
+              <button id="daily-brief-regenerate-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Regenerate today's brief
+              </button>
             </div>
-            <a id="notes-link" href="#" target="_blank"
-               class="btn btn-primary" style="padding:7px 12px; font-size:0.8rem;">
-              Open archive ↗
-            </a>
           </div>
-          <div class="archive-inline-note">
-            <span id="archive-summary-copy">Each capture returns as a complete spoken reflection in your</span>
-            <strong>archive</strong>.
-          </div>
-        </div>
+        </details>
       </div>
-      <div class="summary-tile summary-tile--daily-brief" id="daily-brief-card">
-        <div class="daily-brief-layout">
-          <div>
-            <div class="summary-tile-kicker">Today's brief</div>
-            <div class="daily-brief-title" id="daily-brief-title">Turn on your private daily brief</div>
-            <div class="daily-brief-copy" id="daily-brief-body-copy">
-              Memnon can send one spoken brief each morning to your private podcast feed.
-            </div>
-            <div class="daily-brief-meta" id="daily-brief-meta"></div>
-          </div>
-          <div class="daily-brief-actions">
-            <button id="daily-brief-enable" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Turn on daily brief
-            </button>
-          </div>
-        </div>
-        <div id="daily-brief-url-wrap" class="daily-brief-url-wrap" hidden>
-          <label class="daily-brief-url-label" for="daily-brief-url">Private feed URL</label>
-          <div class="daily-brief-url-row">
-            <input id="daily-brief-url" type="text" readonly value="" />
-            <button id="daily-brief-copy-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Copy feed link
-            </button>
-          </div>
-          <div class="daily-brief-action-row">
-            <button id="daily-brief-overcast-btn" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Subscribe in Overcast
-            </button>
-            <button id="daily-brief-share-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Share feed link
-            </button>
-          </div>
-          <div class="daily-brief-help" id="daily-brief-help">
-            Use <strong>Subscribe in Overcast</strong> to add this feed to your podcasts. Use the feed link for Apple Podcasts or another app.
-          </div>
-          <div id="daily-brief-apple-note" class="daily-brief-apple-note">
-            <strong>Apple Podcasts:</strong> open <strong>Library</strong>, tap <strong>…</strong>, choose <strong>Add a Show by URL</strong>, then paste this private feed link.
-          </div>
-        </div>
-        <div id="daily-brief-status" class="capture-text-status daily-brief-status" aria-live="polite"></div>
-        <div id="daily-brief-admin-wrap" class="daily-brief-admin" hidden>
-          <span class="daily-brief-admin-label">Admin tools</span>
-          <div id="daily-brief-admin-copy" class="daily-brief-admin-copy"></div>
-          <div class="daily-brief-action-row">
-            <button id="daily-brief-regenerate-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
-              Regenerate today's brief
-            </button>
-          </div>
-        </div>
-      </div>
+    </div>
     </div>
 
     <div class="card dashboard-secondary-card" id="tasks-card" style="display:none;">
@@ -1074,7 +1217,7 @@
       <div class="editorial-header" style="margin-bottom:10px;">
         <div>
           <h2 style="margin-bottom:6px;">Recent notes</h2>
-          <p class="muted" style="margin:0;">A short record of recent returns and the voices in conversation.</p>
+          <p class="muted" style="margin:0;">A short record of your recent captures.</p>
         </div>
       </div>
       <div id="recent-notes-list" style="margin-top:14px;"></div>
@@ -1115,105 +1258,6 @@
 
   </div>
 
-  <main id="workflows-app" class="workflows-shell workflows-section-secondary">
-    <header class="workflows-header">
-      <div class="memnon-lockup">
-        <img src="/brand/memnon-icon.svg" alt="">
-        <span class="memnon-wordmark">memnon</span>
-      </div>
-      <h1>Capture</h1>
-      <p class="workflows-subhead">Capture a thought. Speak, drop a file, or paste something messy.</p>
-      <p class="workflows-subhead-secondary">Turn it into something useful.</p>
-      <p id="workflows-saved-link-row" class="workflows-subhead-tertiary" hidden>
-        <a id="workflows-saved-link" class="workflows-saved-link" href="/today/saved">View saved results</a>
-      </p>
-      <div id="workflows-build-marker" class="workflows-debug-marker" hidden></div>
-      <pre id="workflows-debug-state" class="workflows-debug-state" hidden></pre>
-    </header>
-
-    <form id="capture-form" class="workflows-card">
-      <section id="capture-surface" class="workflows-capture-surface">
-        <button id="record-trigger" type="button" class="workflows-record-trigger">
-          <span class="workflows-record-badge" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="4" width="6" height="11" rx="3"></rect>
-              <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
-              <path d="M12 17v3"></path>
-              <path d="M9 20h6"></path>
-            </svg>
-          </span>
-          <span class="workflows-record-label">Record now</span>
-        </button>
-
-        <div class="workflows-mode-row" aria-label="Other capture options">
-          <button type="button" id="upload-trigger" class="workflows-mode-link">Upload a file</button>
-          <span class="workflows-mode-divider" aria-hidden="true">·</span>
-          <button type="button" id="show-paste" class="workflows-mode-link">Paste text</button>
-        </div>
-
-        <input
-          id="capture-file"
-          name="capture-file"
-          type="file"
-          accept=".txt,.md,text/plain,text/markdown"
-          class="workflows-visually-hidden"
-        />
-
-        <div id="file-selection-state" class="workflows-file-selection" hidden>
-          <div class="workflows-file-selection-row">
-            <p id="file-selection-name" class="workflows-file-selection-name"></p>
-            <button type="button" id="clear-upload" class="btn btn-quiet">Clear</button>
-          </div>
-          <p id="file-selection-copy" class="workflows-file-selection-copy"></p>
-        </div>
-
-        <div id="paste-panel" class="workflows-paste-panel" hidden>
-          <label class="workflows-visually-hidden" for="capture-text">Paste text</label>
-          <textarea
-            id="capture-text"
-            name="capture-text"
-            rows="5"
-            placeholder="Paste a product thought, professional reflection, or note you want to shape."
-          ></textarea>
-        </div>
-      </section>
-
-      <div class="workflows-footer-row">
-        <label class="workflows-visually-hidden" for="capture-context">Anything this should keep in mind?</label>
-        <input
-          id="capture-context"
-          name="capture-context"
-          type="text"
-          placeholder="Anything this should keep in mind? (optional)"
-        />
-        <button id="capture-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
-      </div>
-
-      <div id="workflows-status" class="workflows-status" aria-live="polite"></div>
-
-      <div id="workflows-auth-prompt" class="workflows-auth-prompt" hidden>
-        <p class="workflows-auth-copy">Draft now, sign in to save.</p>
-        <a
-          id="workflows-signin"
-          class="workflows-auth-link"
-          href="https://api-4hth6oktaa-uc.a.run.app/auth/start"
-        >
-          Sign in with Google
-        </a>
-      </div>
-    </form>
-
-    <section id="result-view" class="workflows-result" hidden>
-      <article id="loading-card" class="card workflows-artifact-card workflows-loading-card" hidden></article>
-      <article id="primary-artifact-card" class="card workflows-artifact-card" hidden></article>
-      <article id="saved-note-card" class="card workflows-artifact-card" hidden></article>
-      <details id="source-text-panel" class="workflows-source-panel" hidden>
-        <summary>View source text</summary>
-        <pre id="source-text-content"></pre>
-      </details>
-    </section>
-  </main>
-
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut, signInWithCustomToken }
@@ -1239,28 +1283,20 @@
       grounded: "Grounded reflection",
       complete: "Complete reflection",
     };
-    const REFLECTION_STYLE_ARCHIVE_COPY = {
-      practical: "Each capture returns as a practical spoken reflection in your",
-      grounded: "Each capture returns as a grounded spoken reflection in your",
-      complete: "Each capture returns as a complete spoken reflection in your",
-    };
 
-    function latestResultStyleDescriptor(styleKey) {
-      switch (styleKey) {
-        case "practical":
-          return "practical";
-        case "grounded":
-          return "grounded";
-        default:
-          return "complete";
-      }
-    }
+    let authResolved = false;
 
     const params = new URLSearchParams(window.location.search);
     const PREVIEW_MODE =
       params.has("preview") ||
       window.location.port === "8000" ||
       window.location.port === "8080";
+    // Overcast ships on iOS/iPadOS only, so the overcast:// scheme has no
+    // registered handler anywhere else. Offering the button on desktop just
+    // produces a silent "scheme does not have a registered handler" failure.
+    const SUPPORTS_OVERCAST_SCHEME =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const MOCK_DASHBOARD_KEY = params.get("mock");
     const MOCK_REFLECTION_STATE = params.get("reflection") || "ready";
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -1351,7 +1387,6 @@
         normalizeDashboardImageConfig(data.dashboard_image)
       );
       document.getElementById("welcome-mark-image").src = resolveMockDashboardPortraitSrc(data.dashboard_image);
-      updateReflectionArchiveLabels(data.reflection_style || "complete");
 
       const recordBtn = document.getElementById("record-btn");
       if (recordBtn) {
@@ -1360,45 +1395,24 @@
       }
       renderCaptureTextPanel(true);
 
-      const notesLink = document.getElementById("notes-link");
-      if (notesLink) {
-        notesLink.removeAttribute("href");
-        notesLink.setAttribute("aria-disabled", "true");
-        notesLink.classList.add("is-disabled");
-        notesLink.textContent = "Archive available after sign-in";
-      }
+      renderStandingContext(data);
       renderDailyBriefSubscription({
         ...data,
         daily_feed_enabled: false,
         daily_feed_url: "",
       });
 
-      const player = document.getElementById("reflection-player-container");
       const hasMockReflection = MOCK_REFLECTION_STATE !== "empty";
-      if (player) {
-        if (!hasMockReflection) {
-          player.innerHTML = `<div class="recording-player-empty">No ${latestResultStyleDescriptor(data.reflection_style || "complete")} result yet. Record a memo to generate one.</div>`;
-        } else {
-          const titles = {
-            practical: "June 9, 2026 — Resetting discussion routines",
-            grounded: "June 9, 2026 — Returning to steadiness with students",
-            complete: "June 9, 2026 — Holding structure and presence together",
-          };
-          const styleKey = data.reflection_style || "complete";
-          player.innerHTML = `
-            <div class="recording-player-name">${titles[styleKey] || titles.complete}</div>
-            <div class="recording-player-empty">Mock preview. Sign in to generate and play the real audio result.</div>
-          `;
-        }
-      }
-      renderLatestReflectionText({
-        title: "June 9, 2026 — Holding structure and presence together",
-        summary: "You were trying to hold clarity and warmth at the same time. The practical challenge was not just what to say, but how to stay present while doing it. The reflection sees both the instructional decision and the inner steadiness it asked of you.",
-        insight: "The stronger move may be structure without hardening.",
-        action_items: ["Name the expectation earlier", "Keep your tone calm and direct"],
-      });
-      setReflectionView("listen");
-      renderReflectionContinuation(hasMockReflection ? { id: "preview-note" } : null);
+      renderLatestReflectionText(
+        hasMockReflection
+          ? {
+              title: "June 9, 2026 — Holding structure and presence together",
+              summary: "You were trying to hold clarity and warmth at the same time. The practical challenge was not just what to say, but how to stay present while doing it. The reflection sees both the instructional decision and the inner steadiness it asked of you.",
+              insight: "The stronger move may be structure without hardening.",
+              action_items: ["Name the expectation earlier", "Keep your tone calm and direct"],
+            }
+          : null
+      );
     }
 
     const setupLinks = document.querySelectorAll('a[href="/setup"]');
@@ -1532,11 +1546,10 @@
       img.style.transformOrigin = origin;
     }
     const portraitObjectUrls = new Map();
-    const reflectionObjectUrls = new Map();
     const GOOGLE_TASKS_URL = "https://tasks.google.com/tasks/";
-    let currentReflectionStyle = "complete";
-    let latestReflectionNote = null;
-    let currentReflectionView = "listen";
+    // Set by loadRecentNotes() from users/{uid}/workflow_captures via the
+    // API -- NOT derived from users/{uid}/notes.
+    let hasAnyCaptures = false;
     let currentProfileData = null;
 
     function formatList(items) {
@@ -1600,19 +1613,6 @@
       return document.getElementById("capture-teaching-context")?.checked !== false;
     }
 
-    function updateReflectionArchiveLabels(styleKey) {
-      const style = styleKey in REFLECTION_STYLE_LABELS ? styleKey : "complete";
-      currentReflectionStyle = style;
-      const label = document.getElementById("reflection-player-label");
-      const summary = document.getElementById("archive-summary-copy");
-      if (label) {
-        label.textContent = `Latest ${latestResultStyleDescriptor(style)} result`;
-      }
-      if (summary) {
-        summary.textContent = REFLECTION_STYLE_ARCHIVE_COPY[style];
-      }
-    }
-
     function setDailyBriefStatus(message = "", statusClass = "") {
       const statusEl = document.getElementById("daily-brief-status");
       if (!statusEl) return;
@@ -1653,14 +1653,30 @@
       });
     }
 
+    // Daily Brief's control (#daily-brief-enable) renders as one of: a
+    // primary button (brief ready to hear -- the only state that earns
+    // one), a quiet text link (off, but there's enough material for a
+    // non-empty brief), or hidden entirely (on with nothing new yet -- a
+    // status, not a control; or off with no captures yet, where offering
+    // the brief has nothing to build one from). UX Burden review,
+    // 2026-08-15: a standing primary button soliciting opt-in on every
+    // load was the one loud, always-present control on a page the rest of
+    // this design deliberately made quiet-unless-earned.
     function renderDailyBriefSubscription(data = null) {
       const profile = data || currentProfileData || {};
       const enabled = !!profile.daily_feed_enabled;
       const feedUrl = profile.daily_feed_url || "";
       const briefStatus = profile.daily_feed_status || {};
       const canRegenerate = !!profile.daily_feed_can_regenerate;
-      const previewDisabled = PREVIEW_MODE || !auth.currentUser;
+      // authResolved distinguishes "signed out" from "auth has not answered
+    // yet". Reading auth.currentUser alone conflated them: this renders at
+    // module load, before onAuthStateChanged fires, so a signed-in user saw
+    // "Sign in to subscribe" beneath their own name in the header.
+      const previewDisabled = PREVIEW_MODE || (authResolved && !auth.currentUser);
+      const authPending = !PREVIEW_MODE && !authResolved && !auth.currentUser;
+      const hasMaterial = hasAnyCaptures;
 
+      const card = document.getElementById("daily-brief-card");
       const enableBtn = document.getElementById("daily-brief-enable");
       const urlWrap = document.getElementById("daily-brief-url-wrap");
       const urlInput = document.getElementById("daily-brief-url");
@@ -1676,12 +1692,50 @@
       const adminCopy = document.getElementById("daily-brief-admin-copy");
       const regenerateBtn = document.getElementById("daily-brief-regenerate-btn");
 
-      if (!enableBtn || !urlWrap || !urlInput || !copyBtn || !overcastBtn || !shareBtn || !titleEl || !copyEl || !metaEl || !helpEl || !appleNote || !adminWrap || !adminCopy || !regenerateBtn) return;
+      if (!card || !enableBtn || !urlWrap || !urlInput || !copyBtn || !overcastBtn || !shareBtn || !titleEl || !copyEl || !metaEl || !helpEl || !appleNote || !adminWrap || !adminCopy || !regenerateBtn) return;
+
+      card.hidden = false;
+
+      function setControlPrimary(label) {
+        enableBtn.hidden = false;
+        enableBtn.disabled = false;
+        enableBtn.setAttribute("aria-disabled", "false");
+        enableBtn.className = "btn btn-primary";
+        enableBtn.dataset.action = "listen";
+        enableBtn.textContent = label;
+      }
+      function setControlQuietLink(label) {
+        enableBtn.hidden = false;
+        enableBtn.disabled = false;
+        enableBtn.setAttribute("aria-disabled", "false");
+        enableBtn.className = "daily-brief-link-btn archive-quiet-link";
+        enableBtn.dataset.action = "enable";
+        enableBtn.textContent = label;
+      }
+      function hideControl() {
+        enableBtn.hidden = true;
+        delete enableBtn.dataset.action;
+      }
+
+      // Auth has not answered yet: show nothing rather than guessing. The
+      // callback re-renders the moment it does.
+      if (authPending) {
+        hideControl();
+        urlWrap.hidden = true;
+        overcastBtn.hidden = true;
+        shareBtn.hidden = true;
+        appleNote.hidden = true;
+        titleEl.textContent = "Your private daily brief";
+        copyEl.textContent = "";
+        metaEl.textContent = "";
+        return;
+      }
 
       if (previewDisabled) {
+        setControlPrimary("Sign in to subscribe");
         enableBtn.disabled = true;
         enableBtn.setAttribute("aria-disabled", "true");
-        enableBtn.textContent = "Sign in to subscribe";
+        enableBtn.dataset.action = "enable";
         urlWrap.hidden = true;
         overcastBtn.hidden = true;
         shareBtn.hidden = true;
@@ -1689,49 +1743,22 @@
         titleEl.textContent = "Turn on your private daily brief";
         copyEl.textContent = "Sign in to have Memnon publish one spoken brief each morning to your private podcast feed.";
         metaEl.textContent = "";
-        helpEl.innerHTML = "Once the feed is on, you can subscribe in Overcast or copy the feed link into another podcast app.";
+        helpEl.innerHTML = SUPPORTS_OVERCAST_SCHEME
+          ? "Once the feed is on, you can subscribe in Overcast or copy the feed link into another podcast app."
+          : "Once the feed is on, you can copy the feed link into Apple Podcasts or another podcast app.";
         adminWrap.hidden = true;
         return;
       }
 
-      enableBtn.textContent = enabled ? "Daily brief is on" : "Turn on daily brief";
-      enableBtn.disabled = enabled;
-      enableBtn.setAttribute("aria-disabled", enabled ? "true" : "false");
-      enableBtn.classList.toggle("btn-outline", enabled);
-      enableBtn.classList.toggle("btn-primary", !enabled);
-
-      if (enabled && feedUrl) {
-        urlWrap.hidden = false;
-        urlInput.value = feedUrl;
-        overcastBtn.hidden = false;
-        shareBtn.hidden = false;
-        appleNote.hidden = false;
-        const latestEpisode = briefStatus.latest_episode || {};
-        const publishedTime = formatDailyBriefTime(latestEpisode.published_at);
-        const publishHour = formatDailyBriefPublishHour(briefStatus.publish_hour_local);
-        if (briefStatus.state === "ready" && latestEpisode.title) {
-          titleEl.textContent = latestEpisode.title;
-          copyEl.textContent = "Today's brief is ready in your private podcast feed.";
-          metaEl.textContent = publishedTime ? `Published at ${publishedTime}` : "Published today";
-        } else if (briefStatus.state === "scheduled") {
-          titleEl.textContent = "Today's brief is scheduled";
-          copyEl.textContent = `Memnon generates your brief after ${publishHour || "the morning publish time"}.`;
-          metaEl.textContent = publishHour ? `Next publish window: ${publishHour}` : "";
-        } else if (briefStatus.state === "preparing") {
-          titleEl.textContent = "Today's brief is being prepared";
-          copyEl.textContent = "The morning episode has not landed yet, but the feed is on and should update soon.";
-          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
-        } else if (briefStatus.state === "missing") {
-          titleEl.textContent = "No brief yet today";
-          copyEl.textContent = "Your feed is on, but there is not a published brief for today yet.";
-          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
-        } else {
-          titleEl.textContent = "Your private daily brief feed is on";
-          copyEl.textContent = "Subscribe in Overcast or use the feed link in another podcast app.";
-          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+      if (!enabled) {
+        if (!hasMaterial) {
+          // No captures yet -- nothing to build a first brief from, so the
+          // offer itself stays hidden rather than soliciting against an
+          // empty feed.
+          card.hidden = true;
+          return;
         }
-        helpEl.innerHTML = "Use <strong>Subscribe in Overcast</strong> to add the feed directly. Use the feed link for Apple Podcasts or another podcast app.";
-      } else {
+        setControlQuietLink("Turn on daily brief");
         urlWrap.hidden = true;
         overcastBtn.hidden = true;
         shareBtn.hidden = true;
@@ -1740,7 +1767,63 @@
         titleEl.textContent = "Turn on your private daily brief";
         copyEl.textContent = "Memnon can send one spoken brief each morning to your private podcast feed.";
         metaEl.textContent = "";
-        helpEl.innerHTML = "Once the feed is on, <strong>Subscribe in Overcast</strong> adds it directly. Apple Podcasts still needs the feed URL pasted in manually.";
+        helpEl.innerHTML = SUPPORTS_OVERCAST_SCHEME
+          ? "Once the feed is on, <strong>Subscribe in Overcast</strong> adds it directly. Apple Podcasts still needs the feed URL pasted in manually."
+          : "Once the feed is on, copy the feed URL into Apple Podcasts or another podcast app. Overcast one-tap subscribe works on iPhone and iPad.";
+        adminWrap.hidden = true;
+        return;
+      }
+
+      if (!feedUrl) {
+        // Enabled but the feed link hasn't materialized yet (mid-setup) --
+        // a status, not an action; nothing to hand the user yet.
+        hideControl();
+        urlWrap.hidden = true;
+        overcastBtn.hidden = true;
+        shareBtn.hidden = true;
+        appleNote.hidden = true;
+        urlInput.value = "";
+        titleEl.textContent = "Setting up your private daily brief…";
+        copyEl.textContent = "Your feed link will appear here once setup finishes.";
+        metaEl.textContent = "";
+      } else {
+        urlWrap.hidden = false;
+        urlInput.value = feedUrl;
+        overcastBtn.hidden = !SUPPORTS_OVERCAST_SCHEME;
+        shareBtn.hidden = false;
+        appleNote.hidden = false;
+        helpEl.innerHTML = SUPPORTS_OVERCAST_SCHEME
+          ? "Use <strong>Subscribe in Overcast</strong> to add the feed directly. Use the feed link for Apple Podcasts or another podcast app."
+          : "Copy the feed link into Apple Podcasts or another podcast app. <strong>Subscribe in Overcast</strong> is available when you open this page on your iPhone or iPad.";
+
+        const latestEpisode = briefStatus.latest_episode || {};
+        const publishedTime = formatDailyBriefTime(latestEpisode.published_at);
+        const publishHour = formatDailyBriefPublishHour(briefStatus.publish_hour_local);
+        if (briefStatus.state === "ready" && latestEpisode.title) {
+          setControlPrimary("Listen now");
+          titleEl.textContent = latestEpisode.title;
+          copyEl.textContent = "Today's brief is ready in your private podcast feed.";
+          metaEl.textContent = publishedTime ? `Published at ${publishedTime}` : "Published today";
+        } else {
+          hideControl();
+          if (briefStatus.state === "scheduled") {
+            titleEl.textContent = "Today's brief is scheduled";
+            copyEl.textContent = `Memnon generates your brief after ${publishHour || "the morning publish time"}.`;
+            metaEl.textContent = publishHour ? `Next publish window: ${publishHour}` : "";
+          } else if (briefStatus.state === "preparing") {
+            titleEl.textContent = "Today's brief is being prepared";
+            copyEl.textContent = "The morning episode has not landed yet, but the feed is on and should update soon.";
+            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+          } else if (briefStatus.state === "missing") {
+            titleEl.textContent = "No brief yet today";
+            copyEl.textContent = "Your feed is on, but there is not a published brief for today yet.";
+            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+          } else {
+            titleEl.textContent = "Your private daily brief feed is on";
+            copyEl.textContent = "Subscribe in Overcast or use the feed link in another podcast app.";
+            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+          }
+        }
       }
 
       if (canRegenerate) {
@@ -1798,9 +1881,25 @@
         setDailyBriefStatus("Turn on the daily brief first so there is a private feed URL to open.", "is-error");
         return;
       }
+      if (!SUPPORTS_OVERCAST_SCHEME) {
+        // Overcast is iOS-only; the scheme would fail silently here.
+        setDailyBriefStatus("Overcast one-tap subscribe works on iPhone and iPad. On this device, copy the feed link into your podcast app.", "is-error");
+        return;
+      }
       const returnUrl = window.location.href;
       const overcastUrl = `overcast://x-callback-url/add?url=${encodeURIComponent(feedUrl)}&x-success=${encodeURIComponent(returnUrl)}`;
       await logUsageEvent("opened_daily_feed_in_overcast");
+
+      // A scheme with no registered handler fails without firing an error, so
+      // the only signal is that we are still here a moment later. If the app
+      // did open, the page is backgrounded and this never runs.
+      const fallback = window.setTimeout(() => {
+        if (document.visibilityState === "visible") {
+          setDailyBriefStatus("Overcast did not open. Make sure it is installed, or copy the feed link into your podcast app.", "is-error");
+        }
+      }, 1500);
+      window.addEventListener("pagehide", () => window.clearTimeout(fallback), { once: true });
+
       window.location.href = overcastUrl;
     }
 
@@ -1911,31 +2010,91 @@
       }
     }
 
-    function setReflectionView(view) {
-      currentReflectionView = view === "read" ? "read" : "listen";
-      const audioPanel = document.getElementById("reflection-audio-panel");
-      const readPanel = document.getElementById("reflection-read-panel");
-      const listenBtn = document.getElementById("reflection-view-listen");
-      const readBtn = document.getElementById("reflection-view-read");
-      if (audioPanel) {
-        audioPanel.hidden = currentReflectionView !== "listen";
+    // Standing context. Two truths held apart on purpose: only `lane` and
+    // `reflection_style` reach a Today capture (routing.py / ai.py); the rest
+    // of what /setup stores is consumed by other paths. Listing them together
+    // would imply a teacher's subjects and standards shape the note in front
+    // of them, which they do not.
+    const LANE_LABELS = { professional: "professional lane", reflect: "reflect lane" };
+    // Label, and how to tell whether the profile actually carries it.
+    const STORED_CONTEXT_FIELDS = [
+      ["subjects", (p) => !!(p.subjects || "").trim()],
+      ["grade levels", (p) => Array.isArray(p.grade_levels) && p.grade_levels.length > 0],
+      ["state standards", (p) => Array.isArray(p.state_standards) && p.state_standards.length > 0],
+      ["school", (p) => !!(p.school_name || "").trim()],
+      ["preferred name", (p) => !!(p.preferred_name || "").trim()],
+      ["pronouns", (p) => !!(p.preferred_pronouns || "").trim()],
+      ["narration voice", (p) => !!(p.narration_voice || "").trim()],
+      ["chosen guides", (p) => Array.isArray(p.reflect_config?.selected_guides) && p.reflect_config.selected_guides.length > 0],
+    ];
+
+    function describeActiveContext(profile) {
+      const parts = [];
+      if (profile.lane && LANE_LABELS[profile.lane]) parts.push(LANE_LABELS[profile.lane]);
+      // Reuses the page's existing style labels so the two surfaces cannot drift.
+      if (profile.reflection_style && REFLECTION_STYLE_LABELS[profile.reflection_style]) {
+        parts.push(REFLECTION_STYLE_LABELS[profile.reflection_style].toLowerCase());
       }
-      if (readPanel) {
-        readPanel.hidden = currentReflectionView !== "read";
+      return parts;
+    }
+
+    function describeStoredContext(profile) {
+      return STORED_CONTEXT_FIELDS.filter(([, present]) => {
+        try { return present(profile); } catch (_e) { return false; }
+      }).map(([label]) => label);
+    }
+
+    function renderStandingContext(profile) {
+      const activeEl = document.getElementById("standing-context-active");
+      const storedEl = document.getElementById("standing-context-stored");
+      if (!activeEl || !storedEl) return;
+
+      // Signed out: state that plainly rather than claiming to hold nothing.
+      if (!profile) {
+        activeEl.textContent = "Sign in to see the context Memnon is holding.";
+        storedEl.hidden = true;
+        storedEl.textContent = "";
+        return;
       }
-      if (listenBtn) {
-        listenBtn.classList.toggle("is-active", currentReflectionView === "listen");
+
+      const active = describeActiveContext(profile);
+      const stored = describeStoredContext(profile);
+
+      if (!active.length && !stored.length) {
+        activeEl.textContent = "No standing context set yet.";
+        storedEl.hidden = true;
+        storedEl.textContent = "";
+        return;
       }
-      if (readBtn) {
-        readBtn.classList.toggle("is-active", currentReflectionView === "read");
+
+      activeEl.textContent = active.length
+        ? `Shaping your saved results: ${active.join(", ")}.`
+        : "Nothing you have saved shapes a result here yet.";
+
+      if (stored.length) {
+        storedEl.textContent = `Also saved, used elsewhere in Memnon: ${stored.join(", ")}.`;
+        storedEl.hidden = false;
+      } else {
+        storedEl.hidden = true;
+        storedEl.textContent = "";
       }
     }
 
-    function renderLatestReflectionText(note) {
+    // `state` distinguishes the three ways there is nothing to show. Without
+    // it the slot sat on "Loading your latest result…" forever for a logged-out
+    // visitor (this only ran from loadRecentNotes, inside an auth callback that
+    // returns early with no user) and after any failed fetch.
+    function renderLatestReflectionText(note, state = "ready") {
       const container = document.getElementById("reflection-read-content");
       if (!container) return;
       if (!note) {
-        container.innerHTML = `<div class="recording-player-empty">Your latest result text will appear here after processing.</div>`;
+        const message =
+          state === "signed-out"
+            ? "Sign in to see your latest result."
+            : state === "unavailable"
+              ? "Your latest result could not be loaded just now."
+              : "Your latest result text will appear here after processing.";
+        container.innerHTML = `<div class="recording-player-empty">${message}</div>`;
         return;
       }
       const actions = Array.isArray(note.action_items) ? note.action_items.filter(Boolean) : [];
@@ -1945,19 +2104,6 @@
         ${note.insight ? `<div class="reflection-read-insight">${note.insight}</div>` : ""}
         ${actions.length ? `<div class="reflection-read-actions">${actions.map((item) => `<span class="reflection-read-pill">${item}</span>`).join("")}</div>` : ""}
       `;
-    }
-
-    function renderReflectionContinuation(note) {
-      latestReflectionNote = note || null;
-      const panel = document.getElementById("reflection-continuation");
-      if (!panel) return;
-
-      if (!note) {
-        panel.hidden = true;
-        return;
-      }
-
-      panel.hidden = false;
     }
 
     function renderCaptureTextPanel(isOpen, options = {}) {
@@ -2044,29 +2190,6 @@
       }
     }
 
-    function continueReflectionThread() {
-      const prefill = latestReflectionNote?.title
-        ? `In response to "${latestReflectionNote.title}"...`
-        : "In response to my last reflection...";
-      try {
-        sessionStorage.setItem(
-          "memnon_workflows_pending_capture_v1",
-          JSON.stringify({
-            text: prefill,
-            contextHint: "",
-            shouldResume: false,
-          })
-        );
-      } catch (error) {
-        console.error("Could not store pending capture:", error);
-      }
-      if (typeof window.memnonFocusCapture === "function") {
-        window.memnonFocusCapture();
-      } else {
-        document.getElementById("workflows-app")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    }
-
     function summarizeGuidingVoices(data) {
       const styleKey = reflectionStyleKey(data);
       const reflectionStyle = REFLECTION_STYLE_LABELS[styleKey];
@@ -2147,136 +2270,62 @@
       }
     }
 
-    async function loadLatestAudio(token, options) {
-      const {
-        listPath,
-        streamPath,
-        containerId,
-        emptyMessage,
-        errorMessage,
-        fallbackName,
-        cache,
-      } = options;
-      const container = document.getElementById(containerId);
-      if (!container) return;
-      try {
-        const res = await fetch(`${API}${listPath}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          throw new Error(`Could not load ${listPath}`);
-        }
-        const data = await res.json();
-        const files = Array.isArray(data.files) ? data.files : [];
-        if (!files.length) {
-          container.innerHTML = `<div class="recording-player-empty">${emptyMessage}</div>`;
-          return;
-        }
-        const latest = files[0];
-        let playerSrc = cache.get(latest.id);
-        if (!playerSrc) {
-          const audioRes = await fetch(`${API}${streamPath}/${latest.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!audioRes.ok) {
-            throw new Error(`Could not load audio from ${streamPath}`);
-          }
-          const audioBlob = await audioRes.blob();
-          playerSrc = URL.createObjectURL(audioBlob);
-          cache.set(latest.id, playerSrc);
-        }
-        const displayName = (latest.name || fallbackName).replace(/\.(mp3|m4a|wav|webm|ogg|aac|flac)$/i, "");
-        container.innerHTML = `
-          <div class="recording-player-name">${displayName}</div>
-          <audio controls preload="none" src="${playerSrc}"></audio>
-        `;
-        const audio = container.querySelector("audio");
-        if (audio) {
-          audio.addEventListener("play", () => {
-            logUsageEvent("played_reflection_audio", {
-              reflection_name: displayName,
-              source: containerId,
-            });
-          }, { once: true });
-          audio.addEventListener("error", () => {
-            container.innerHTML = `<div class="recording-player-empty">${errorMessage}</div>`;
-          }, { once: true });
-        }
-      } catch (e) {
-        console.error(`Could not load audio for ${containerId}:`, e);
-        container.innerHTML = `<div class="recording-player-empty">${errorMessage}</div>`;
-      }
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (ch) => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+      ));
     }
 
-    async function loadRecentNotes(uid) {
+    // Reads users/{uid}/workflow_captures via the same authenticated API
+    // endpoint the capture form and /today/saved already use (list_captures
+    // -> list_capture_summaries), not a direct Firestore client read --
+    // firestore.rules grants no client access to this collection. Replaces
+    // the prior users/{uid}/notes read, which never gained a document for
+    // anyone using the current capture flow. Also drives
+    // hasAnyCaptures/hasSavedResults and the "Latest result" panel from the
+    // same fetch rather than separate round trips -- the newest item here
+    // *is* the latest result.
+    async function loadRecentNotes(token) {
+      const card = document.getElementById("recent-notes-card");
+      const list = document.getElementById("recent-notes-list");
       try {
-        const notesRef = collection(db, "users", uid, "notes");
-        let snap;
-        try {
-          snap = await getDocs(query(notesRef, orderBy("created_at", "desc"), limit(5)));
-        } catch (error) {
-          snap = await getDocs(query(notesRef, orderBy("date", "desc"), limit(5)));
-        }
-        if (snap.empty) {
-          renderLatestReflectionText(null);
-          renderReflectionContinuation(null);
+        const res = await fetch(WORKFLOW_CAPTURES_ENDPOINT, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = res.ok ? await res.json().catch(() => ({})) : {};
+        const items = Array.isArray(data.items) ? data.items : [];
+
+        hasAnyCaptures = items.length > 0;
+        window.memnonSetHasSavedResults?.(hasAnyCaptures);
+        renderDailyBriefSubscription(currentProfileData);
+        renderLatestReflectionText(items[0] || null);
+
+        if (!items.length) {
+          if (card) card.style.display = "none";
           return;
         }
 
-        const card = document.getElementById("recent-notes-card");
-        const list = document.getElementById("recent-notes-list");
         list.innerHTML = "";
         card.style.display = "block";
-        latestReflectionNote = null;
 
-        snap.forEach(doc => {
-          const n = doc.data();
-          if (!latestReflectionNote) {
-            latestReflectionNote = { id: doc.id, ...n };
-          }
+        items.slice(0, 5).forEach((n) => {
           const div = document.createElement("div");
           div.className = "note-item";
-          const styleKey = n.reflection_style in REFLECTION_STYLE_LABELS ? n.reflection_style : null;
-          const styleLabel = styleKey ? REFLECTION_STYLE_LABELS[styleKey] : "";
-          const voices = (n.influenced_by || [])
-            .map((s) => s.author)
-            .filter(Boolean);
-          const uniqueVoices = [...new Set(voices)];
-          const voiceLine = uniqueVoices.length
-            ? `In conversation with ${uniqueVoices.slice(0, 3).join(", ")}`
-            : "";
-
-          const influenced = (n.influenced_by || []).map(s => `
-            <div class="influenced-item">
-              <span class="influenced-source">${s.author || ""} — ${s.ref || ""}</span>
-              ${s.excerpt ? `<span class="influenced-excerpt">"${s.excerpt}"</span>` : ""}
-              ${s.because ? `<span class="influenced-because">→ ${s.because}</span>` : ""}
-            </div>
-          `).join("");
-
           div.innerHTML = `
             <div class="note-header">
-              <div class="note-title">${n.title || "Untitled"}</div>
+              <div class="note-title">${escapeHtml(n.title || "Untitled")}</div>
             </div>
             <div class="note-meta">
               ${n.date ? `<span class="note-pill">${formatNoteDate(n.date)}</span>` : ""}
-              ${styleLabel ? `<span class="note-pill">${styleLabel}</span>` : ""}
             </div>
-            <div class="note-summary">${n.summary || ""}</div>
-            ${voiceLine ? `<div class="influenced-line"><strong>In conversation with</strong> ${uniqueVoices.slice(0, 3).join(", ")}</div>` : ""}
-            ${(n.participant_response_summary || n.participant_response_excerpt) ? `<div class="note-response-line"><strong>Your latest reply summary</strong> ${n.participant_response_summary || n.participant_response_excerpt}</div>` : ""}
-            ${influenced ? `
-              <details class="influenced-by">
-                <summary class="influenced-toggle">Show source detail</summary>
-                ${influenced}
-              </details>` : ""}
+            <div class="note-summary">${escapeHtml(n.summary || "")}</div>
+            ${n.thread_title ? `<div class="note-thread-label">Part of: ${escapeHtml(n.thread_title)}</div>` : ""}
           `;
           list.appendChild(div);
         });
-        renderLatestReflectionText(latestReflectionNote);
-        renderReflectionContinuation(latestReflectionNote);
-      } catch(e) {
+      } catch (e) {
         console.error("Could not load recent notes:", e);
+        renderLatestReflectionText(null, "unavailable");
       }
     }
 
@@ -2505,12 +2554,6 @@
     }
 
     document.getElementById("capture-text-save")?.addEventListener("click", saveWrittenReflection);
-    document.getElementById("reflection-continue-btn")?.addEventListener("click", async () => {
-      continueReflectionThread();
-      await logUsageEvent("continued_reflection_thread", {
-        note_id: latestReflectionNote?.id || "",
-      });
-    });
     document.getElementById("write-btn")?.addEventListener("click", async () => {
       const panel = document.getElementById("capture-text-panel");
       renderCaptureTextPanel(!!panel?.hidden);
@@ -2518,27 +2561,33 @@
         panel_open: !!panel?.hidden,
       });
     });
-    document.getElementById("reflection-view-listen")?.addEventListener("click", async () => {
-      setReflectionView("listen");
-      await logUsageEvent("switched_reflection_view", { view: "listen" });
+    document.getElementById("daily-brief-enable")?.addEventListener("click", async (event) => {
+      if (event.currentTarget.dataset.action === "listen") {
+        const disclosure = document.querySelector(".daily-brief-disclosure");
+        if (disclosure) disclosure.open = true;
+        await logUsageEvent("opened_daily_brief_from_listen_now");
+        return;
+      }
+      await enableDailyBriefSubscription();
     });
-    document.getElementById("reflection-view-read")?.addEventListener("click", async () => {
-      setReflectionView("read");
-      await logUsageEvent("switched_reflection_view", { view: "read" });
-    });
-    document.getElementById("notes-link")?.addEventListener("click", async () => {
-      await logUsageEvent("opened_archive");
-    });
-    document.getElementById("daily-brief-enable")?.addEventListener("click", enableDailyBriefSubscription);
     document.getElementById("daily-brief-copy-btn")?.addEventListener("click", copyDailyBriefFeedLink);
     document.getElementById("daily-brief-overcast-btn")?.addEventListener("click", openDailyBriefInOvercast);
     document.getElementById("daily-brief-share-btn")?.addEventListener("click", shareDailyBriefFeedLink);
     document.getElementById("daily-brief-regenerate-btn")?.addEventListener("click", regenerateDailyBrief);
     renderDailyBriefSubscription();
+    renderStandingContext(null);
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
+      authResolved = true;
+      if (!user) {
+        // Signed out is now a rendered state, not an early return that leaves
+        // whatever the module-level pass happened to paint.
+        renderStandingContext(null);
+        renderLatestReflectionText(null, "signed-out");
+        renderDailyBriefSubscription(currentProfileData);
+        return;
+      }
 
       const firstName = (user.displayName || user.email).split(" ")[0];
       const firstNameEl = document.getElementById("first-name");
@@ -2556,28 +2605,11 @@
       if (res.ok) {
         const data = await res.json();
         currentProfileData = data;
-        updateReflectionArchiveLabels(data.reflection_style || "complete");
         renderDailyBriefSubscription(data);
-
-        // inbox folder link removed — direct upload is now the primary ingest path
-        if (data.notes_folder_id) {
-          const notesUrl = `https://drive.google.com/drive/folders/${data.notes_folder_id}`;
-          const notesEl = document.getElementById("notes-link");
-          notesEl.href = notesUrl;
-          notesEl.onclick = e => { e.preventDefault(); window.open(notesUrl, "_blank"); };
-        }
+        renderStandingContext(data);
 
         await applyDashboardPortrait(data.dashboard_image, token);
-        await loadLatestAudio(token, {
-          listPath: "/reflections",
-          streamPath: "/reflection",
-          containerId: "reflection-player-container",
-          emptyMessage: `Your latest ${latestResultStyleDescriptor(data.reflection_style || "complete")} result will appear here after processing.`,
-          errorMessage: "The latest result could not be loaded.",
-          fallbackName: `Latest ${latestResultStyleDescriptor(data.reflection_style || "complete")} result`,
-          cache: reflectionObjectUrls,
-        });
-        await loadRecentNotes(user.uid);
+        await loadRecentNotes(token);
         trackAnalytics("opened_app", {
           surface: "dashboard",
           reflection_style: data.reflection_style || "complete",
@@ -2623,7 +2655,6 @@
       const recordBtn = document.getElementById("record-btn");
       if (recordBtn) recordBtn.addEventListener("click", handleRecord);
       renderCaptureTextPanel(false);
-      setReflectionView("listen");
     });
 
     document.getElementById("signout-btn").addEventListener("click", async () => {

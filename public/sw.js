@@ -24,7 +24,7 @@ async function handleShareTarget(request) {
   }
 
   // Redirect to dashboard — it will detect and upload the pending file
-  return Response.redirect("/dashboard?shared=1", 303);
+  return Response.redirect("/today?shared=1", 303);
 }
 
 async function storeSharedFile(file) {

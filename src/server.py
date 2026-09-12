@@ -17,9 +17,12 @@ Deploy to Render:
   See render.yaml — set OPENAI_API_KEY + FLASK_SECRET + GOOGLE_CLIENT_SECRETS env vars.
 """
 
+import base64
+import hashlib
 import json
 import logging
 import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -77,6 +80,11 @@ def _client_secrets_path() -> Path:
     )
 
 
+def _pkce_challenge(code_verifier: str) -> str:
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
 def _flow():
     return Flow.from_client_secrets_file(
         str(_client_secrets_path()),
@@ -113,10 +121,14 @@ def index():
 @app.route("/login")
 def login():
     flow = _flow()
+    code_verifier = secrets.token_urlsafe(64)
+    session["oauth_code_verifier"] = code_verifier
     auth_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
+        code_challenge=_pkce_challenge(code_verifier),
+        code_challenge_method="S256",
     )
     session["oauth_state"] = state
     return redirect(auth_url)
@@ -125,7 +137,13 @@ def login():
 @app.route("/auth/callback")
 def auth_callback():
     flow = _flow()
-    flow.fetch_token(authorization_response=request.url)
+    code_verifier = session.pop("oauth_code_verifier", None)
+    if not code_verifier:
+        raise ValueError("Missing OAuth code verifier for PKCE exchange.")
+    flow.fetch_token(
+        authorization_response=request.url,
+        code_verifier=code_verifier,
+    )
     creds: Credentials = flow.credentials
 
     # Get user profile

@@ -320,17 +320,32 @@ function syncAuthPrompt() {
   prompt.hidden = Boolean(currentUser);
 }
 
+// Set by today.html once its own Recent Notes query resolves (a different
+// Firestore collection than this module has access to). Defaults to false
+// so the link doesn't flash visible before that count is known -- same
+// "hidden until proven non-empty" rule Recent Notes itself already follows.
+let hasSavedResults = false;
+
+// UX Burden review, 2026-08-15: this link was gated on sign-in alone, so a
+// signed-in user with zero captures still saw "View saved results" -- the
+// one footer item using different gating logic than its neighbor (Recent
+// Notes, count-based). Matched to the same rule here.
 function syncSavedResultsLink() {
   const row = document.getElementById("workflows-saved-link-row");
   const link = document.getElementById("workflows-saved-link");
   if (!row || !link) {
     return;
   }
-  const visible = Boolean(currentUser) || bypassRemoteAuth;
+  const visible = bypassRemoteAuth || (Boolean(currentUser) && hasSavedResults);
   link.href = SAVED_RESULTS_PATH;
   row.hidden = !visible;
   row.style.display = visible ? "" : "none";
 }
+
+window.memnonSetHasSavedResults = function memnonSetHasSavedResults(value) {
+  hasSavedResults = Boolean(value);
+  syncSavedResultsLink();
+};
 
 function syncSubmitState() {
   const input = document.getElementById("capture-text");
@@ -2143,19 +2158,6 @@ async function handleCurrentRoute() {
   syncSubmitState();
 }
 
-function focusCaptureComponent() {
-  const captureApp = document.getElementById("workflows-app");
-  captureApp?.scrollIntoView({ behavior: "smooth", block: "start" });
-  restorePendingCaptureToForm();
-  const recordTrigger = document.getElementById("record-trigger");
-  recordTrigger?.focus({ preventScroll: true });
-}
-
-// Exposed so a same-page entry point outside this module (the Today section's
-// "Open capture" button and "continue the thread" action) can open/focus the
-// one existing capture component in place, instead of navigating to it.
-window.memnonFocusCapture = focusCaptureComponent;
-
 export function mountWorkflowsApp() {
   const input = document.getElementById("capture-text");
   const context = document.getElementById("capture-context");
@@ -2166,12 +2168,6 @@ export function mountWorkflowsApp() {
   const clearUpload = document.getElementById("clear-upload");
   const form = document.getElementById("capture-form");
   const signInLink = document.getElementById("workflows-signin");
-  const openCaptureLink = document.getElementById("today-open-capture");
-
-  openCaptureLink?.addEventListener("click", (event) => {
-    event.preventDefault();
-    focusCaptureComponent();
-  });
 
   input?.addEventListener("input", syncSubmitState);
   context?.addEventListener("input", syncSubmitState);

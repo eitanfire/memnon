@@ -127,6 +127,25 @@ class FirestoreWorkflowRepository:
             },
         )
 
+    def update_context_embedding(
+        self,
+        uid: str,
+        context_id: str,
+        *,
+        embedding_v1: list,
+        embedding_dim: int,
+        embedding_version: str,
+    ):
+        self._context_doc(uid, context_id).set(
+            {
+                "embedding_v1": list(embedding_v1),
+                "embedding_dim": int(embedding_dim),
+                "embedding_version": embedding_version,
+                "embedding_created_at": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
+
     def touch_context_activity(self, uid: str, context_id: str, now: str):
         self._context_doc(uid, context_id).set(
             {

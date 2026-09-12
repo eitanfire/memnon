@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-REPO_ROOT = Path("/Users/eitan/memnon")
+REPO_ROOT = Path(__file__).resolve().parents[1]
 FUNCTIONS_DIR = REPO_ROOT / "functions"
 WEATHER_PATH = FUNCTIONS_DIR / "weather_context.py"
 

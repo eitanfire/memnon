@@ -445,7 +445,7 @@
   <nav>
     <span class="nav-brand"><img class="brand-mark" src="/nav-logo.png" alt="" /> Memnon</span>
     <div class="nav-right">
-      <a id="dashboard-link" class="btn" href="/dashboard">Dashboard</a>
+      <a id="dashboard-link" class="btn" href="/today">Today</a>
       <a id="setup-link" class="btn" href="/setup">Tune Reflection</a>
       <span id="nav-name" class="muted"></span>
       <button id="signout-btn" class="btn">Sign out</button>
@@ -740,12 +740,12 @@
     const API = isStaticLocalhost ? "https://api-4hth6oktaa-uc.a.run.app" : "/api";
     const routes = {
       home: isStaticLocalhost ? "/index.html" : "/",
-      dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
+      today: isStaticLocalhost ? "/today.html" : "/today",
       setup: isStaticLocalhost ? "/setup.html" : "/setup",
       research: isStaticLocalhost ? "/research.html" : "/research",
     };
 
-    document.getElementById("dashboard-link").setAttribute("href", routes.dashboard);
+    document.getElementById("dashboard-link").setAttribute("href", routes.today);
     document.getElementById("setup-link").setAttribute("href", routes.setup);
 
     async function getToken(forceRefresh = false) {

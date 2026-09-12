@@ -95,12 +95,12 @@ class PublicStaticServerTests(unittest.TestCase):
         status, _headers, body = self.request("GET", "/today")
         self.assertEqual(status, 200)
         self.assertIn(b"Memnon Today", body)
-        self.assertIn(b"Open capture", body)
+        self.assertIn(b'id="capture-surface"', body)
 
     def test_today_result_route_rewrites_to_today_html(self):
         status, _headers, body = self.request("GET", "/today/result/example")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_retired_dashboard_route_does_not_rewrite(self):
         status, _headers, _body = self.request("GET", "/dashboard")

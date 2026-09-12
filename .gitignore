@@ -15,3 +15,6 @@ __pycache__/
 *.py[cod]
 slide-*.jpg
 build-deck.js
+
+# Local OAuth client credentials — never commit
+google_client_secrets.json
