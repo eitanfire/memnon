@@ -549,7 +549,7 @@ class TodayStaticContractTests(unittest.TestCase):
         """Run renderStandingContext against a stub DOM, return the two lines."""
         html = TODAY_PATH.read_text(encoding="utf-8")
         start = html.index("    const LANE_LABELS = {")
-        end = html.index("    function renderLatestReflectionText(note) {", start)
+        end = html.index("    function renderLatestReflectionText(", start)
         snippet = html[start:end]
 
         script = f"""
@@ -646,6 +646,83 @@ console.log(JSON.stringify({{
         # Edit affordance stays the existing /setup link, no new editing UI.
         self.assertIn('id="today-context-settings"', html)
         self.assertIn('href="/setup"', html)
+
+    # ── Slots must never sit on an unresolvable loading state ──
+
+    def _run_latest_result(self, note_literal, state_literal):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        start = html.index("    function renderLatestReflectionText(")
+        end = html.index("    function renderCaptureTextPanel(", start)
+        snippet = html[start:end]
+
+        script = f"""
+const vm = require("vm");
+const container = {{ innerHTML: "" }};
+const context = {{ document: {{ getElementById: (id) => id === "reflection-read-content" ? container : null }} }};
+vm.createContext(context);
+vm.runInContext({snippet!r}, context);
+context.renderLatestReflectionText({note_literal}, {state_literal});
+console.log(JSON.stringify({{ html: container.innerHTML }}));
+"""
+        completed = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+        return json.loads(completed.stdout)["html"]
+
+    def test_latest_result_never_ships_a_loading_string_that_cannot_resolve(self):
+        # renderLatestReflectionText is only reachable from loadRecentNotes,
+        # which runs inside an auth callback that returns early with no user --
+        # so a static "Loading…" default was permanent for logged-out visitors.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        # Assert on the element's default content, not the whole file -- the
+        # comment explaining this fix necessarily names the old string.
+        start = html.index('<div id="reflection-read-content"')
+        default_markup = html[start:html.index("</div>", start)]
+
+        self.assertNotIn("Loading", default_markup)
+        self.assertIn("Sign in to see your latest result.", default_markup)
+
+    def test_latest_result_signed_out_state_is_distinct_from_empty(self):
+        signed_out = self._run_latest_result("null", '"signed-out"')
+        empty = self._run_latest_result("null", '"ready"')
+
+        self.assertIn("Sign in to see your latest result.", signed_out)
+        self.assertIn("will appear here after processing", empty)
+        self.assertNotEqual(signed_out, empty)
+
+    def test_latest_result_failed_fetch_reports_instead_of_hanging(self):
+        unavailable = self._run_latest_result("null", '"unavailable"')
+
+        self.assertIn("could not be loaded", unavailable)
+
+    def test_load_recent_notes_renders_a_state_when_the_fetch_throws(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        start = html.index("async function loadRecentNotes(token)")
+        end = html.index("\n    function formatTaskDueDate", start)
+        body = html[start:end]
+
+        # The catch previously only console.error'd, leaving the slot as-is.
+        self.assertIn('renderLatestReflectionText(null, "unavailable")', body)
+
+    def test_daily_brief_does_not_treat_unresolved_auth_as_signed_out(self):
+        # The module-level render runs before onAuthStateChanged fires, so
+        # reading auth.currentUser alone showed "Sign in to subscribe" beneath
+        # a signed-in header. Pending is now its own state.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("let authResolved = false;", html)
+        self.assertIn("authResolved && !auth.currentUser", html)
+        self.assertIn("const authPending =", html)
+        self.assertIn("if (authPending) {", html)
+
+    def test_signed_out_auth_branch_renders_states_instead_of_returning_early(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        start = html.index("onAuthStateChanged(auth, async (user) => {")
+        branch = html[start:start + 900]
+
+        self.assertIn("authResolved = true;", branch)
+        self.assertIn('renderLatestReflectionText(null, "signed-out")', branch)
+        self.assertIn("renderStandingContext(null)", branch)
 
     def test_share_target_audio_falls_back_to_upload_status_when_share_status_is_hidden(self):
         html = TODAY_PATH.read_text(encoding="utf-8")

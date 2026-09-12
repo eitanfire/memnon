@@ -1143,7 +1143,7 @@
       <details class="latest-result-details">
         <summary>Latest result</summary>
         <div class="recording-player-wrap">
-          <div id="reflection-read-content" class="recording-player-empty">Loading your latest result…</div>
+          <div id="reflection-read-content" class="recording-player-empty">Sign in to see your latest result.</div>
         </div>
       </details>
 
@@ -1283,6 +1283,8 @@
       grounded: "Grounded reflection",
       complete: "Complete reflection",
     };
+
+    let authResolved = false;
 
     const params = new URLSearchParams(window.location.search);
     const PREVIEW_MODE =
@@ -1666,7 +1668,12 @@
       const feedUrl = profile.daily_feed_url || "";
       const briefStatus = profile.daily_feed_status || {};
       const canRegenerate = !!profile.daily_feed_can_regenerate;
-      const previewDisabled = PREVIEW_MODE || !auth.currentUser;
+      // authResolved distinguishes "signed out" from "auth has not answered
+    // yet". Reading auth.currentUser alone conflated them: this renders at
+    // module load, before onAuthStateChanged fires, so a signed-in user saw
+    // "Sign in to subscribe" beneath their own name in the header.
+      const previewDisabled = PREVIEW_MODE || (authResolved && !auth.currentUser);
+      const authPending = !PREVIEW_MODE && !authResolved && !auth.currentUser;
       const hasMaterial = hasAnyCaptures;
 
       const card = document.getElementById("daily-brief-card");
@@ -1708,6 +1715,20 @@
       function hideControl() {
         enableBtn.hidden = true;
         delete enableBtn.dataset.action;
+      }
+
+      // Auth has not answered yet: show nothing rather than guessing. The
+      // callback re-renders the moment it does.
+      if (authPending) {
+        hideControl();
+        urlWrap.hidden = true;
+        overcastBtn.hidden = true;
+        shareBtn.hidden = true;
+        appleNote.hidden = true;
+        titleEl.textContent = "Your private daily brief";
+        copyEl.textContent = "";
+        metaEl.textContent = "";
+        return;
       }
 
       if (previewDisabled) {
@@ -2059,11 +2080,21 @@
       }
     }
 
-    function renderLatestReflectionText(note) {
+    // `state` distinguishes the three ways there is nothing to show. Without
+    // it the slot sat on "Loading your latest result…" forever for a logged-out
+    // visitor (this only ran from loadRecentNotes, inside an auth callback that
+    // returns early with no user) and after any failed fetch.
+    function renderLatestReflectionText(note, state = "ready") {
       const container = document.getElementById("reflection-read-content");
       if (!container) return;
       if (!note) {
-        container.innerHTML = `<div class="recording-player-empty">Your latest result text will appear here after processing.</div>`;
+        const message =
+          state === "signed-out"
+            ? "Sign in to see your latest result."
+            : state === "unavailable"
+              ? "Your latest result could not be loaded just now."
+              : "Your latest result text will appear here after processing.";
+        container.innerHTML = `<div class="recording-player-empty">${message}</div>`;
         return;
       }
       const actions = Array.isArray(note.action_items) ? note.action_items.filter(Boolean) : [];
@@ -2294,6 +2325,7 @@
         });
       } catch (e) {
         console.error("Could not load recent notes:", e);
+        renderLatestReflectionText(null, "unavailable");
       }
     }
 
@@ -2547,7 +2579,15 @@
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
+      authResolved = true;
+      if (!user) {
+        // Signed out is now a rendered state, not an early return that leaves
+        // whatever the module-level pass happened to paint.
+        renderStandingContext(null);
+        renderLatestReflectionText(null, "signed-out");
+        renderDailyBriefSubscription(currentProfileData);
+        return;
+      }
 
       const firstName = (user.displayName || user.email).split(" ")[0];
       const firstNameEl = document.getElementById("first-name");
