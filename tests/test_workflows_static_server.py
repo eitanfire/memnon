@@ -78,7 +78,13 @@ class WorkflowsStaticServerTests(unittest.TestCase):
         self.assertEqual(status, 404)
 
     def test_runner_script_serves_today_route(self):
-        port = self.port + 1000
+        # Ask the OS for a free port rather than self.port + 1000, which
+        # overflows whenever setUp happens to draw an ephemeral port above
+        # 64535 -- a flake that only shows up on some runs.
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
         process = subprocess.Popen(
             [
                 sys.executable,

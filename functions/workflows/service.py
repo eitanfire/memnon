@@ -1382,6 +1382,7 @@ class WorkflowService:
         social_post_generator=None,
         professional_analysis_generator=None,
         embedding_provider=None,
+        usage_logger=None,
         generator_label: str = "llm",
     ):
         self.repository = repository
@@ -1393,6 +1394,8 @@ class WorkflowService:
         self.social_post_generator = social_post_generator
         self.professional_analysis_generator = professional_analysis_generator
         self.embedding_provider = embedding_provider
+        self.usage_logger = usage_logger
+        self._context_query_degraded = False
 
     def _call_note_generator(self, source_text: str, context_hint: str, profile: dict, *, allow_next_step: bool) -> dict:
         api_key = self.api_key_provider()
@@ -1527,8 +1530,12 @@ class WorkflowService:
         if hasattr(self.repository, "list_active_contexts"):
             effective_limit = 1000 if limit is None else limit
             try:
+                self._context_query_degraded = False
                 return self.repository.list_active_contexts(uid, limit=effective_limit)
             except FirestoreFailedPrecondition:
+                # An index still building looks identical to "no threads" from
+                # the caller's side; the flag keeps them apart in telemetry.
+                self._context_query_degraded = True
                 return []
         if hasattr(self.repository, "list_contexts"):
             if limit is None:
@@ -1777,7 +1784,23 @@ class WorkflowService:
         else:
             raise ValueError(f"Unsupported context action: {action}")
 
+        # Read the prior suggestion BEFORE writing the decision: repositories
+        # may hand back the stored record by reference, so the update would
+        # otherwise overwrite the very field being measured.
+        suggested_id = (record.get("threading") or {}).get("suggested_context_id") or ""
+
         self._repository_update_capture_threading(uid, capture_id, threading, now)
+
+        # Was a suggestion on offer, and did the user take it? Acceptance rate
+        # is meaningless without knowing a suggestion was shown at all.
+        self._log_usage(uid, "thread_decision", {
+            "action": action,
+            "had_suggestion": bool(suggested_id),
+            "followed_suggestion": bool(
+                suggested_id and context is not None and context.get("context_id") == suggested_id
+            ),
+        })
+
         updated = self.repository.get_capture(uid, capture_id)
         return self._hydrate_capture_record(
             uid,
@@ -1997,6 +2020,15 @@ class WorkflowService:
             include_contextual_suggestions=False,
         )
 
+    def _log_usage(self, uid: str, event_name: str, metadata: dict | None = None) -> None:
+        """Record a usage event, never failing the request that produced it."""
+        if self.usage_logger is None:
+            return
+        try:
+            self.usage_logger(uid, event_name, metadata or {})
+        except Exception:
+            pass
+
     def _embed(self, text: str) -> list[float]:
         """Embed `text`, or return [] when embedding is unavailable.
 
@@ -2094,13 +2126,26 @@ class WorkflowService:
         score += self._semantic_match_boost(capture_embedding or [], thread)
         return score
 
+    # Every path out of this function is recorded. A suggestion that never
+    # appears is indistinguishable from one the user ignored unless the reason
+    # is captured at the point it is decided -- and "no suggestion" has five
+    # distinct causes with five different fixes.
+    SUGGESTION_MIN_SCORE = 5
+    SUGGESTION_MIN_MARGIN = 2
+
     def suggest_context_for_capture(self, uid: str, record: dict) -> dict | None:
-        if _should_suppress_thread_suggestion(record):
+        def withhold(reason: str, **extra):
+            self._log_usage(uid, "thread_suggestion_withheld", {"reason": reason, **extra})
             return None
+
+        if _should_suppress_thread_suggestion(record):
+            return withhold("capture_not_eligible")
 
         threads = self.list_active_contexts(uid, limit=12)
         if not threads:
-            return None
+            return withhold(
+                "context_index_unavailable" if self._context_query_degraded else "no_active_threads"
+            )
 
         # One embedding per suggestion, reused across every candidate thread.
         capture_embedding = self._embed(_capture_embedding_source(record))
@@ -2113,10 +2158,29 @@ class WorkflowService:
         best_score, best_thread = scored[0]
         runner_up_score = scored[1][0] if len(scored) > 1 else -1
 
-        if best_score < 5:
-            return None
-        if best_score - runner_up_score < 2:
-            return None
+        if best_score < self.SUGGESTION_MIN_SCORE:
+            return withhold(
+                "below_threshold",
+                candidate_count=len(threads),
+                best_score=best_score,
+                threshold=self.SUGGESTION_MIN_SCORE,
+                semantic_enabled=self.embedding_provider is not None,
+            )
+        if best_score - runner_up_score < self.SUGGESTION_MIN_MARGIN:
+            return withhold(
+                "ambiguous_margin",
+                candidate_count=len(threads),
+                best_score=best_score,
+                runner_up_score=runner_up_score,
+                semantic_enabled=self.embedding_provider is not None,
+            )
+
+        self._log_usage(uid, "thread_suggestion_shown", {
+            "candidate_count": len(threads),
+            "best_score": best_score,
+            "runner_up_score": runner_up_score,
+            "semantic_enabled": self.embedding_provider is not None,
+        })
 
         return {
             "suggested_context_id": best_thread["context_id"],

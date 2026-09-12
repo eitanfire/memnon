@@ -116,6 +116,7 @@ def _workflow_service():
         social_post_generator=generate_social_post,
         professional_analysis_generator=generate_professional_analysis,
         embedding_provider=_semantic_threading_embedding_provider(),
+        usage_logger=_log_usage_event,
         generator_label="llm",
     )
 

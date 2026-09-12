@@ -178,5 +178,174 @@ class SemanticDegradationTests(unittest.TestCase):
         self.assertEqual(service._semantic_match_boost([1.0, 0.0, 0.0], {"context_id": "ctx-1"}), 0)
 
 
+class ThreadSuggestionTelemetryTests(unittest.TestCase):
+    """Every reason a suggestion does or does not appear must be recorded.
+
+    Production shows 104 captures against 1 thread with 3 confirmed
+    assignments, and no way to tell whether suggestions are never shown, shown
+    and ignored, or not understood. Those are three different problems.
+    """
+
+    def _service_with_log(self, repo=None):
+        events = []
+        service = WorkflowService(
+            repository=repo if repo is not None else FakeRepository(),
+            note_generator=lambda *_a, **_k: {
+                "title": NOTE_TITLE,
+                "framing_line": "A saved note shaped around one concrete next step.",
+                "key_point": "The retrospective stalled.",
+                "next_step": "Schedule one-on-ones.",
+            },
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+            usage_logger=lambda uid, name, meta: events.append((name, meta)),
+        )
+        return service, events
+
+    def _names(self, events):
+        return [name for name, _meta in events]
+
+    def _meta(self, events, name):
+        return next(meta for event_name, meta in events if event_name == name)
+
+    def test_no_threads_is_recorded_as_its_own_reason(self):
+        service, events = self._service_with_log()
+        capture = service.create_text_capture(
+            uid="user-1", source_text=PARAPHRASE_CAPTURE, context_hint=""
+        )
+        events.clear()
+
+        service.suggest_context_for_capture("user-1", capture.to_dict())
+
+        self.assertIn("thread_suggestion_withheld", self._names(events))
+        self.assertEqual(self._meta(events, "thread_suggestion_withheld")["reason"], "no_active_threads")
+
+    def test_building_index_is_not_reported_as_no_threads(self):
+        # The two are indistinguishable to the caller -- both yield [] -- but
+        # they mean opposite things: one is a product problem, one is transient.
+        from google.api_core.exceptions import FailedPrecondition
+
+        class IndexBuilding(FakeRepository):
+            def list_active_contexts(self, uid, limit=12):
+                raise FailedPrecondition("index is currently building")
+
+        service, events = self._service_with_log(repo=IndexBuilding())
+        capture = service.create_text_capture(
+            uid="user-1", source_text=PARAPHRASE_CAPTURE, context_hint=""
+        )
+        events.clear()
+
+        service.suggest_context_for_capture("user-1", capture.to_dict())
+
+        self.assertEqual(
+            self._meta(events, "thread_suggestion_withheld")["reason"],
+            "context_index_unavailable",
+        )
+
+    def test_below_threshold_records_the_score_it_fell_short_of(self):
+        service, events = self._service_with_log()
+        service.create_context("user-1", title="Deployment pipeline", summary="")
+        capture = service.create_text_capture(
+            uid="user-1", source_text=PARAPHRASE_CAPTURE, context_hint=""
+        )
+        events.clear()
+
+        service.suggest_context_for_capture("user-1", capture.to_dict())
+
+        meta = self._meta(events, "thread_suggestion_withheld")
+        self.assertEqual(meta["reason"], "below_threshold")
+        self.assertEqual(meta["candidate_count"], 1)
+        self.assertIn("best_score", meta)
+        self.assertEqual(meta["threshold"], WorkflowService.SUGGESTION_MIN_SCORE)
+        self.assertFalse(meta["semantic_enabled"])
+
+    def test_a_shown_suggestion_is_recorded_with_its_margin(self):
+        service, events = self._service_with_log()
+        service.create_context("user-1", title="Workflows UI/UX", summary="")
+        service.create_context("user-1", title="Voice capture", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="workflows ui/ux",
+        )
+        events.clear()
+
+        suggested = service.suggest_context_for_capture("user-1", capture.to_dict())
+
+        self.assertIsNotNone(suggested)
+        meta = self._meta(events, "thread_suggestion_shown")
+        self.assertEqual(meta["candidate_count"], 2)
+        self.assertIn("best_score", meta)
+        self.assertIn("runner_up_score", meta)
+
+    def test_decision_records_whether_the_suggestion_was_followed(self):
+        service, events = self._service_with_log()
+        context = service.create_context("user-1", title="Workflows UI/UX", summary="")
+        service.create_context("user-1", title="Voice capture", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="workflows ui/ux",
+        )
+        events.clear()
+
+        service.apply_context_decision(
+            "user-1", capture.capture_id, action="confirmed", context_id=context["context_id"]
+        )
+
+        meta = self._meta(events, "thread_decision")
+        self.assertEqual(meta["action"], "confirmed")
+        self.assertTrue(meta["had_suggestion"])
+        self.assertTrue(meta["followed_suggestion"])
+
+    def test_kept_separate_records_a_declined_suggestion(self):
+        service, events = self._service_with_log()
+        service.create_context("user-1", title="Workflows UI/UX", summary="")
+        service.create_context("user-1", title="Voice capture", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="workflows ui/ux",
+        )
+        events.clear()
+
+        service.apply_context_decision("user-1", capture.capture_id, action="kept_separate")
+
+        meta = self._meta(events, "thread_decision")
+        self.assertEqual(meta["action"], "kept_separate")
+        self.assertTrue(meta["had_suggestion"])
+        self.assertFalse(meta["followed_suggestion"])
+
+    def test_telemetry_never_breaks_the_request_that_produced_it(self):
+        service, _events = self._service_with_log()
+
+        def exploding_logger(*_args, **_kwargs):
+            raise RuntimeError("usage_events write failed")
+
+        service.usage_logger = exploding_logger
+        service.create_context("user-1", title="Workflows UI/UX", summary="")
+        capture = service.create_text_capture(
+            uid="user-1",
+            source_text="Met with Jordan about the workflows page. Action: revise the result card.",
+            context_hint="workflows ui/ux",
+        )
+
+        # Must not raise.
+        service.suggest_context_for_capture("user-1", capture.to_dict())
+
+    def test_no_logger_injected_is_silent_and_safe(self):
+        service = WorkflowService(
+            repository=FakeRepository(),
+            note_generator=lambda *_a, **_k: {"title": NOTE_TITLE, "framing_line": "", "key_point": "", "next_step": ""},
+            now_provider=lambda: "2026-06-29T12:00:00Z",
+            api_key_provider=lambda: "test-key",
+        )
+        capture = service.create_text_capture(
+            uid="user-1", source_text=PARAPHRASE_CAPTURE, context_hint=""
+        )
+
+        self.assertIsNone(service.suggest_context_for_capture("user-1", capture.to_dict()))
+
+
 if __name__ == "__main__":
     unittest.main()
