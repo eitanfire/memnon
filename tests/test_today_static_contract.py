@@ -7,7 +7,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 
-REPO_ROOT = Path("/Users/eitan/Sites/memnon")
+REPO_ROOT = Path(__file__).resolve().parents[1]
 TODAY_PATH = REPO_ROOT / "public" / "today.html"
 
 _VOID_ELEMENTS = {
@@ -542,6 +542,110 @@ class TodayStaticContractTests(unittest.TestCase):
         self.assertNotIn("Manage", html)
         self.assertNotIn('id="analytics-panel"', html)
         self.assertNotIn('id="review-queue"', html)
+
+    # ── Standing context on Today (controller brief, 2026-09-12) ──
+
+    def _run_standing_context(self, profile_literal):
+        """Run renderStandingContext against a stub DOM, return the two lines."""
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        start = html.index("    const LANE_LABELS = {")
+        end = html.index("    function renderLatestReflectionText(note) {", start)
+        snippet = html[start:end]
+
+        script = f"""
+const vm = require("vm");
+const activeEl = {{ textContent: "", hidden: false }};
+const storedEl = {{ textContent: "", hidden: false }};
+const context = {{
+  REFLECTION_STYLE_LABELS: {{
+    practical: "Practical guidance",
+    grounded: "Grounded reflection",
+    complete: "Complete reflection",
+  }},
+  document: {{
+    getElementById(id) {{
+      if (id === "standing-context-active") return activeEl;
+      if (id === "standing-context-stored") return storedEl;
+      return null;
+    }},
+  }},
+}};
+vm.createContext(context);
+vm.runInContext({snippet!r}, context);
+context.renderStandingContext({profile_literal});
+console.log(JSON.stringify({{
+  active: activeEl.textContent,
+  stored: storedEl.textContent,
+  storedHidden: storedEl.hidden,
+}}));
+"""
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+        return json.loads(completed.stdout)
+
+    def test_standing_context_states_what_shapes_a_result_and_what_only_sits_stored(self):
+        # The whole point of the brief: a user could not tell what standing
+        # context the app held. Only lane + reflection_style reach a Today
+        # capture, so the two groups are stated separately rather than merged
+        # into one list that would imply subjects/standards shape the note.
+        result = self._run_standing_context(
+            '{ lane: "professional", reflection_style: "practical", '
+            'subjects: "Biology", grade_levels: [9, 10], state_standards: ["SC.9"], '
+            'narration_voice: "sage" }'
+        )
+
+        self.assertIn("professional lane", result["active"])
+        self.assertIn("practical guidance", result["active"])
+        self.assertFalse(result["storedHidden"])
+        self.assertIn("subjects", result["stored"])
+        self.assertIn("grade levels", result["stored"])
+        self.assertIn("state standards", result["stored"])
+        self.assertIn("narration voice", result["stored"])
+        # The stored line must not claim to shape the result.
+        self.assertNotIn("subjects", result["active"])
+
+    def test_standing_context_empty_state_says_so_plainly(self):
+        result = self._run_standing_context("{}")
+
+        self.assertEqual(result["active"], "No standing context set yet.")
+        self.assertTrue(result["storedHidden"])
+
+    def test_standing_context_logged_out_does_not_claim_to_hold_anything(self):
+        result = self._run_standing_context("null")
+
+        self.assertEqual(result["active"], "Sign in to see the context Memnon is holding.")
+        self.assertTrue(result["storedHidden"])
+
+    def test_standing_context_renders_stored_only_profile_without_claiming_influence(self):
+        # A profile carrying teaching context but no lane/style: the active
+        # line must not invent influence that isn't there.
+        result = self._run_standing_context('{ subjects: "Chemistry" }')
+
+        # Field categories are named, never the values themselves -- the line
+        # says what is held, not what it contains.
+        self.assertIn("subjects", result["stored"])
+        self.assertNotIn("Chemistry", result["stored"])
+        self.assertFalse(result["storedHidden"])
+        self.assertNotIn("lane", result["active"])
+        self.assertEqual(result["active"], "Nothing you have saved shapes a result here yet.")
+
+    def test_standing_context_markup_defaults_to_signed_out_copy(self):
+        # Static default is the signed-out line, not a loading string -- the
+        # latest-result slot's "Loading…" never resolves for a logged-out
+        # visitor, and this block must not repeat that.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+
+        self.assertIn('id="standing-context-active"', html)
+        self.assertIn('id="standing-context-stored"', html)
+        self.assertIn("Sign in to see the context Memnon is holding.", html)
+        # Edit affordance stays the existing /setup link, no new editing UI.
+        self.assertIn('id="today-context-settings"', html)
+        self.assertIn('href="/setup"', html)
 
     def test_share_target_audio_falls_back_to_upload_status_when_share_status_is_hidden(self):
         html = TODAY_PATH.read_text(encoding="utf-8")

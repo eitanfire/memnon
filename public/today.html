@@ -204,6 +204,19 @@
     .capture-quiet-row {
       margin: 0;
     }
+    .standing-context {
+      display: grid;
+      gap: 3px;
+    }
+    .standing-context-line {
+      margin: 0;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: #6b5940;
+    }
+    .standing-context-muted {
+      color: #97846a;
+    }
     .latest-result-details {
       margin: 0;
     }
@@ -1116,9 +1129,16 @@
       <p id="workflows-saved-link-row" class="capture-quiet-row" hidden>
         <a id="workflows-saved-link" class="archive-quiet-link" href="/today/saved">View saved results</a>
       </p>
-      <p class="capture-quiet-row">
+      <!-- Standing context as state, not a link label (controller brief,
+           2026-09-12). Today previously exposed only a "Context settings"
+           link, so a user could not tell what standing context the app was
+           holding. The static default is the signed-out copy so the block
+           reads correctly with no JS and never sits on a loading string. -->
+      <div id="standing-context" class="capture-quiet-row standing-context">
+        <p id="standing-context-active" class="standing-context-line">Sign in to see the context Memnon is holding.</p>
+        <p id="standing-context-stored" class="standing-context-line standing-context-muted" hidden></p>
         <a id="today-context-settings" class="archive-quiet-link" href="/setup">Context settings →</a>
-      </p>
+      </div>
 
       <details class="latest-result-details">
         <summary>Latest result</summary>
@@ -1373,6 +1393,7 @@
       }
       renderCaptureTextPanel(true);
 
+      renderStandingContext(data);
       renderDailyBriefSubscription({
         ...data,
         daily_feed_enabled: false,
@@ -1968,6 +1989,76 @@
       }
     }
 
+    // Standing context. Two truths held apart on purpose: only `lane` and
+    // `reflection_style` reach a Today capture (routing.py / ai.py); the rest
+    // of what /setup stores is consumed by other paths. Listing them together
+    // would imply a teacher's subjects and standards shape the note in front
+    // of them, which they do not.
+    const LANE_LABELS = { professional: "professional lane", reflect: "reflect lane" };
+    // Label, and how to tell whether the profile actually carries it.
+    const STORED_CONTEXT_FIELDS = [
+      ["subjects", (p) => !!(p.subjects || "").trim()],
+      ["grade levels", (p) => Array.isArray(p.grade_levels) && p.grade_levels.length > 0],
+      ["state standards", (p) => Array.isArray(p.state_standards) && p.state_standards.length > 0],
+      ["school", (p) => !!(p.school_name || "").trim()],
+      ["preferred name", (p) => !!(p.preferred_name || "").trim()],
+      ["pronouns", (p) => !!(p.preferred_pronouns || "").trim()],
+      ["narration voice", (p) => !!(p.narration_voice || "").trim()],
+      ["chosen guides", (p) => Array.isArray(p.reflect_config?.selected_guides) && p.reflect_config.selected_guides.length > 0],
+    ];
+
+    function describeActiveContext(profile) {
+      const parts = [];
+      if (profile.lane && LANE_LABELS[profile.lane]) parts.push(LANE_LABELS[profile.lane]);
+      // Reuses the page's existing style labels so the two surfaces cannot drift.
+      if (profile.reflection_style && REFLECTION_STYLE_LABELS[profile.reflection_style]) {
+        parts.push(REFLECTION_STYLE_LABELS[profile.reflection_style].toLowerCase());
+      }
+      return parts;
+    }
+
+    function describeStoredContext(profile) {
+      return STORED_CONTEXT_FIELDS.filter(([, present]) => {
+        try { return present(profile); } catch (_e) { return false; }
+      }).map(([label]) => label);
+    }
+
+    function renderStandingContext(profile) {
+      const activeEl = document.getElementById("standing-context-active");
+      const storedEl = document.getElementById("standing-context-stored");
+      if (!activeEl || !storedEl) return;
+
+      // Signed out: state that plainly rather than claiming to hold nothing.
+      if (!profile) {
+        activeEl.textContent = "Sign in to see the context Memnon is holding.";
+        storedEl.hidden = true;
+        storedEl.textContent = "";
+        return;
+      }
+
+      const active = describeActiveContext(profile);
+      const stored = describeStoredContext(profile);
+
+      if (!active.length && !stored.length) {
+        activeEl.textContent = "No standing context set yet.";
+        storedEl.hidden = true;
+        storedEl.textContent = "";
+        return;
+      }
+
+      activeEl.textContent = active.length
+        ? `Shaping your saved results: ${active.join(", ")}.`
+        : "Nothing you have saved shapes a result here yet.";
+
+      if (stored.length) {
+        storedEl.textContent = `Also saved, used elsewhere in Memnon: ${stored.join(", ")}.`;
+        storedEl.hidden = false;
+      } else {
+        storedEl.hidden = true;
+        storedEl.textContent = "";
+      }
+    }
+
     function renderLatestReflectionText(note) {
       const container = document.getElementById("reflection-read-content");
       if (!container) return;
@@ -2452,6 +2543,7 @@
     document.getElementById("daily-brief-share-btn")?.addEventListener("click", shareDailyBriefFeedLink);
     document.getElementById("daily-brief-regenerate-btn")?.addEventListener("click", regenerateDailyBrief);
     renderDailyBriefSubscription();
+    renderStandingContext(null);
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
@@ -2474,6 +2566,7 @@
         const data = await res.json();
         currentProfileData = data;
         renderDailyBriefSubscription(data);
+        renderStandingContext(data);
 
         await applyDashboardPortrait(data.dashboard_image, token);
         await loadRecentNotes(token);
