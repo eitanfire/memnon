@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 
-REPO_ROOT = Path("/Users/eitan/memnon")
+REPO_ROOT = Path(__file__).resolve().parents[1]
 SETUP_PATH = REPO_ROOT / "public" / "setup.html"
 
 

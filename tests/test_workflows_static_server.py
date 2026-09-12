@@ -52,22 +52,22 @@ class WorkflowsStaticServerTests(unittest.TestCase):
     def test_today_html_returns_ok(self):
         status, body = self.request("/today.html")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_today_route_rewrites_to_today_html(self):
         status, body = self.request("/today")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_today_result_route_rewrites_to_today_html(self):
         status, body = self.request("/today/result/example")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_today_saved_route_rewrites_to_today_html(self):
         status, body = self.request("/today/saved")
         self.assertEqual(status, 200)
-        self.assertIn(b"Capture a thought", body)
+        self.assertIn(b'id="workflows-app"', body)
 
     def test_retired_workflows_route_does_not_rewrite(self):
         status, _body = self.request("/workflows")
@@ -103,7 +103,7 @@ class WorkflowsStaticServerTests(unittest.TestCase):
                     body = response.read()
                     connection.close()
                     self.assertEqual(response.status, 200)
-                    self.assertIn(b"Capture a thought", body)
+                    self.assertIn(b'id="workflows-app"', body)
                     return
                 except OSError:
                     time.sleep(0.1)
