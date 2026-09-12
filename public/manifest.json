@@ -2,7 +2,7 @@
   "name": "Memnon",
   "short_name": "Memnon",
   "description": "Build your active schema — voice memos for teachers, enriched by wisdom",
-  "start_url": "/dashboard",
+  "start_url": "/today",
   "display": "standalone",
   "background_color": "#f8f7f4",
   "theme_color": "#f8f7f4",

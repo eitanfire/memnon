@@ -259,6 +259,17 @@
       font-weight: 600;
       color: #3f2f20;
     }
+    /* Resets #daily-brief-enable to plain link styling for the "off, has
+       material" state -- paired with .archive-quiet-link for the actual
+       color/underline. Only a .btn in the "ready to hear" state should read
+       as a loud control; every other state is quiet or absent. */
+    .daily-brief-link-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      cursor: pointer;
+    }
     .daily-brief-disclosure {
       flex-basis: 100%;
       margin-top: 8px;
@@ -298,10 +309,6 @@
       color: #7b6546;
       text-decoration: underline;
       white-space: nowrap;
-    }
-    .archive-quiet-copy {
-      font-size: 0.76rem;
-      color: #8a8071;
     }
     .daily-brief-layout {
       display: grid;
@@ -568,40 +575,6 @@
     .recording-player-wrap:first-of-type {
       margin-top: 0;
     }
-    .reflection-view-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px;
-      margin-bottom: 10px;
-      border-radius: 999px;
-      background: rgba(247, 240, 229, 0.88);
-      border: 1px solid rgba(217, 195, 155, 0.7);
-    }
-    .reflection-view-toggle button {
-      border: none;
-      background: transparent;
-      color: #756754;
-      border-radius: 999px;
-      padding: 6px 11px;
-      font: inherit;
-      font-size: 0.76rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .reflection-view-toggle button.is-active {
-      background: #fffdfa;
-      color: #4a3a28;
-      box-shadow: 0 6px 14px rgba(90, 68, 36, 0.08);
-    }
-    .reflection-panel[hidden] {
-      display: none !important;
-    }
-    .reflection-read-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
     .reflection-read-title {
       font-size: 0.9rem;
       font-weight: 600;
@@ -638,29 +611,6 @@
       background: #f5efe3;
       color: #7b6546;
       border: 1px solid rgba(206, 188, 161, 0.66);
-    }
-    .recording-player-label {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #847564;
-      margin-bottom: 8px;
-    }
-    .recording-player-name {
-      font-size: 0.78rem;
-      color: #6a655c;
-      margin-bottom: 8px;
-      line-height: 1.45;
-      word-break: break-word;
-    }
-    .summary-tile.featured .recording-player-name {
-      font-size: 0.82rem;
-      color: #554735;
-    }
-    .recording-player audio {
-      width: 100%;
-      height: 34px;
     }
     .recording-player-empty {
       font-size: 0.78rem;
@@ -846,6 +796,14 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
+    /* Quiet, non-interactive -- metadata on a card already in view, not a
+       call to action (unlike the retired continuity nudge). Shown only
+       when a thread is actually confirmed on the capture. */
+    .note-thread-label {
+      font-size: 0.76rem;
+      color: #8a7d6d;
+      line-height: 1.4;
+    }
     .influenced-line {
       font-size: 0.79rem;
       color: #6d6459;
@@ -1005,6 +963,16 @@
       .daily-brief-url-row {
         grid-template-columns: 1fr;
       }
+      /* Deliberate stack, not an accidental flex-wrap: below 640px the
+         icon+headline row and the control (whichever state it's in) each
+         get their own line instead of the control dropping into a partial
+         wrap wherever the headline's length happens to end. */
+      .daily-brief-line {
+        align-items: flex-start;
+      }
+      #daily-brief-enable {
+        flex: 1 0 100%;
+      }
     }
   </style>
 </head>
@@ -1153,21 +1121,9 @@
       </p>
 
       <details class="latest-result-details">
-        <summary>Latest result — listen or read</summary>
+        <summary>Latest result</summary>
         <div class="recording-player-wrap">
-          <div class="recording-player-label" id="reflection-player-label">Latest complete result</div>
-          <div class="reflection-view-toggle" id="reflection-view-toggle">
-            <button id="reflection-view-listen" class="is-active" type="button">Listen</button>
-            <button id="reflection-view-read" type="button">Read</button>
-          </div>
-          <div id="reflection-audio-panel" class="reflection-panel">
-            <div id="reflection-player-container" class="recording-player">
-              <div class="recording-player-empty">Loading your latest result…</div>
-            </div>
-          </div>
-          <div id="reflection-read-panel" class="reflection-panel reflection-read-panel" hidden>
-            <div id="reflection-read-content" class="recording-player-empty">Loading the latest result text…</div>
-          </div>
+          <div id="reflection-read-content" class="recording-player-empty">Loading your latest result…</div>
         </div>
       </details>
 
@@ -1241,13 +1197,9 @@
       <div class="editorial-header" style="margin-bottom:10px;">
         <div>
           <h2 style="margin-bottom:6px;">Recent notes</h2>
-          <p class="muted" style="margin:0;">A short record of recent returns and the voices in conversation.</p>
+          <p class="muted" style="margin:0;">A short record of your recent captures.</p>
         </div>
-        <a id="notes-link" href="#" target="_blank" class="archive-quiet-link">Open archive ↗</a>
       </div>
-      <p class="archive-quiet-copy" style="margin:-6px 0 10px;">
-        <span id="archive-summary-copy">Each capture returns as a complete spoken reflection in your</span> <strong>archive</strong>.
-      </p>
       <div id="recent-notes-list" style="margin-top:14px;"></div>
     </div>
 
@@ -1311,28 +1263,18 @@
       grounded: "Grounded reflection",
       complete: "Complete reflection",
     };
-    const REFLECTION_STYLE_ARCHIVE_COPY = {
-      practical: "Each capture returns as a practical spoken reflection in your",
-      grounded: "Each capture returns as a grounded spoken reflection in your",
-      complete: "Each capture returns as a complete spoken reflection in your",
-    };
-
-    function latestResultStyleDescriptor(styleKey) {
-      switch (styleKey) {
-        case "practical":
-          return "practical";
-        case "grounded":
-          return "grounded";
-        default:
-          return "complete";
-      }
-    }
 
     const params = new URLSearchParams(window.location.search);
     const PREVIEW_MODE =
       params.has("preview") ||
       window.location.port === "8000" ||
       window.location.port === "8080";
+    // Overcast ships on iOS/iPadOS only, so the overcast:// scheme has no
+    // registered handler anywhere else. Offering the button on desktop just
+    // produces a silent "scheme does not have a registered handler" failure.
+    const SUPPORTS_OVERCAST_SCHEME =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const MOCK_DASHBOARD_KEY = params.get("mock");
     const MOCK_REFLECTION_STATE = params.get("reflection") || "ready";
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -1423,7 +1365,6 @@
         normalizeDashboardImageConfig(data.dashboard_image)
       );
       document.getElementById("welcome-mark-image").src = resolveMockDashboardPortraitSrc(data.dashboard_image);
-      updateReflectionArchiveLabels(data.reflection_style || "complete");
 
       const recordBtn = document.getElementById("record-btn");
       if (recordBtn) {
@@ -1432,44 +1373,23 @@
       }
       renderCaptureTextPanel(true);
 
-      const notesLink = document.getElementById("notes-link");
-      if (notesLink) {
-        notesLink.removeAttribute("href");
-        notesLink.setAttribute("aria-disabled", "true");
-        notesLink.classList.add("is-disabled");
-        notesLink.textContent = "Archive available after sign-in";
-      }
       renderDailyBriefSubscription({
         ...data,
         daily_feed_enabled: false,
         daily_feed_url: "",
       });
 
-      const player = document.getElementById("reflection-player-container");
       const hasMockReflection = MOCK_REFLECTION_STATE !== "empty";
-      if (player) {
-        if (!hasMockReflection) {
-          player.innerHTML = `<div class="recording-player-empty">No ${latestResultStyleDescriptor(data.reflection_style || "complete")} result yet. Record a memo to generate one.</div>`;
-        } else {
-          const titles = {
-            practical: "June 9, 2026 — Resetting discussion routines",
-            grounded: "June 9, 2026 — Returning to steadiness with students",
-            complete: "June 9, 2026 — Holding structure and presence together",
-          };
-          const styleKey = data.reflection_style || "complete";
-          player.innerHTML = `
-            <div class="recording-player-name">${titles[styleKey] || titles.complete}</div>
-            <div class="recording-player-empty">Mock preview. Sign in to generate and play the real audio result.</div>
-          `;
-        }
-      }
-      renderLatestReflectionText({
-        title: "June 9, 2026 — Holding structure and presence together",
-        summary: "You were trying to hold clarity and warmth at the same time. The practical challenge was not just what to say, but how to stay present while doing it. The reflection sees both the instructional decision and the inner steadiness it asked of you.",
-        insight: "The stronger move may be structure without hardening.",
-        action_items: ["Name the expectation earlier", "Keep your tone calm and direct"],
-      });
-      setReflectionView("listen");
+      renderLatestReflectionText(
+        hasMockReflection
+          ? {
+              title: "June 9, 2026 — Holding structure and presence together",
+              summary: "You were trying to hold clarity and warmth at the same time. The practical challenge was not just what to say, but how to stay present while doing it. The reflection sees both the instructional decision and the inner steadiness it asked of you.",
+              insight: "The stronger move may be structure without hardening.",
+              action_items: ["Name the expectation earlier", "Keep your tone calm and direct"],
+            }
+          : null
+      );
     }
 
     const setupLinks = document.querySelectorAll('a[href="/setup"]');
@@ -1603,11 +1523,10 @@
       img.style.transformOrigin = origin;
     }
     const portraitObjectUrls = new Map();
-    const reflectionObjectUrls = new Map();
     const GOOGLE_TASKS_URL = "https://tasks.google.com/tasks/";
-    let currentReflectionStyle = "complete";
-    let latestReflectionNote = null;
-    let currentReflectionView = "listen";
+    // Set by loadRecentNotes() from users/{uid}/workflow_captures via the
+    // API -- NOT derived from users/{uid}/notes.
+    let hasAnyCaptures = false;
     let currentProfileData = null;
 
     function formatList(items) {
@@ -1671,19 +1590,6 @@
       return document.getElementById("capture-teaching-context")?.checked !== false;
     }
 
-    function updateReflectionArchiveLabels(styleKey) {
-      const style = styleKey in REFLECTION_STYLE_LABELS ? styleKey : "complete";
-      currentReflectionStyle = style;
-      const label = document.getElementById("reflection-player-label");
-      const summary = document.getElementById("archive-summary-copy");
-      if (label) {
-        label.textContent = `Latest ${latestResultStyleDescriptor(style)} result`;
-      }
-      if (summary) {
-        summary.textContent = REFLECTION_STYLE_ARCHIVE_COPY[style];
-      }
-    }
-
     function setDailyBriefStatus(message = "", statusClass = "") {
       const statusEl = document.getElementById("daily-brief-status");
       if (!statusEl) return;
@@ -1724,6 +1630,15 @@
       });
     }
 
+    // Daily Brief's control (#daily-brief-enable) renders as one of: a
+    // primary button (brief ready to hear -- the only state that earns
+    // one), a quiet text link (off, but there's enough material for a
+    // non-empty brief), or hidden entirely (on with nothing new yet -- a
+    // status, not a control; or off with no captures yet, where offering
+    // the brief has nothing to build one from). UX Burden review,
+    // 2026-08-15: a standing primary button soliciting opt-in on every
+    // load was the one loud, always-present control on a page the rest of
+    // this design deliberately made quiet-unless-earned.
     function renderDailyBriefSubscription(data = null) {
       const profile = data || currentProfileData || {};
       const enabled = !!profile.daily_feed_enabled;
@@ -1731,7 +1646,9 @@
       const briefStatus = profile.daily_feed_status || {};
       const canRegenerate = !!profile.daily_feed_can_regenerate;
       const previewDisabled = PREVIEW_MODE || !auth.currentUser;
+      const hasMaterial = hasAnyCaptures;
 
+      const card = document.getElementById("daily-brief-card");
       const enableBtn = document.getElementById("daily-brief-enable");
       const urlWrap = document.getElementById("daily-brief-url-wrap");
       const urlInput = document.getElementById("daily-brief-url");
@@ -1747,12 +1664,36 @@
       const adminCopy = document.getElementById("daily-brief-admin-copy");
       const regenerateBtn = document.getElementById("daily-brief-regenerate-btn");
 
-      if (!enableBtn || !urlWrap || !urlInput || !copyBtn || !overcastBtn || !shareBtn || !titleEl || !copyEl || !metaEl || !helpEl || !appleNote || !adminWrap || !adminCopy || !regenerateBtn) return;
+      if (!card || !enableBtn || !urlWrap || !urlInput || !copyBtn || !overcastBtn || !shareBtn || !titleEl || !copyEl || !metaEl || !helpEl || !appleNote || !adminWrap || !adminCopy || !regenerateBtn) return;
+
+      card.hidden = false;
+
+      function setControlPrimary(label) {
+        enableBtn.hidden = false;
+        enableBtn.disabled = false;
+        enableBtn.setAttribute("aria-disabled", "false");
+        enableBtn.className = "btn btn-primary";
+        enableBtn.dataset.action = "listen";
+        enableBtn.textContent = label;
+      }
+      function setControlQuietLink(label) {
+        enableBtn.hidden = false;
+        enableBtn.disabled = false;
+        enableBtn.setAttribute("aria-disabled", "false");
+        enableBtn.className = "daily-brief-link-btn archive-quiet-link";
+        enableBtn.dataset.action = "enable";
+        enableBtn.textContent = label;
+      }
+      function hideControl() {
+        enableBtn.hidden = true;
+        delete enableBtn.dataset.action;
+      }
 
       if (previewDisabled) {
+        setControlPrimary("Sign in to subscribe");
         enableBtn.disabled = true;
         enableBtn.setAttribute("aria-disabled", "true");
-        enableBtn.textContent = "Sign in to subscribe";
+        enableBtn.dataset.action = "enable";
         urlWrap.hidden = true;
         overcastBtn.hidden = true;
         shareBtn.hidden = true;
@@ -1760,49 +1701,22 @@
         titleEl.textContent = "Turn on your private daily brief";
         copyEl.textContent = "Sign in to have Memnon publish one spoken brief each morning to your private podcast feed.";
         metaEl.textContent = "";
-        helpEl.innerHTML = "Once the feed is on, you can subscribe in Overcast or copy the feed link into another podcast app.";
+        helpEl.innerHTML = SUPPORTS_OVERCAST_SCHEME
+          ? "Once the feed is on, you can subscribe in Overcast or copy the feed link into another podcast app."
+          : "Once the feed is on, you can copy the feed link into Apple Podcasts or another podcast app.";
         adminWrap.hidden = true;
         return;
       }
 
-      enableBtn.textContent = enabled ? "Daily brief is on" : "Turn on daily brief";
-      enableBtn.disabled = enabled;
-      enableBtn.setAttribute("aria-disabled", enabled ? "true" : "false");
-      enableBtn.classList.toggle("btn-outline", enabled);
-      enableBtn.classList.toggle("btn-primary", !enabled);
-
-      if (enabled && feedUrl) {
-        urlWrap.hidden = false;
-        urlInput.value = feedUrl;
-        overcastBtn.hidden = false;
-        shareBtn.hidden = false;
-        appleNote.hidden = false;
-        const latestEpisode = briefStatus.latest_episode || {};
-        const publishedTime = formatDailyBriefTime(latestEpisode.published_at);
-        const publishHour = formatDailyBriefPublishHour(briefStatus.publish_hour_local);
-        if (briefStatus.state === "ready" && latestEpisode.title) {
-          titleEl.textContent = latestEpisode.title;
-          copyEl.textContent = "Today's brief is ready in your private podcast feed.";
-          metaEl.textContent = publishedTime ? `Published at ${publishedTime}` : "Published today";
-        } else if (briefStatus.state === "scheduled") {
-          titleEl.textContent = "Today's brief is scheduled";
-          copyEl.textContent = `Memnon generates your brief after ${publishHour || "the morning publish time"}.`;
-          metaEl.textContent = publishHour ? `Next publish window: ${publishHour}` : "";
-        } else if (briefStatus.state === "preparing") {
-          titleEl.textContent = "Today's brief is being prepared";
-          copyEl.textContent = "The morning episode has not landed yet, but the feed is on and should update soon.";
-          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
-        } else if (briefStatus.state === "missing") {
-          titleEl.textContent = "No brief yet today";
-          copyEl.textContent = "Your feed is on, but there is not a published brief for today yet.";
-          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
-        } else {
-          titleEl.textContent = "Your private daily brief feed is on";
-          copyEl.textContent = "Subscribe in Overcast or use the feed link in another podcast app.";
-          metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+      if (!enabled) {
+        if (!hasMaterial) {
+          // No captures yet -- nothing to build a first brief from, so the
+          // offer itself stays hidden rather than soliciting against an
+          // empty feed.
+          card.hidden = true;
+          return;
         }
-        helpEl.innerHTML = "Use <strong>Subscribe in Overcast</strong> to add the feed directly. Use the feed link for Apple Podcasts or another podcast app.";
-      } else {
+        setControlQuietLink("Turn on daily brief");
         urlWrap.hidden = true;
         overcastBtn.hidden = true;
         shareBtn.hidden = true;
@@ -1811,7 +1725,63 @@
         titleEl.textContent = "Turn on your private daily brief";
         copyEl.textContent = "Memnon can send one spoken brief each morning to your private podcast feed.";
         metaEl.textContent = "";
-        helpEl.innerHTML = "Once the feed is on, <strong>Subscribe in Overcast</strong> adds it directly. Apple Podcasts still needs the feed URL pasted in manually.";
+        helpEl.innerHTML = SUPPORTS_OVERCAST_SCHEME
+          ? "Once the feed is on, <strong>Subscribe in Overcast</strong> adds it directly. Apple Podcasts still needs the feed URL pasted in manually."
+          : "Once the feed is on, copy the feed URL into Apple Podcasts or another podcast app. Overcast one-tap subscribe works on iPhone and iPad.";
+        adminWrap.hidden = true;
+        return;
+      }
+
+      if (!feedUrl) {
+        // Enabled but the feed link hasn't materialized yet (mid-setup) --
+        // a status, not an action; nothing to hand the user yet.
+        hideControl();
+        urlWrap.hidden = true;
+        overcastBtn.hidden = true;
+        shareBtn.hidden = true;
+        appleNote.hidden = true;
+        urlInput.value = "";
+        titleEl.textContent = "Setting up your private daily brief…";
+        copyEl.textContent = "Your feed link will appear here once setup finishes.";
+        metaEl.textContent = "";
+      } else {
+        urlWrap.hidden = false;
+        urlInput.value = feedUrl;
+        overcastBtn.hidden = !SUPPORTS_OVERCAST_SCHEME;
+        shareBtn.hidden = false;
+        appleNote.hidden = false;
+        helpEl.innerHTML = SUPPORTS_OVERCAST_SCHEME
+          ? "Use <strong>Subscribe in Overcast</strong> to add the feed directly. Use the feed link for Apple Podcasts or another podcast app."
+          : "Copy the feed link into Apple Podcasts or another podcast app. <strong>Subscribe in Overcast</strong> is available when you open this page on your iPhone or iPad.";
+
+        const latestEpisode = briefStatus.latest_episode || {};
+        const publishedTime = formatDailyBriefTime(latestEpisode.published_at);
+        const publishHour = formatDailyBriefPublishHour(briefStatus.publish_hour_local);
+        if (briefStatus.state === "ready" && latestEpisode.title) {
+          setControlPrimary("Listen now");
+          titleEl.textContent = latestEpisode.title;
+          copyEl.textContent = "Today's brief is ready in your private podcast feed.";
+          metaEl.textContent = publishedTime ? `Published at ${publishedTime}` : "Published today";
+        } else {
+          hideControl();
+          if (briefStatus.state === "scheduled") {
+            titleEl.textContent = "Today's brief is scheduled";
+            copyEl.textContent = `Memnon generates your brief after ${publishHour || "the morning publish time"}.`;
+            metaEl.textContent = publishHour ? `Next publish window: ${publishHour}` : "";
+          } else if (briefStatus.state === "preparing") {
+            titleEl.textContent = "Today's brief is being prepared";
+            copyEl.textContent = "The morning episode has not landed yet, but the feed is on and should update soon.";
+            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+          } else if (briefStatus.state === "missing") {
+            titleEl.textContent = "No brief yet today";
+            copyEl.textContent = "Your feed is on, but there is not a published brief for today yet.";
+            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+          } else {
+            titleEl.textContent = "Your private daily brief feed is on";
+            copyEl.textContent = "Subscribe in Overcast or use the feed link in another podcast app.";
+            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
+          }
+        }
       }
 
       if (canRegenerate) {
@@ -1869,9 +1839,25 @@
         setDailyBriefStatus("Turn on the daily brief first so there is a private feed URL to open.", "is-error");
         return;
       }
+      if (!SUPPORTS_OVERCAST_SCHEME) {
+        // Overcast is iOS-only; the scheme would fail silently here.
+        setDailyBriefStatus("Overcast one-tap subscribe works on iPhone and iPad. On this device, copy the feed link into your podcast app.", "is-error");
+        return;
+      }
       const returnUrl = window.location.href;
       const overcastUrl = `overcast://x-callback-url/add?url=${encodeURIComponent(feedUrl)}&x-success=${encodeURIComponent(returnUrl)}`;
       await logUsageEvent("opened_daily_feed_in_overcast");
+
+      // A scheme with no registered handler fails without firing an error, so
+      // the only signal is that we are still here a moment later. If the app
+      // did open, the page is backgrounded and this never runs.
+      const fallback = window.setTimeout(() => {
+        if (document.visibilityState === "visible") {
+          setDailyBriefStatus("Overcast did not open. Make sure it is installed, or copy the feed link into your podcast app.", "is-error");
+        }
+      }, 1500);
+      window.addEventListener("pagehide", () => window.clearTimeout(fallback), { once: true });
+
       window.location.href = overcastUrl;
     }
 
@@ -1979,26 +1965,6 @@
         setDailyBriefStatus(error?.message || "The daily brief could not be regenerated right now.", "is-error");
       } finally {
         renderDailyBriefSubscription(currentProfileData);
-      }
-    }
-
-    function setReflectionView(view) {
-      currentReflectionView = view === "read" ? "read" : "listen";
-      const audioPanel = document.getElementById("reflection-audio-panel");
-      const readPanel = document.getElementById("reflection-read-panel");
-      const listenBtn = document.getElementById("reflection-view-listen");
-      const readBtn = document.getElementById("reflection-view-read");
-      if (audioPanel) {
-        audioPanel.hidden = currentReflectionView !== "listen";
-      }
-      if (readPanel) {
-        readPanel.hidden = currentReflectionView !== "read";
-      }
-      if (listenBtn) {
-        listenBtn.classList.toggle("is-active", currentReflectionView === "listen");
-      }
-      if (readBtn) {
-        readBtn.classList.toggle("is-active", currentReflectionView === "read");
       }
     }
 
@@ -2182,130 +2148,60 @@
       }
     }
 
-    async function loadLatestAudio(token, options) {
-      const {
-        listPath,
-        streamPath,
-        containerId,
-        emptyMessage,
-        errorMessage,
-        fallbackName,
-        cache,
-      } = options;
-      const container = document.getElementById(containerId);
-      if (!container) return;
-      try {
-        const res = await fetch(`${API}${listPath}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          throw new Error(`Could not load ${listPath}`);
-        }
-        const data = await res.json();
-        const files = Array.isArray(data.files) ? data.files : [];
-        if (!files.length) {
-          container.innerHTML = `<div class="recording-player-empty">${emptyMessage}</div>`;
-          return;
-        }
-        const latest = files[0];
-        let playerSrc = cache.get(latest.id);
-        if (!playerSrc) {
-          const audioRes = await fetch(`${API}${streamPath}/${latest.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!audioRes.ok) {
-            throw new Error(`Could not load audio from ${streamPath}`);
-          }
-          const audioBlob = await audioRes.blob();
-          playerSrc = URL.createObjectURL(audioBlob);
-          cache.set(latest.id, playerSrc);
-        }
-        const displayName = (latest.name || fallbackName).replace(/\.(mp3|m4a|wav|webm|ogg|aac|flac)$/i, "");
-        container.innerHTML = `
-          <div class="recording-player-name">${displayName}</div>
-          <audio controls preload="none" src="${playerSrc}"></audio>
-        `;
-        const audio = container.querySelector("audio");
-        if (audio) {
-          audio.addEventListener("play", () => {
-            logUsageEvent("played_reflection_audio", {
-              reflection_name: displayName,
-              source: containerId,
-            });
-          }, { once: true });
-          audio.addEventListener("error", () => {
-            container.innerHTML = `<div class="recording-player-empty">${errorMessage}</div>`;
-          }, { once: true });
-        }
-      } catch (e) {
-        console.error(`Could not load audio for ${containerId}:`, e);
-        container.innerHTML = `<div class="recording-player-empty">${errorMessage}</div>`;
-      }
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (ch) => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+      ));
     }
 
-    async function loadRecentNotes(uid) {
+    // Reads users/{uid}/workflow_captures via the same authenticated API
+    // endpoint the capture form and /today/saved already use (list_captures
+    // -> list_capture_summaries), not a direct Firestore client read --
+    // firestore.rules grants no client access to this collection. Replaces
+    // the prior users/{uid}/notes read, which never gained a document for
+    // anyone using the current capture flow. Also drives
+    // hasAnyCaptures/hasSavedResults and the "Latest result" panel from the
+    // same fetch rather than separate round trips -- the newest item here
+    // *is* the latest result.
+    async function loadRecentNotes(token) {
+      const card = document.getElementById("recent-notes-card");
+      const list = document.getElementById("recent-notes-list");
       try {
-        const notesRef = collection(db, "users", uid, "notes");
-        let snap;
-        try {
-          snap = await getDocs(query(notesRef, orderBy("created_at", "desc"), limit(5)));
-        } catch (error) {
-          snap = await getDocs(query(notesRef, orderBy("date", "desc"), limit(5)));
-        }
-        if (snap.empty) {
-          renderLatestReflectionText(null);
+        const res = await fetch(WORKFLOW_CAPTURES_ENDPOINT, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = res.ok ? await res.json().catch(() => ({})) : {};
+        const items = Array.isArray(data.items) ? data.items : [];
+
+        hasAnyCaptures = items.length > 0;
+        window.memnonSetHasSavedResults?.(hasAnyCaptures);
+        renderDailyBriefSubscription(currentProfileData);
+        renderLatestReflectionText(items[0] || null);
+
+        if (!items.length) {
+          if (card) card.style.display = "none";
           return;
         }
 
-        const card = document.getElementById("recent-notes-card");
-        const list = document.getElementById("recent-notes-list");
         list.innerHTML = "";
         card.style.display = "block";
-        latestReflectionNote = null;
 
-        snap.forEach(doc => {
-          const n = doc.data();
-          if (!latestReflectionNote) {
-            latestReflectionNote = { id: doc.id, ...n };
-          }
+        items.slice(0, 5).forEach((n) => {
           const div = document.createElement("div");
           div.className = "note-item";
-          const voices = (n.influenced_by || [])
-            .map((s) => s.author)
-            .filter(Boolean);
-          const uniqueVoices = [...new Set(voices)];
-          const voiceLine = uniqueVoices.length
-            ? `In conversation with ${uniqueVoices.slice(0, 3).join(", ")}`
-            : "";
-
-          const influenced = (n.influenced_by || []).map(s => `
-            <div class="influenced-item">
-              <span class="influenced-source">${s.author || ""} — ${s.ref || ""}</span>
-              ${s.excerpt ? `<span class="influenced-excerpt">"${s.excerpt}"</span>` : ""}
-              ${s.because ? `<span class="influenced-because">→ ${s.because}</span>` : ""}
-            </div>
-          `).join("");
-
           div.innerHTML = `
             <div class="note-header">
-              <div class="note-title">${n.title || "Untitled"}</div>
+              <div class="note-title">${escapeHtml(n.title || "Untitled")}</div>
             </div>
             <div class="note-meta">
               ${n.date ? `<span class="note-pill">${formatNoteDate(n.date)}</span>` : ""}
             </div>
-            <div class="note-summary">${n.summary || ""}</div>
-            ${voiceLine ? `<div class="influenced-line"><strong>In conversation with</strong> ${uniqueVoices.slice(0, 3).join(", ")}</div>` : ""}
-            ${(n.participant_response_summary || n.participant_response_excerpt) ? `<div class="note-response-line"><strong>Your latest reply summary</strong> ${n.participant_response_summary || n.participant_response_excerpt}</div>` : ""}
-            ${influenced ? `
-              <details class="influenced-by">
-                <summary class="influenced-toggle">Show source detail</summary>
-                ${influenced}
-              </details>` : ""}
+            <div class="note-summary">${escapeHtml(n.summary || "")}</div>
+            ${n.thread_title ? `<div class="note-thread-label">Part of: ${escapeHtml(n.thread_title)}</div>` : ""}
           `;
           list.appendChild(div);
         });
-        renderLatestReflectionText(latestReflectionNote);
-      } catch(e) {
+      } catch (e) {
         console.error("Could not load recent notes:", e);
       }
     }
@@ -2542,18 +2438,15 @@
         panel_open: !!panel?.hidden,
       });
     });
-    document.getElementById("reflection-view-listen")?.addEventListener("click", async () => {
-      setReflectionView("listen");
-      await logUsageEvent("switched_reflection_view", { view: "listen" });
+    document.getElementById("daily-brief-enable")?.addEventListener("click", async (event) => {
+      if (event.currentTarget.dataset.action === "listen") {
+        const disclosure = document.querySelector(".daily-brief-disclosure");
+        if (disclosure) disclosure.open = true;
+        await logUsageEvent("opened_daily_brief_from_listen_now");
+        return;
+      }
+      await enableDailyBriefSubscription();
     });
-    document.getElementById("reflection-view-read")?.addEventListener("click", async () => {
-      setReflectionView("read");
-      await logUsageEvent("switched_reflection_view", { view: "read" });
-    });
-    document.getElementById("notes-link")?.addEventListener("click", async () => {
-      await logUsageEvent("opened_archive");
-    });
-    document.getElementById("daily-brief-enable")?.addEventListener("click", enableDailyBriefSubscription);
     document.getElementById("daily-brief-copy-btn")?.addEventListener("click", copyDailyBriefFeedLink);
     document.getElementById("daily-brief-overcast-btn")?.addEventListener("click", openDailyBriefInOvercast);
     document.getElementById("daily-brief-share-btn")?.addEventListener("click", shareDailyBriefFeedLink);
@@ -2580,28 +2473,10 @@
       if (res.ok) {
         const data = await res.json();
         currentProfileData = data;
-        updateReflectionArchiveLabels(data.reflection_style || "complete");
         renderDailyBriefSubscription(data);
 
-        // inbox folder link removed — direct upload is now the primary ingest path
-        if (data.notes_folder_id) {
-          const notesUrl = `https://drive.google.com/drive/folders/${data.notes_folder_id}`;
-          const notesEl = document.getElementById("notes-link");
-          notesEl.href = notesUrl;
-          notesEl.onclick = e => { e.preventDefault(); window.open(notesUrl, "_blank"); };
-        }
-
         await applyDashboardPortrait(data.dashboard_image, token);
-        await loadLatestAudio(token, {
-          listPath: "/reflections",
-          streamPath: "/reflection",
-          containerId: "reflection-player-container",
-          emptyMessage: `Your latest ${latestResultStyleDescriptor(data.reflection_style || "complete")} result will appear here after processing.`,
-          errorMessage: "The latest result could not be loaded.",
-          fallbackName: `Latest ${latestResultStyleDescriptor(data.reflection_style || "complete")} result`,
-          cache: reflectionObjectUrls,
-        });
-        await loadRecentNotes(user.uid);
+        await loadRecentNotes(token);
         trackAnalytics("opened_app", {
           surface: "dashboard",
           reflection_style: data.reflection_style || "complete",
@@ -2647,7 +2522,6 @@
       const recordBtn = document.getElementById("record-btn");
       if (recordBtn) recordBtn.addEventListener("click", handleRecord);
       renderCaptureTextPanel(false);
-      setReflectionView("listen");
     });
 
     document.getElementById("signout-btn").addEventListener("click", async () => {

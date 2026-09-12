@@ -1,5 +1,4 @@
 import json
-import math
 import os
 import time
 from typing import Any, Optional
@@ -201,29 +200,3 @@ def embed_text_details(text: str, api_key: str, model: str = EMBEDDING_MODEL) ->
 
 def embed_text(text: str, api_key: str, model: str = EMBEDDING_MODEL) -> list[float]:
     return embed_text_details(text, api_key, model=model).get("vector", [])
-
-
-def cosine_similarity(left: list[float], right: list[float]) -> float:
-    if not left or not right or len(left) != len(right):
-        return 0.0
-    dot = sum(a * b for a, b in zip(left, right))
-    left_norm = math.sqrt(sum(a * a for a in left))
-    right_norm = math.sqrt(sum(b * b for b in right))
-    if not left_norm or not right_norm:
-        return 0.0
-    return dot / (left_norm * right_norm)
-
-
-def rerank_candidates(
-    query_embedding: list[float],
-    candidates: list[dict],
-) -> list[dict]:
-    if not query_embedding:
-        return sorted(candidates, key=lambda item: item.get("base_score", 0), reverse=True)
-
-    def key(candidate: dict) -> tuple[float, float]:
-        embedding = candidate.get("embedding_v1") or []
-        semantic = cosine_similarity(query_embedding, embedding) if embedding else 0.0
-        return (semantic, float(candidate.get("base_score", 0)))
-
-    return sorted(candidates, key=key, reverse=True)

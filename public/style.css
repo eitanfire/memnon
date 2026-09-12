@@ -96,12 +96,24 @@ p  { line-height: 1.6; color: #444; }
    identically to an active one (full color, hover still worked visually),
    the same "looks wired but isn't" gap across every .btn variant and every
    JS-driven disabled state on the page (capture submit, daily-brief actions,
-   etc.), not just one button. */
+   etc.), not just one button. Uniform opacity (the first fix, 2026-08-08) was
+   itself a contrast failure -- ~2.2:1 for both the disabled-primary and
+   disabled-outline cases against this page's actual card background, under
+   WCAG's 3:1 minimum for UI components. Replaced with explicit disabled
+   colors chosen to clear 4.5:1 against that background. */
 .btn:disabled,
 .btn[disabled] {
-  opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
+  background: #6b7280;
+  color: #fff;
+  border-color: #6b7280;
+}
+.btn-outline:disabled,
+.btn-outline[disabled] {
+  background: transparent;
+  color: #6b7280;
+  border-color: #d1d5db;
 }
 
 label { display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem; }

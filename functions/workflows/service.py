@@ -495,6 +495,27 @@ def _duplicate_filename_key(source_event: dict) -> str:
     return _normalize_text(str(source_event.get("source_filename") or "")).lower()
 
 
+def _legacy_key_point_text(artifact: dict) -> str:
+    for section in artifact.get("sections") or []:
+        if _normalize_text((section or {}).get("label")).lower() == "key point":
+            return _normalize_text((section or {}).get("text"))
+    return ""
+
+
+def _capture_summary_date(created_at) -> str:
+    # Recent Notes' date pill expects a plain "YYYY-MM-DD" string
+    # (formatNoteDate, public/today.html). created_at from Firestore is a
+    # real datetime, not a string -- format it explicitly here rather than
+    # rely on how it happens to serialize over JSON.
+    if hasattr(created_at, "date"):
+        try:
+            return created_at.date().isoformat()
+        except (TypeError, ValueError):
+            return ""
+    text = _normalize_text(str(created_at or ""))
+    return text[:10] if len(text) >= 10 else ""
+
+
 def _normalize_clause(text: str) -> str:
     cleaned = _normalize_text(text).strip(" .,:;!-")
     if not cleaned:
@@ -1264,6 +1285,61 @@ def _near_title_match(left: str, right: str) -> bool:
     return overlap >= min(len(left_tokens), len(right_tokens))
 
 
+# Semantic matching. Lexical scoring cannot connect a capture that says "the
+# retro felt tense" to a thread called "Team friction" -- there is no shared
+# token to find. Embedding similarity closes that gap, but only as a bounded
+# addition to the lexical signals: `suggest_context_for_capture` gates on
+# absolute integers (>= 5 to suggest at all, a >= 2 margin to avoid guessing
+# between two threads), so a raw cosine substituted for the score would destroy
+# both gates. The boost is capped below the decisive title match at +5.
+SEMANTIC_SIMILARITY_FLOOR = 0.55
+SEMANTIC_MAX_BOOST = 4
+
+
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    dot = sum(a * b for a, b in zip(left, right))
+    left_norm = sum(a * a for a in left) ** 0.5
+    right_norm = sum(b * b for b in right) ** 0.5
+    if not left_norm or not right_norm:
+        return 0.0
+    return dot / (left_norm * right_norm)
+
+
+def _semantic_boost(similarity: float) -> int:
+    """Map a cosine score onto the integer scale the lexical signals use.
+
+    Sentence embeddings put unrelated short texts at a high similarity baseline,
+    so everything below the floor contributes nothing rather than adding a
+    constant nudge to every thread (which would shift no ranking and only erode
+    the runner-up margin).
+    """
+    if similarity <= SEMANTIC_SIMILARITY_FLOOR:
+        return 0
+    span = 1.0 - SEMANTIC_SIMILARITY_FLOOR
+    if span <= 0:
+        return SEMANTIC_MAX_BOOST
+    scaled = (similarity - SEMANTIC_SIMILARITY_FLOOR) / span
+    return max(0, min(SEMANTIC_MAX_BOOST, round(scaled * SEMANTIC_MAX_BOOST)))
+
+
+def _context_embedding_source(title: str, summary: str) -> str:
+    return " ".join(part for part in (title or "", summary or "") if part.strip()).strip()
+
+
+def _capture_embedding_source(record: dict) -> str:
+    """The capture text to embed -- the same material the lexical signals read."""
+    source_event = record.get("source_event") or {}
+    artifact = (record.get("result") or {}).get("primary_artifact") or {}
+    parts = [
+        artifact.get("title") or "",
+        record.get("context_hint") or source_event.get("context_hint") or "",
+        source_event.get("source_text") or "",
+    ]
+    return " ".join(part for part in parts if part.strip()).strip()
+
+
 def _parse_iso_timestamp(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -1305,6 +1381,7 @@ class WorkflowService:
         continuity_bridge_writer=None,
         social_post_generator=None,
         professional_analysis_generator=None,
+        embedding_provider=None,
         generator_label: str = "llm",
     ):
         self.repository = repository
@@ -1315,6 +1392,7 @@ class WorkflowService:
         self.continuity_bridge_writer = continuity_bridge_writer
         self.social_post_generator = social_post_generator
         self.professional_analysis_generator = professional_analysis_generator
+        self.embedding_provider = embedding_provider
 
     def _call_note_generator(self, source_text: str, context_hint: str, profile: dict, *, allow_next_step: bool) -> dict:
         api_key = self.api_key_provider()
@@ -1584,7 +1662,7 @@ class WorkflowService:
     def create_context(self, uid: str, *, title: str, summary: str = "", seed_capture_id: str | None = None) -> dict:
         context_id = f"ctx-{secrets.token_hex(6)}"
         now = self.now_provider()
-        return self._repository_create_context(
+        context = self._repository_create_context(
             uid,
             context_id=context_id,
             title=title.strip(),
@@ -1592,6 +1670,42 @@ class WorkflowService:
             seed_capture_id=seed_capture_id,
             now=now,
         )
+        self._attach_context_embedding(uid, context)
+        return context
+
+    def _attach_context_embedding(self, uid: str, context: dict) -> None:
+        """Embed a thread once, at creation, so scoring stays a local dot product.
+
+        Threads are the small side of the comparison (`list_active_contexts`
+        caps at 12) and their title/summary rarely change, so this is one
+        embedding per thread created rather than one per capture per thread.
+        """
+        if self.embedding_provider is None or not isinstance(context, dict):
+            return
+        vector = self._embed(
+            _context_embedding_source(context.get("title") or "", context.get("summary") or "")
+        )
+        if not vector:
+            return
+        context["embedding_v1"] = vector
+        context["embedding_dim"] = len(vector)
+        context["embedding_version"] = "v1"
+        updater = getattr(self.repository, "update_context_embedding", None)
+        if callable(updater):
+            try:
+                updater(
+                    uid,
+                    context.get("context_id"),
+                    embedding_v1=vector,
+                    embedding_dim=len(vector),
+                    embedding_version="v1",
+                )
+            except Exception:
+                # The in-memory record still carries the vector; a thread that
+                # fails to persist one is re-embedded on the next backfill run.
+                pass
+        else:
+            _persist_repository_state(self.repository)
 
     def list_active_contexts(self, uid: str, limit: int = 12) -> list[dict]:
         return [
@@ -1883,6 +1997,35 @@ class WorkflowService:
             include_contextual_suggestions=False,
         )
 
+    def _embed(self, text: str) -> list[float]:
+        """Embed `text`, or return [] when embedding is unavailable.
+
+        Every failure mode -- no provider injected, an empty vector from the
+        Hugging Face cooldown, an exception mid-call -- collapses to the same
+        empty result, which scores as a zero boost. Suggestion quality degrades
+        to the lexical behavior; capture never fails because of embedding.
+        """
+        if self.embedding_provider is None:
+            return []
+        normalized = (text or "").strip()
+        if not normalized:
+            return []
+        try:
+            vector = self.embedding_provider(normalized)
+        except Exception:
+            return []
+        if not isinstance(vector, list):
+            return []
+        return [float(value) for value in vector if isinstance(value, (int, float))]
+
+    def _semantic_match_boost(self, capture_embedding: list[float], thread: dict) -> int:
+        if not capture_embedding:
+            return 0
+        thread_embedding = thread.get("embedding_v1") or []
+        if not isinstance(thread_embedding, list) or not thread_embedding:
+            return 0
+        return _semantic_boost(_cosine_similarity(capture_embedding, thread_embedding))
+
     def _context_recency_boost(self, thread: dict) -> int:
         last_activity_at = _parse_iso_timestamp(thread.get("last_activity_at") or thread.get("updated_at"))
         current_time = _parse_iso_timestamp(self.now_provider())
@@ -1909,7 +2052,13 @@ class WorkflowService:
                 return pattern_boost, named_entity_boost
         return 0, 0
 
-    def _score_context_match(self, uid: str, record: dict, thread: dict) -> int:
+    def _score_context_match(
+        self,
+        uid: str,
+        record: dict,
+        thread: dict,
+        capture_embedding: list[float] | None = None,
+    ) -> int:
         source_event = record.get("source_event") or {}
         source_text = source_event.get("source_text") or ""
         context_hint = record.get("context_hint") or source_event.get("context_hint") or ""
@@ -1942,6 +2091,7 @@ class WorkflowService:
         pattern_boost, named_entity_boost = self._prior_confirmed_match_boosts(uid, record, thread)
         score += pattern_boost
         score += named_entity_boost
+        score += self._semantic_match_boost(capture_embedding or [], thread)
         return score
 
     def suggest_context_for_capture(self, uid: str, record: dict) -> dict | None:
@@ -1952,8 +2102,10 @@ class WorkflowService:
         if not threads:
             return None
 
+        # One embedding per suggestion, reused across every candidate thread.
+        capture_embedding = self._embed(_capture_embedding_source(record))
         scored = [
-            (self._score_context_match(uid, record, thread), thread)
+            (self._score_context_match(uid, record, thread, capture_embedding), thread)
             for thread in threads
         ]
         scored.sort(key=lambda item: item[0], reverse=True)
@@ -2249,8 +2401,21 @@ class WorkflowService:
             if filename_key:
                 filename_counts[filename_key] = filename_counts.get(filename_key, 0) + 1
 
+        # Fetched once per list call, not per capture -- avoids an N+1 context
+        # read for a field (thread_title) most captures don't have.
+        context_titles = {
+            context.get("context_id"): context.get("title", "")
+            for context in self._repository_list_contexts(uid, limit=None)
+            if context.get("context_id")
+        }
+
         return [
-            self._build_capture_summary(record, hash_counts=hash_counts, filename_counts=filename_counts)
+            self._build_capture_summary(
+                record,
+                hash_counts=hash_counts,
+                filename_counts=filename_counts,
+                context_titles=context_titles,
+            )
             for record in records
         ]
 
@@ -2266,6 +2431,7 @@ class WorkflowService:
         *,
         hash_counts: dict[str, int] | None = None,
         filename_counts: dict[str, int] | None = None,
+        context_titles: dict[str, str] | None = None,
     ) -> dict:
         result = record.get("result") or {}
         artifact = result.get("primary_artifact") or result.get("saved_note_artifact") or {}
@@ -2281,9 +2447,21 @@ class WorkflowService:
             bool(content_hash) and (hash_counts or {}).get(content_hash, 0) > 1
         ) or (bool(filename_key) and (filename_counts or {}).get(filename_key, 0) > 1)
 
+        # summary schema (workflows-summary-first-schema-draft-2026-07-18):
+        # current artifacts carry "summary" directly; a capture saved before
+        # that schema shipped only has a "Key point" section -- fall back to
+        # it rather than showing nothing for older records.
+        summary_text = artifact.get("summary") or _legacy_key_point_text(artifact)
+
+        threading = record.get("threading") or {}
+        thread_title = (context_titles or {}).get(threading.get("confirmed_context_id") or "", "")
+
         return {
             "capture_id": capture_id,
             "title": artifact.get("title") or "Saved note",
+            "summary": summary_text,
+            "thread_title": thread_title,
+            "date": _capture_summary_date(record.get("created_at")),
             "metadata_line": metadata_line,
             "status": artifact.get("status") or "",
             "route_kind": result.get("route_kind") or "",

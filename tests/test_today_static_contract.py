@@ -259,6 +259,25 @@ class TodayStaticContractTests(unittest.TestCase):
         self.assertNotIn("focusCaptureComponent", js)
         self.assertNotIn("memnonFocusCapture", js)
 
+    def test_latest_result_audio_and_view_toggle_are_retired(self):
+        # Capture Data Model migration (2026-08-15): "Latest result" became a
+        # single text-artifact panel sourced from workflow_captures, not a
+        # Listen/Read toggle over Drive-hosted audio -- the current capture
+        # pipeline never generates per-capture audio, so keeping the toggle
+        # would offer a mode with nothing behind it. Retired outright (markup,
+        # CSS, and JS), not just hidden -- same standard as the continuity
+        # line above.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        for needle in (
+            "reflection-view-toggle", "reflection-view-listen", "reflection-view-read",
+            "reflection-audio-panel", "reflection-read-panel", "reflection-player-container",
+            "reflection-player-label", "setReflectionView", "loadLatestAudio",
+            "latestResultStyleDescriptor", "updateReflectionArchiveLabels",
+            "archive-summary-copy", "REFLECTION_STYLE_ARCHIVE_COPY",
+        ):
+            self.assertNotIn(needle, html, f"{needle} should be fully retired, not just hidden")
+        self.assertIn('id="reflection-read-content"', html)
+
     def test_daily_brief_and_latest_result_moved_to_page_footer(self):
         # Unlike continuity, these two were kept -- just relocated again, out
         # of Capture's own landmark into the shared page footer below the
@@ -346,7 +365,7 @@ class TodayStaticContractTests(unittest.TestCase):
     def test_recent_notes_do_not_render_a_reflection_style_category_tag(self):
         html = TODAY_PATH.read_text(encoding="utf-8")
 
-        load_notes_start = html.index("async function loadRecentNotes(uid)")
+        load_notes_start = html.index("async function loadRecentNotes(token)")
         load_notes_end = html.index("\n    function formatTaskDueDate", load_notes_start)
         load_notes_body = html[load_notes_start:load_notes_end]
 
@@ -500,13 +519,17 @@ class TodayStaticContractTests(unittest.TestCase):
     def test_today_uses_latest_result_language_for_latest_return_surface(self):
         html = TODAY_PATH.read_text(encoding="utf-8")
 
+        # "Latest result" is now a single text-artifact panel (Capture Data
+        # Model migration, 2026-08-15) -- no separate "listen or read" modes,
+        # no reflection_style-flavored label ("Latest complete result" was
+        # that style label; it's retired along with the toggle it lived on).
         self.assertIn("Latest result", html)
-        self.assertIn("Latest complete result", html)
         self.assertIn("Loading your latest result…", html)
-        self.assertIn("Loading the latest result text…", html)
         self.assertIn("Your latest result text will appear here after processing.", html)
         self.assertNotIn("Latest reflection", html)
         self.assertNotIn("Latest complete reflection", html)
+        self.assertNotIn("Latest complete result", html)
+        self.assertNotIn("listen or read", html)
         self.assertNotIn("Loading your latest reflection…", html)
         self.assertNotIn("Loading the latest reflection text…", html)
         self.assertNotIn("Your latest reflection text will appear here after processing.", html)

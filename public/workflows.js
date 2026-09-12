@@ -320,17 +320,32 @@ function syncAuthPrompt() {
   prompt.hidden = Boolean(currentUser);
 }
 
+// Set by today.html once its own Recent Notes query resolves (a different
+// Firestore collection than this module has access to). Defaults to false
+// so the link doesn't flash visible before that count is known -- same
+// "hidden until proven non-empty" rule Recent Notes itself already follows.
+let hasSavedResults = false;
+
+// UX Burden review, 2026-08-15: this link was gated on sign-in alone, so a
+// signed-in user with zero captures still saw "View saved results" -- the
+// one footer item using different gating logic than its neighbor (Recent
+// Notes, count-based). Matched to the same rule here.
 function syncSavedResultsLink() {
   const row = document.getElementById("workflows-saved-link-row");
   const link = document.getElementById("workflows-saved-link");
   if (!row || !link) {
     return;
   }
-  const visible = Boolean(currentUser) || bypassRemoteAuth;
+  const visible = bypassRemoteAuth || (Boolean(currentUser) && hasSavedResults);
   link.href = SAVED_RESULTS_PATH;
   row.hidden = !visible;
   row.style.display = visible ? "" : "none";
 }
+
+window.memnonSetHasSavedResults = function memnonSetHasSavedResults(value) {
+  hasSavedResults = Boolean(value);
+  syncSavedResultsLink();
+};
 
 function syncSubmitState() {
   const input = document.getElementById("capture-text");

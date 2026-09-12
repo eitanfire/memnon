@@ -1869,7 +1869,7 @@
       const routes = {
         home: isStaticLocalhost ? "/index.html" : "/",
         setup: isStaticLocalhost ? "/setup.html" : "/setup",
-        dashboard: isStaticLocalhost ? "/dashboard.html" : "/dashboard",
+        today: isStaticLocalhost ? "/today.html" : "/today",
       };
       const signinBtn = document.getElementById("hero-signin-btn");
       if (signinBtn) {
@@ -1947,7 +1947,7 @@
         const snap = await getDoc(doc(db, "users", user.uid));
         const data = snap.exists() ? snap.data() : {};
         window.location.href =
-          data.drive_connected && data.lane ? routes.dashboard : routes.setup;
+          data.drive_connected && data.lane ? routes.today : routes.setup;
       });
     </script>
   </body>
