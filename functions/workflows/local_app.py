@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from .ai import generate_professional_note, load_openai_api_key
@@ -157,6 +157,100 @@ def _local_professional_analysis_generator(source_text, context_hint, profile, a
     }
 
 
+# Local stand-ins for the production endpoints /today calls but that the
+# workflows slice does not implement. Without these, /today on localhost 404s
+# on /me and the daily brief, so sign-in, the standing-context block and the
+# brief cannot be exercised offline at all -- and a 404 there looks exactly
+# like a regression.
+LOCAL_DAILY_FEED_STATE = {
+    "enabled": False,
+    "feed_url": "",
+}
+
+
+def _local_profile(repository) -> dict:
+    """A representative signed-in profile for local /today.
+
+    Carries both groups the standing-context block distinguishes: fields that
+    shape a capture (lane, reflection_style) and fields that are merely stored
+    (subjects, grades, standards, narration voice). Set
+    WORKFLOWS_LOCAL_EMPTY_PROFILE=1 to exercise the empty state instead.
+    """
+    base = dict(repository.load_user_profile("local-dev-user"))
+    if os.environ.get("WORKFLOWS_LOCAL_EMPTY_PROFILE", "").strip().lower() in ("1", "true", "yes"):
+        stored = {}
+    else:
+        stored = {
+            "preferred_name": "Local Dev",
+            "preferred_pronouns": "they/them",
+            "subjects": "Biology, Chemistry",
+            "grade_levels": [9, 10],
+            "state_standards": ["SC.9.1", "SC.9.2"],
+            "narration_voice": "sage",
+            "school_name": "Local Dev High School",
+        }
+    return {
+        **base,
+        **stored,
+        "email": "local-dev@example.com",
+        "drive_connected": True,
+        "google_tasks_connected": False,
+        "research_recommendations": {},
+        "daily_feed_enabled": LOCAL_DAILY_FEED_STATE["enabled"],
+        "daily_feed_url": LOCAL_DAILY_FEED_STATE["feed_url"],
+        "daily_feed_can_regenerate": True,
+        "daily_feed_status": {
+            "state": "ready" if LOCAL_DAILY_FEED_STATE["enabled"] else "off",
+            "latest_episode": {},
+            "publish_hour_local": 7,
+        },
+    }
+
+
+def _register_local_stubs(app, repository):
+    @app.get("/api/me")
+    def local_me():
+        if _verify_local_token(request) is None:
+            return jsonify({"error": "unauthorized"}), 401
+        return jsonify(_local_profile(repository))
+
+    @app.post("/api/daily-feed/setup")
+    def local_daily_feed_setup():
+        if _verify_local_token(request) is None:
+            return jsonify({"error": "unauthorized"}), 401
+        payload = request.get_json(silent=True) or {}
+        LOCAL_DAILY_FEED_STATE["enabled"] = bool(payload.get("enabled"))
+        LOCAL_DAILY_FEED_STATE["feed_url"] = (
+            "http://127.0.0.1:5051/api/daily-feed/local-dev.xml"
+            if LOCAL_DAILY_FEED_STATE["enabled"]
+            else ""
+        )
+        return jsonify({
+            "enabled": LOCAL_DAILY_FEED_STATE["enabled"],
+            "feed_url": LOCAL_DAILY_FEED_STATE["feed_url"],
+            "daily_feed_timezone": "America/Denver",
+            "daily_feed_publish_hour_local": 7,
+        })
+
+    @app.post("/api/daily-feed/generate-today")
+    def local_daily_feed_generate():
+        if _verify_local_token(request) is None:
+            return jsonify({"error": "unauthorized"}), 401
+        return jsonify({"ok": True, "regenerated": True})
+
+    @app.get("/api/tasks")
+    def local_tasks():
+        return jsonify({"items": []})
+
+    @app.post("/api/usage-event")
+    def local_usage_event():
+        # Printed rather than dropped: thread-suggestion telemetry is the whole
+        # reason to run this page locally right now.
+        payload = request.get_json(silent=True) or {}
+        print(json.dumps({"component": "usage_event", **payload}, sort_keys=True, default=str))
+        return jsonify({"ok": True})
+
+
 def create_local_app(storage_path: str | None = None, transcribe_audio=None):
     app = Flask(__name__)
     CORS(
@@ -196,6 +290,13 @@ def create_local_app(storage_path: str | None = None, transcribe_audio=None):
         api_key_provider = lambda: "local-dev"
         generator_label = "heuristic"
 
+    def _print_usage_event(uid, event_name, metadata):
+        print(json.dumps(
+            {"component": "usage_event", "uid": uid, "event": event_name, "metadata": metadata},
+            sort_keys=True,
+            default=str,
+        ))
+
     service = WorkflowService(
         repository=repository,
         note_generator=note_generator,
@@ -204,6 +305,7 @@ def create_local_app(storage_path: str | None = None, transcribe_audio=None):
         social_post_generator=_local_social_post_generator,
         professional_analysis_generator=_local_professional_analysis_generator,
         embedding_provider=embedding_provider,
+        usage_logger=_print_usage_event,
         generator_label=generator_label,
     )
     app.register_blueprint(
@@ -215,6 +317,8 @@ def create_local_app(storage_path: str | None = None, transcribe_audio=None):
         ),
         url_prefix="/api/workflows",
     )
+
+    _register_local_stubs(app, repository)
 
     @app.get("/health")
     def health():
