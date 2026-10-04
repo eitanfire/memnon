@@ -1,0 +1,266 @@
+/* Today polish layer (2026-10-04). Seed: docs/product-notes/today-visual-polish-seed-2026-10-04.md
+   Scoped to body.dashboard-page (Today only). Loaded after style.css and workflows.css.
+   Rules from the burden thread: one warm accent; red only while recording; errors in warm
+   ink with a left rule; papyrus grain behind cards only; nothing new to scan or choose. */
+
+body.dashboard-page {
+  /* The twelve tokens */
+  --paper: #f8f7f4;
+  --paper-2: #fffdfa;
+  --ink: #1f1a15;
+  --ink-2: #5d5750;
+  --ink-3: #7b6546;
+  --rule: #e8e1d5;
+  --accent: #7a5a30;        /* 6.3:1 with white text; 5.9:1 as a focus ring on paper */
+  --accent-ink: #5c4327;    /* wordmark brown */
+  --record: #d73d3a;        /* recording only */
+  --ok: #2f6a45;
+  --warn: #7a3b1c;          /* errors: warm ink, 7.9:1 on paper */
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(60, 40, 20, 0.05), 0 12px 32px rgba(60, 40, 20, 0.07);
+
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  /* Papyrus grain: one tiny inline SVG noise tile, background only. Fixed size so it
+     reads the same at 390px as at 1440px; very low opacity so text contrast holds. */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.26 0 0 0 0 0.15 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E") repeat,
+    radial-gradient(circle at top left, rgba(245, 224, 187, 0.5), rgba(245, 224, 187, 0) 34%),
+    linear-gradient(180deg, #f7f1e6 0%, #f6f4ef 42%, var(--paper) 100%);
+  background-attachment: fixed, scroll, scroll;
+}
+
+/* ---------- Type scale: title, label, body, meta ---------- */
+body.dashboard-page {
+  --fs-title: clamp(2rem, 3vw, 2.75rem);
+  --fs-label: 0.78rem;
+  --fs-body: 0.95rem;
+  --fs-meta: 0.84rem;
+}
+
+body.dashboard-page h1 {
+  color: var(--ink);
+  font-size: var(--fs-title);
+  letter-spacing: -0.02em;
+}
+
+/* ---------- Nav ---------- */
+body.dashboard-page nav {
+  background: rgba(255, 253, 250, 0.82);
+  -webkit-backdrop-filter: saturate(1.2) blur(8px);
+  backdrop-filter: saturate(1.2) blur(8px);
+  border-bottom-color: var(--rule);
+}
+
+/* ---------- Focus: visible on every control, warm ---------- */
+body.dashboard-page :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+body.dashboard-page :is(input[type="text"], select, textarea):focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(122, 90, 48, 0.14);
+}
+
+/* ---------- One accent: the primary button ---------- */
+body.dashboard-page .btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+body.dashboard-page .btn-primary:hover {
+  background: var(--accent-ink);
+}
+
+/* ---------- Capture card ---------- */
+body.dashboard-page .dashboard-capture-card {
+  background: var(--paper-2);
+  border-color: var(--rule);
+  box-shadow: var(--shadow);
+}
+
+/* The record action is the center of the page */
+body.dashboard-page .workflows-record-badge {
+  width: 72px;
+  height: 72px;
+  background: var(--accent);
+  box-shadow: 0 8px 20px rgba(122, 90, 48, 0.28);
+  transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+body.dashboard-page .workflows-record-badge svg {
+  width: 24px;
+  height: 24px;
+}
+
+body.dashboard-page .workflows-record-trigger:hover .workflows-record-badge {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(122, 90, 48, 0.34);
+}
+
+body.dashboard-page .workflows-record-trigger:active .workflows-record-badge {
+  transform: translateY(0) scale(0.97);
+}
+
+body.dashboard-page .workflows-record-label {
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Recording: the only place red appears. The label carries "Recording · 0:12" alongside it. */
+body.dashboard-page .workflows-record-trigger[aria-pressed="true"] .workflows-record-badge {
+  background: var(--record);
+  box-shadow: 0 0 0 6px rgba(215, 61, 58, 0.16), 0 8px 20px rgba(215, 61, 58, 0.28);
+  animation: memnon-recording 1.6s ease-in-out infinite;
+}
+
+@keyframes memnon-recording {
+  0%, 100% { box-shadow: 0 0 0 6px rgba(215, 61, 58, 0.16), 0 8px 20px rgba(215, 61, 58, 0.28); }
+  50% { box-shadow: 0 0 0 11px rgba(215, 61, 58, 0.06), 0 8px 20px rgba(215, 61, 58, 0.28); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Falls back to solid red, never to nothing */
+  body.dashboard-page .workflows-record-trigger[aria-pressed="true"] .workflows-record-badge {
+    animation: none;
+  }
+  body.dashboard-page .workflows-record-badge {
+    transition: none;
+  }
+}
+
+/* Secondary capture paths read as secondary */
+body.dashboard-page :is(#upload-trigger, #show-paste) {
+  border-color: var(--rule);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+}
+
+body.dashboard-page #capture-submit:disabled {
+  background: #6b6156;    /* warm gray; white text 6.0:1 */
+  color: #fff;
+}
+
+/* ---------- Errors: warm ink plus a left rule (shape, not hue) ---------- */
+body.dashboard-page :is(.memnon-error, .workflows-status.is-error, .capture-text-status.is-error, .recording-player-empty.is-error) {
+  color: var(--warn);
+  font-weight: inherit;
+  border-left: 3px solid var(--warn);
+  padding-left: 10px;
+}
+
+body.dashboard-page .workflows-status.is-working {
+  color: var(--ink-2);
+}
+
+/* The upload banner used a blue inline style */
+body.dashboard-page #upload-status {
+  background: #f5efe3 !important;
+  color: var(--accent-ink) !important;
+  border: 1px solid var(--rule);
+}
+
+/* ---------- Quiet rows: one calm list ---------- */
+body.dashboard-page .capture-quiet-rows {
+  border-top-color: var(--rule);
+}
+
+body.dashboard-page .capture-quiet-rows > * + * {
+  margin-top: 10px;
+}
+
+body.dashboard-page .archive-quiet-link,
+body.dashboard-page .daily-brief-link-btn {
+  color: var(--ink-3);
+  text-decoration-color: rgba(123, 101, 70, 0.4);
+  text-underline-offset: 3px;
+}
+
+body.dashboard-page .archive-quiet-link:hover,
+body.dashboard-page .daily-brief-link-btn:hover {
+  color: var(--accent-ink);
+  text-decoration-color: currentColor;
+}
+
+body.dashboard-page .standing-context-line {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+}
+
+body.dashboard-page .standing-context-muted {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+body.dashboard-page .latest-result-details > summary,
+body.dashboard-page .daily-brief-disclosure > summary {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+/* Admin regenerate stays quiet: never the ready state's primary styling */
+body.dashboard-page #daily-brief-regenerate-btn {
+  background: transparent;
+  color: var(--ink-3);
+  border: 1px dashed var(--rule);
+  font-size: var(--fs-meta);
+}
+
+/* ---------- Recent notes: continuity, not a library ---------- */
+body.dashboard-page #recent-notes-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+body.dashboard-page .note-item {
+  border-color: var(--rule);
+}
+
+body.dashboard-page .note-thread-label {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 640px) {
+  body.dashboard-page nav {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  body.dashboard-page nav .nav-right {
+    gap: 8px;
+    min-width: 0;
+  }
+  /* The signed-in name / "Preview mode" label is what pushed the page sideways */
+  body.dashboard-page #nav-name {
+    display: none;
+  }
+  body.dashboard-page nav .btn {
+    padding: 6px 11px !important;
+  }
+  body.dashboard-page .welcome-mark-label {
+    display: none;
+  }
+  body.dashboard-page .workflows-record-badge {
+    width: 76px;
+    height: 76px;
+  }
+}
+
+/* Errors inside the capture surface keep their own gutter, clear of the card edge */
+body.dashboard-page .workflows-status.is-error {
+  margin-left: 14px;
+  margin-right: 14px;
+}
+
+/* Disabled primary controls: solid warm gray, never faded (contrast holds at 6.0:1) */
+body.dashboard-page .btn-primary:disabled,
+body.dashboard-page .btn-primary[aria-disabled="true"] {
+  background: #6b6156;
+  color: #fff;
+  opacity: 1;
+  cursor: not-allowed;
+}

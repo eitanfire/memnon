@@ -28,7 +28,7 @@ body.workflows-page {
 
 .workflows-subhead {
   margin: 0;
-  color: #5d5750;
+  color: var(--ink-2);
   font-size: 1.1rem;
 }
 
@@ -73,7 +73,7 @@ body.workflows-page {
 
 .workflows-debug-state {
   padding: 10px 12px;
-  background: #fffdfa;
+  background: var(--paper-2);
   border: 1px solid #ddd4ca;
   color: #4c453e;
   font-size: 0.76rem;
@@ -123,7 +123,7 @@ body.workflows-page {
   width: 60px;
   height: 60px;
   border-radius: 999px;
-  background: #d73d3a;
+  background: var(--accent);
   color: #fff;
 }
 
@@ -203,7 +203,7 @@ body.workflows-page {
   border-radius: 10px;
   padding: 13px 14px;
   font: inherit;
-  background: #fffdfa;
+  background: var(--paper-2);
   color: #181512;
 }
 
@@ -243,7 +243,7 @@ body.workflows-page {
 }
 
 .workflows-status.is-error {
-  color: #9b2c2c;
+  color: var(--warn);
 }
 
 .workflows-status.is-working {
@@ -314,7 +314,7 @@ body.workflows-page {
 
 .workflows-status-pill.is-saved {
   background: #ece7dd;
-  color: #5d5750;
+  color: var(--ink-2);
 }
 
 .workflows-status-pill.is-ready {
@@ -431,7 +431,7 @@ body.workflows-page {
 
 .workflows-contextual-suggestions-label {
   margin: 0;
-  color: #5d5750;
+  color: var(--ink-2);
   font-size: 0.9rem;
 }
 
@@ -455,7 +455,7 @@ body.workflows-page {
 }
 
 .workflows-feedback-label {
-  color: #5d5750;
+  color: var(--ink-2);
   font-size: 0.9rem;
 }
 
@@ -496,7 +496,7 @@ body.workflows-page {
   padding: 8px 10px;
   font: inherit;
   font-size: 0.9rem;
-  background: #fffdfa;
+  background: var(--paper-2);
   color: #181512;
 }
 
@@ -562,12 +562,12 @@ body.workflows-page {
   border-radius: 10px;
   padding: 10px 12px;
   font: inherit;
-  background: #fffdfa;
+  background: var(--paper-2);
   color: #181512;
 }
 
 .workflows-section-block h3 {
-  color: #5d5750;
+  color: var(--ink-2);
   font-size: 0.84rem;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -593,7 +593,7 @@ body.workflows-page {
   border-radius: 999px;
   padding: 6px 10px;
   background: #f3ede5;
-  color: #5d5750;
+  color: var(--ink-2);
   font-size: 0.88rem;
 }
 
@@ -608,7 +608,7 @@ body.workflows-page {
   padding: 14px 16px;
   border: 1px solid #e4d8c9;
   border-radius: 16px;
-  background: #fffdfa;
+  background: var(--paper-2);
 }
 
 .workflows-saved-results-item-header {
@@ -721,7 +721,7 @@ body.workflows-page {
 .workflows-source-panel {
   border: 1px solid #d6d3d1;
   border-radius: 12px;
-  background: #fffdfa;
+  background: var(--paper-2);
   padding: 12px 14px;
 }
 

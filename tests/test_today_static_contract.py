@@ -343,6 +343,27 @@ class TodayStaticContractTests(unittest.TestCase):
         self.assertIn("Today's brief arrives after ${hourLabel}.", html)
         self.assertIn("Today's brief isn't in yet.", html)
 
+    def test_polish_layer_keeps_red_for_recording_only_and_drops_the_blue(self):
+        # Burden thread, 2026-10-04: one warm accent; red appears only while
+        # recording; errors are warm ink with a left rule plus role=alert.
+        root = TODAY_PATH.parent
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        polish = (root / "today-polish.css").read_text(encoding="utf-8")
+        workflows_css = (root / "workflows.css").read_text(encoding="utf-8")
+        workflows_js = (root / "workflows.js").read_text(encoding="utf-8")
+        style_block = html[html.index("<style>"):html.index("</style>")]
+
+        self.assertIn('href="/today-polish.css"', html)
+        for source in (style_block, workflows_css, polish):
+            self.assertNotIn("#2563eb", source.lower(), "Tailwind blue must not return to Today")
+        red_rules = [line for line in polish.splitlines() if "var(--record)" in line]
+        self.assertTrue(red_rules, "the recording state must use the record token")
+        self.assertIn('.workflows-record-trigger[aria-pressed="true"] .workflows-record-badge {\n  background: var(--record);', polish)
+        self.assertNotIn("#d73d3a", workflows_css.lower(), "the badge must not be red at rest")
+        self.assertIn("border-left: 3px solid var(--warn);", polish)
+        self.assertIn('status.setAttribute("role", "alert");', workflows_js)
+        self.assertIn("Recording ${formatRecordingElapsed()} · Stop", workflows_js)
+
     def test_dead_tasks_card_and_orphaned_capture_handlers_are_gone(self):
         # Polish pass 2026-10-04: the tasks card never rendered (its loader was
         # never called) and five handlers pointed at elements that no longer exist.

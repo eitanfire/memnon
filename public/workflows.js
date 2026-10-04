@@ -182,6 +182,8 @@ function setStatus(message) {
   if (status) {
     status.textContent = message || "";
     status.classList.remove("is-error", "is-working");
+    // Errors are announced assertively; the left rule is only a visual channel.
+    status.setAttribute("role", "status");
   }
 }
 
@@ -193,6 +195,7 @@ function setStatusTone(message, tone = "neutral") {
   }
   if (tone === "error") {
     status.classList.add("is-error");
+    status.setAttribute("role", "alert");
   }
   if (tone === "working") {
     status.classList.add("is-working");
@@ -380,7 +383,7 @@ function syncSubmitState() {
     if (voiceCaptureState === "requesting") {
       recordLabel.textContent = "Allow microphone…";
     } else if (voiceCaptureState === "recording") {
-      recordLabel.textContent = "Stop recording";
+      recordLabel.textContent = `Recording ${formatRecordingElapsed()} · Stop`;
     } else if (voiceCaptureState === "stopping") {
       recordLabel.textContent = "Stopping…";
     } else if (voiceCaptureState === "uploading") {
@@ -410,8 +413,26 @@ function syncSubmitState() {
   syncAuthPrompt();
 }
 
+// Elapsed time shown beside the red badge, so red is never the only recording signal.
+let recordingStartedAt = 0;
+let recordingTimerId = null;
+
+function formatRecordingElapsed() {
+  const seconds = Math.max(0, Math.floor((Date.now() - recordingStartedAt) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 function setVoiceCaptureState(nextState) {
+  const wasRecording = voiceCaptureState === "recording";
   voiceCaptureState = nextState;
+  if (nextState === "recording" && !wasRecording) {
+    recordingStartedAt = Date.now();
+    clearInterval(recordingTimerId);
+    recordingTimerId = setInterval(syncSubmitState, 1000);
+  } else if (nextState !== "recording" && recordingTimerId) {
+    clearInterval(recordingTimerId);
+    recordingTimerId = null;
+  }
   syncSubmitState();
 }
 
