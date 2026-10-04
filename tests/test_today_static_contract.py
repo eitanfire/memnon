@@ -325,6 +325,24 @@ class TodayStaticContractTests(unittest.TestCase):
             "Capture must precede Recent Notes -- it was previously the last element on the page",
         )
 
+    def test_daily_brief_collapses_to_four_states_and_absence_is_not_an_answer(self):
+        # Burden thread, 2026-10-04: eight on-states collapsed to "nothing to play
+        # yet" + "ready"; a null status renders as an error, never as a settled
+        # state (the 7171747 failure mode).
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        for retired in (
+            "Today's brief is scheduled",
+            "Today's brief is being prepared",
+            "No brief yet today",
+            "Your private daily brief feed is on",
+        ):
+            self.assertNotIn(retired, html)
+        self.assertIn("daily_feed_status && typeof profile.daily_feed_status === \"object\"", html)
+        self.assertIn("Today's brief status couldn't be checked just now.", html)
+        self.assertIn('copyEl.setAttribute("role", "alert")', html)
+        self.assertIn("Today's brief arrives after ${hourLabel}.", html)
+        self.assertIn("Today's brief isn't in yet.", html)
+
     def test_dead_tasks_card_and_orphaned_capture_handlers_are_gone(self):
         # Polish pass 2026-10-04: the tasks card never rendered (its loader was
         # never called) and five handlers pointed at elements that no longer exist.

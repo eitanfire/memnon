@@ -1217,6 +1217,9 @@
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const MOCK_DASHBOARD_KEY = params.get("mock");
+    // Preview only: ?brief=off|setup|before|after|unknown|ready|error renders that
+    // daily-brief state as a signed-in user with captures, for design review.
+    const MOCK_BRIEF_STATE = PREVIEW_MODE ? params.get("brief") : null;
     const MOCK_REFLECTION_STATE = params.get("reflection") || "ready";
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -1294,6 +1297,26 @@
       return MOCK_DASHBOARD_STATES[MOCK_DASHBOARD_KEY] || MOCK_DASHBOARD_STATES.complete;
     }
 
+    function mockDailyBriefProfile(state) {
+      const now = new Date().getHours();
+      const feed = "https://memnon.app/feeds/preview.xml";
+      const base = { __preview_signed_in: true, __preview_has_captures: true };
+      switch (state) {
+        case "off": return { ...base, daily_feed_enabled: false, daily_feed_url: "" };
+        case "setup": return { ...base, daily_feed_enabled: true, daily_feed_url: "", daily_feed_status: null };
+        case "before": return { ...base, daily_feed_enabled: true, daily_feed_url: feed,
+          daily_feed_status: { state: "scheduled", publish_hour_local: Math.min(now + 2, 23) } };
+        case "after": return { ...base, daily_feed_enabled: true, daily_feed_url: feed,
+          daily_feed_status: { state: "preparing", publish_hour_local: Math.max(now - 2, 0) } };
+        case "unknown": return { ...base, daily_feed_enabled: true, daily_feed_url: feed,
+          daily_feed_status: { state: "rebuilding", publish_hour_local: Math.max(now - 2, 0) } };
+        case "ready": return { ...base, daily_feed_enabled: true, daily_feed_url: feed,
+          daily_feed_status: { state: "ready", latest_episode: { title: "Holding structure and presence", published_at: new Date().toISOString() } } };
+        case "error": return { ...base, daily_feed_enabled: true, daily_feed_url: feed, daily_feed_status: null };
+        default: return { daily_feed_enabled: false, daily_feed_url: "" };
+      }
+    }
+
     function applyDashboardPreviewState(mockData = null) {
       const data = mockData || getMockDashboardData();
       currentProfileData = data;
@@ -1306,11 +1329,11 @@
 
 
       renderStandingContext(data);
-      renderDailyBriefSubscription({
-        ...data,
-        daily_feed_enabled: false,
-        daily_feed_url: "",
-      });
+      renderDailyBriefSubscription(
+        MOCK_BRIEF_STATE
+          ? { ...data, ...mockDailyBriefProfile(MOCK_BRIEF_STATE) }
+          : { ...data, daily_feed_enabled: false, daily_feed_url: "" }
+      );
 
       const hasMockReflection = MOCK_REFLECTION_STATE !== "empty";
       renderLatestReflectionText(
@@ -1575,15 +1598,22 @@
       const profile = data || currentProfileData || {};
       const enabled = !!profile.daily_feed_enabled;
       const feedUrl = profile.daily_feed_url || "";
-      const briefStatus = profile.daily_feed_status || {};
+      // A status object is the backend's answer. null/absent is NOT an answer
+      // (fetch failed or never ran) and must not render as a settled state.
+      const statusObject =
+        profile.daily_feed_status && typeof profile.daily_feed_status === "object"
+          ? profile.daily_feed_status
+          : null;
+      const briefStatus = statusObject || {};
       const canRegenerate = !!profile.daily_feed_can_regenerate;
       // authResolved distinguishes "signed out" from "auth has not answered
     // yet". Reading auth.currentUser alone conflated them: this renders at
     // module load, before onAuthStateChanged fires, so a signed-in user saw
     // "Sign in to subscribe" beneath their own name in the header.
-      const previewDisabled = PREVIEW_MODE || (authResolved && !auth.currentUser);
+      const previewSignedIn = PREVIEW_MODE && !!profile.__preview_signed_in;
+      const previewDisabled = !previewSignedIn && (PREVIEW_MODE || (authResolved && !auth.currentUser));
       const authPending = !PREVIEW_MODE && !authResolved && !auth.currentUser;
-      const hasMaterial = hasAnyCaptures;
+      const hasMaterial = hasAnyCaptures || !!profile.__preview_has_captures;
 
       const card = document.getElementById("daily-brief-card");
       const enableBtn = document.getElementById("daily-brief-enable");
@@ -1625,6 +1655,13 @@
         enableBtn.hidden = true;
         delete enableBtn.dataset.action;
       }
+      function setBriefError(message) {
+        copyEl.textContent = message;
+        copyEl.classList.add("memnon-error");
+        copyEl.setAttribute("role", "alert");
+      }
+      copyEl.classList.remove("memnon-error");
+      copyEl.removeAttribute("role");
 
       // Auth has not answered yet: show nothing rather than guessing. The
       // callback re-renders the moment it does.
@@ -1683,56 +1720,54 @@
         return;
       }
 
-      if (!feedUrl) {
-        // Enabled but the feed link hasn't materialized yet (mid-setup) --
-        // a status, not an action; nothing to hand the user yet.
-        hideControl();
-        urlWrap.hidden = true;
-        overcastBtn.hidden = true;
-        shareBtn.hidden = true;
-        appleNote.hidden = true;
-        urlInput.value = "";
-        titleEl.textContent = "Setting up your private daily brief…";
-        copyEl.textContent = "Your feed link will appear here once setup finishes.";
-        metaEl.textContent = "";
-      } else {
-        urlWrap.hidden = false;
-        urlInput.value = feedUrl;
-        overcastBtn.hidden = !SUPPORTS_OVERCAST_SCHEME;
-        shareBtn.hidden = false;
-        appleNote.hidden = false;
+      // Enabled. Four user-facing states (burden thread, 2026-10-04): absent,
+      // off, on-with-nothing-to-play, ready -- plus an error state when the
+      // status never answered. The feed link shows only once a URL exists.
+      const hasFeedUrl = !!feedUrl;
+      urlWrap.hidden = !hasFeedUrl;
+      urlInput.value = feedUrl;
+      overcastBtn.hidden = !hasFeedUrl || !SUPPORTS_OVERCAST_SCHEME;
+      shareBtn.hidden = !hasFeedUrl;
+      appleNote.hidden = !hasFeedUrl;
+      if (hasFeedUrl) {
         helpEl.innerHTML = SUPPORTS_OVERCAST_SCHEME
           ? "Use <strong>Subscribe in Overcast</strong> to add the feed directly. Use the feed link for Apple Podcasts or another podcast app."
           : "Copy the feed link into Apple Podcasts or another podcast app. <strong>Subscribe in Overcast</strong> is available when you open this page on your iPhone or iPad.";
+      }
 
-        const latestEpisode = briefStatus.latest_episode || {};
-        const publishedTime = formatDailyBriefTime(latestEpisode.published_at);
-        const publishHour = formatDailyBriefPublishHour(briefStatus.publish_hour_local);
-        if (briefStatus.state === "ready" && latestEpisode.title) {
-          setControlPrimary("Listen now");
-          titleEl.textContent = latestEpisode.title;
-          copyEl.textContent = "Today's brief is ready in your private podcast feed.";
-          metaEl.textContent = publishedTime ? `Published at ${publishedTime}` : "Published today";
+      const latestEpisode = briefStatus.latest_episode || {};
+      const publishedTime = formatDailyBriefTime(latestEpisode.published_at);
+      metaEl.textContent = "";
+
+      if (hasFeedUrl && briefStatus.state === "ready" && latestEpisode.title) {
+        // State 4: ready.
+        setControlPrimary("Listen now");
+        titleEl.textContent = latestEpisode.title;
+        copyEl.textContent = "Today's brief is ready in your private podcast feed.";
+        metaEl.textContent = publishedTime ? `Published at ${publishedTime}` : "Published today";
+      } else if (hasFeedUrl && !statusObject) {
+        // The feed exists but its status never answered: an error, not a claim.
+        hideControl();
+        titleEl.textContent = "Your private daily brief";
+        setBriefError("Today's brief status couldn't be checked just now.");
+      } else {
+        // State 3: on, nothing to play yet (setting up, scheduled, preparing,
+        // missing, or a status we don't recognize). Wording by honesty:
+        // before the publish hour, a claim about schedule (always true);
+        // after it, a claim about status (only when the status is known).
+        hideControl();
+        const hourValue = Number(briefStatus.publish_hour_local);
+        const hourLabel = formatDailyBriefPublishHour(briefStatus.publish_hour_local);
+        const beforeHour = !!hourLabel && Number.isFinite(hourValue) && new Date().getHours() < hourValue;
+        const knownWaiting = ["scheduled", "preparing", "missing"].includes(briefStatus.state);
+        if (beforeHour) {
+          titleEl.textContent = `Today's brief arrives after ${hourLabel}.`;
+        } else if (hasFeedUrl && knownWaiting) {
+          titleEl.textContent = "Today's brief isn't in yet.";
         } else {
-          hideControl();
-          if (briefStatus.state === "scheduled") {
-            titleEl.textContent = "Today's brief is scheduled";
-            copyEl.textContent = `Memnon generates your brief after ${publishHour || "the morning publish time"}.`;
-            metaEl.textContent = publishHour ? `Next publish window: ${publishHour}` : "";
-          } else if (briefStatus.state === "preparing") {
-            titleEl.textContent = "Today's brief is being prepared";
-            copyEl.textContent = "The morning episode has not landed yet, but the feed is on and should update soon.";
-            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
-          } else if (briefStatus.state === "missing") {
-            titleEl.textContent = "No brief yet today";
-            copyEl.textContent = "Your feed is on, but there is not a published brief for today yet.";
-            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
-          } else {
-            titleEl.textContent = "Your private daily brief feed is on";
-            copyEl.textContent = "Subscribe in Overcast or use the feed link in another podcast app.";
-            metaEl.textContent = publishHour ? `Daily publish target: ${publishHour}` : "";
-          }
+          titleEl.textContent = "Today's brief will appear here when it's ready.";
         }
+        copyEl.textContent = hasFeedUrl ? "" : "Your feed link will appear here once setup finishes.";
       }
 
       if (canRegenerate) {
