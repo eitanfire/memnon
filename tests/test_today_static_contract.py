@@ -318,17 +318,27 @@ class TodayStaticContractTests(unittest.TestCase):
         html = TODAY_PATH.read_text(encoding="utf-8")
 
         capture_index = html.index('id="workflows-app"')
-        tasks_index = html.index('id="tasks-card"')
         recent_notes_index = html.index('id="recent-notes-card"')
 
-        self.assertLess(
-            capture_index, tasks_index,
-            "Capture must precede Current Tasks -- it was previously the last element on the page",
-        )
         self.assertLess(
             capture_index, recent_notes_index,
             "Capture must precede Recent Notes -- it was previously the last element on the page",
         )
+
+    def test_dead_tasks_card_and_orphaned_capture_handlers_are_gone(self):
+        # Polish pass 2026-10-04: the tasks card never rendered (its loader was
+        # never called) and five handlers pointed at elements that no longer exist.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        for needle in (
+            'id="tasks-card"',
+            "loadCurrentTasks",
+            '"record-btn"',
+            '"write-btn"',
+            '"capture-text-panel"',
+            '"capture-text-input"',
+            '"first-name"',
+        ):
+            self.assertNotIn(needle, html, f"{needle} should be removed from Today")
 
     def test_latest_result_and_daily_brief_detail_default_collapsed(self):
         html = TODAY_PATH.read_text(encoding="utf-8")
@@ -366,7 +376,7 @@ class TodayStaticContractTests(unittest.TestCase):
         html = TODAY_PATH.read_text(encoding="utf-8")
 
         load_notes_start = html.index("async function loadRecentNotes(token)")
-        load_notes_end = html.index("\n    function formatTaskDueDate", load_notes_start)
+        load_notes_end = html.index("\n    function formatNoteDate", load_notes_start)
         load_notes_body = html[load_notes_start:load_notes_end]
 
         # The per-note reflection-style pill ("Complete reflection" /
@@ -652,7 +662,7 @@ console.log(JSON.stringify({{
     def _run_latest_result(self, note_literal, state_literal):
         html = TODAY_PATH.read_text(encoding="utf-8")
         start = html.index("    function renderLatestReflectionText(")
-        end = html.index("    function renderCaptureTextPanel(", start)
+        end = html.index("    function summarizeGuidingVoices(", start)
         snippet = html[start:end]
 
         script = f"""
@@ -698,7 +708,7 @@ console.log(JSON.stringify({{ html: container.innerHTML }}));
     def test_load_recent_notes_renders_a_state_when_the_fetch_throws(self):
         html = TODAY_PATH.read_text(encoding="utf-8")
         start = html.index("async function loadRecentNotes(token)")
-        end = html.index("\n    function formatTaskDueDate", start)
+        end = html.index("\n    function formatNoteDate", start)
         body = html[start:end]
 
         # The catch previously only console.error'd, leaving the slot as-is.

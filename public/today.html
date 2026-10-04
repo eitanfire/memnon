@@ -520,46 +520,6 @@
       line-height: 1.5;
       margin-top: 2px;
     }
-    .capture-text-panel {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid #ece5d9;
-    }
-    .capture-text-panel[hidden] {
-      display: none !important;
-    }
-    .capture-text-copy {
-      font-size: 0.79rem;
-      color: #746a5f;
-      line-height: 1.5;
-      margin-bottom: 10px;
-    }
-    .capture-text-panel textarea {
-      width: 100%;
-      min-height: 140px;
-      resize: vertical;
-      border-radius: 12px;
-      border: 1px solid #dbcdb8;
-      background: rgba(255, 252, 246, 0.92);
-      color: #3d3126;
-      padding: 11px 12px;
-      font: inherit;
-      line-height: 1.55;
-      box-sizing: border-box;
-    }
-    .capture-text-panel textarea:focus {
-      outline: none;
-      border-color: #b89258;
-      box-shadow: 0 0 0 3px rgba(184, 146, 88, 0.12);
-    }
-    .capture-text-actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
     .capture-text-status {
       font-size: 0.76rem;
       color: #7b705f;
@@ -871,32 +831,6 @@
     .influenced-source { font-weight: 600; color: #333; }
     .influenced-excerpt { font-style: italic; color: #666; font-size: 0.77rem; margin-top: 2px; }
     .influenced-because { color: #2563eb; font-size: 0.77rem; margin-top: 2px; }
-    .tasks-panel-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 14px;
-    }
-    .task-item {
-      border: 1px solid #ece5d9;
-      border-radius: 10px;
-      padding: 12px 14px;
-      background: #fffdfa;
-    }
-    .task-title {
-      font-weight: 600;
-      color: #4d3f2f;
-      margin-bottom: 4px;
-    }
-    .task-meta {
-      font-size: 0.78rem;
-      color: #8a7d6d;
-      line-height: 1.45;
-    }
-    .task-empty {
-      font-size: 0.82rem;
-      color: #7d7467;
-      line-height: 1.55;
-    }
     .context-pill-row {
       display: flex;
       flex-wrap: wrap;
@@ -1197,21 +1131,6 @@
     </div>
     </div>
 
-    <div class="card dashboard-secondary-card" id="tasks-card" style="display:none;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:8px;">
-        <div>
-          <h2 style="margin-bottom:6px;">Current tasks</h2>
-          <p class="muted" style="margin:0;">
-            Optional read-only context from the Google Tasks list you selected in setup.
-          </p>
-        </div>
-        <a href="/setup" class="btn btn-outline" style="padding:7px 14px; font-size:0.8rem; white-space:nowrap;">
-          Edit task settings
-        </a>
-      </div>
-      <div id="tasks-panel" class="task-empty">Loading tasks…</div>
-    </div>
-
     <!-- Recent Notes -->
     <div class="card dashboard-secondary-card" id="recent-notes-card" style="display:none;">
       <div class="editorial-header" style="margin-bottom:10px;">
@@ -1378,9 +1297,6 @@
     function applyDashboardPreviewState(mockData = null) {
       const data = mockData || getMockDashboardData();
       currentProfileData = data;
-      const firstName = data.preferred_name || "there";
-      const previewFirstNameEl = document.getElementById("first-name");
-      if (previewFirstNameEl) previewFirstNameEl.textContent = firstName;
       document.getElementById("nav-name").textContent = "Preview mode";
       applyDashboardPortraitStyle(
         document.getElementById("welcome-mark-image"),
@@ -1388,12 +1304,6 @@
       );
       document.getElementById("welcome-mark-image").src = resolveMockDashboardPortraitSrc(data.dashboard_image);
 
-      const recordBtn = document.getElementById("record-btn");
-      if (recordBtn) {
-        recordBtn.disabled = true;
-        recordBtn.textContent = "Preview mode — sign in to record";
-      }
-      renderCaptureTextPanel(true);
 
       renderStandingContext(data);
       renderDailyBriefSubscription({
@@ -1546,7 +1456,6 @@
       img.style.transformOrigin = origin;
     }
     const portraitObjectUrls = new Map();
-    const GOOGLE_TASKS_URL = "https://tasks.google.com/tasks/";
     // Set by loadRecentNotes() from users/{uid}/workflow_captures via the
     // API -- NOT derived from users/{uid}/notes.
     let hasAnyCaptures = false;
@@ -2106,90 +2015,6 @@
       `;
     }
 
-    function renderCaptureTextPanel(isOpen, options = {}) {
-      const panel = document.getElementById("capture-text-panel");
-      const input = document.getElementById("capture-text-input");
-      const saveBtn = document.getElementById("capture-text-save");
-      const status = document.getElementById("capture-text-status");
-      const writeBtn = document.getElementById("write-btn");
-      if (!panel || !input || !saveBtn || !status || !writeBtn) return;
-
-      panel.hidden = !isOpen;
-      writeBtn.classList.toggle("btn-primary", isOpen);
-      writeBtn.classList.toggle("btn-outline", !isOpen);
-      if (options.clearInput) {
-        input.value = "";
-      }
-      const disabled = PREVIEW_MODE || !auth.currentUser;
-      input.disabled = disabled;
-      saveBtn.disabled = disabled;
-      saveBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
-      if (disabled) {
-        status.textContent = "Sign in to capture a written reflection.";
-        status.className = "capture-text-status";
-        return;
-      }
-      status.textContent = options.statusText || "";
-      status.className = `capture-text-status${options.statusClass ? ` ${options.statusClass}` : ""}`;
-    }
-
-    async function saveWrittenReflection() {
-      if (PREVIEW_MODE || !auth.currentUser) return;
-      const input = document.getElementById("capture-text-input");
-      const saveBtn = document.getElementById("capture-text-save");
-      const text = (input?.value || "").trim();
-      const includeTeachingContext = getIncludeTeachingContextEntry();
-      if (text.split(/\s+/).filter(Boolean).length < 3) {
-        renderCaptureTextPanel(true, {
-          statusText: "Write a little more before capturing this reflection.",
-          statusClass: "is-error",
-        });
-        return;
-      }
-      try {
-        saveBtn.disabled = true;
-        saveBtn.setAttribute("aria-disabled", "true");
-        const token = await getToken();
-        const res = await fetch(WORKFLOW_CAPTURES_ENDPOINT, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text,
-            include_teaching_context: includeTeachingContext,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data.error || "Could not capture this note");
-        }
-        renderCaptureTextPanel(true, {
-          statusText: "Saved. Opening your result…",
-          statusClass: "is-success",
-          clearInput: true,
-        });
-        await logUsageEvent("captured_reflection_text_client", {
-          include_teaching_context: includeTeachingContext,
-          word_count: text.split(/\s+/).filter(Boolean).length,
-        });
-        const nextRoute = data.next_route || `/workflows/result/${data.capture_id || ""}`;
-        window.location.assign(nextRoute);
-      } catch (e) {
-        console.error("Could not save written reflection:", e);
-        renderCaptureTextPanel(true, {
-          statusText: "That capture could not be saved right now.",
-          statusClass: "is-error",
-        });
-      } finally {
-        if (!PREVIEW_MODE && auth.currentUser) {
-          saveBtn.disabled = false;
-          saveBtn.setAttribute("aria-disabled", "false");
-        }
-      }
-    }
-
     function summarizeGuidingVoices(data) {
       const styleKey = reflectionStyleKey(data);
       const reflectionStyle = REFLECTION_STYLE_LABELS[styleKey];
@@ -2329,16 +2154,6 @@
       }
     }
 
-    function formatTaskDueDate(raw) {
-      if (!raw) return "";
-      const date = new Date(raw);
-      if (Number.isNaN(date.getTime())) return "";
-      return date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      });
-    }
-
     function formatNoteDate(raw) {
       if (!raw) return "";
       const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
@@ -2358,64 +2173,6 @@
         month: "long",
         day: "numeric",
       });
-    }
-
-    async function loadCurrentTasks(token, profile) {
-      const card = document.getElementById("tasks-card");
-      const panel = document.getElementById("tasks-panel");
-      const connected = !!profile.google_tasks_connected;
-      const configuredList = (profile.google_tasks_list_id || "").trim();
-
-      if (!connected && !configuredList) {
-        card.style.display = "none";
-        return;
-      }
-
-      card.style.display = "block";
-
-      if (!connected) {
-        panel.innerHTML = `<div class="task-empty">Google Tasks is not connected. Use <a href="${routes.setup}">setup</a> to connect one read-only task list.</div>`;
-        return;
-      }
-
-      if (!configuredList) {
-        panel.innerHTML = `<div class="task-empty">Choose a default task list in <a href="${routes.setup}">setup</a> to show current tasks here.</div>`;
-        return;
-      }
-
-      try {
-        const res = await fetch(`${API}/tasks?limit=5`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          throw new Error("Could not load tasks");
-        }
-        const data = await res.json();
-        const items = Array.isArray(data.items) ? data.items : [];
-        if (!items.length) {
-          panel.innerHTML = `<div class="task-empty">No open tasks in ${data.tasklist_name || "this list"} right now. <a href="${data.tasks_web_url || GOOGLE_TASKS_URL}" target="_blank" rel="noreferrer">Open Google Tasks ↗</a></div>`;
-          return;
-        }
-        panel.innerHTML = `
-          <div class="tasks-panel-list">
-            ${items.map((item) => `
-              <div class="task-item">
-                <div class="task-title">${item.title || "Untitled task"}</div>
-                <div class="task-meta">
-                  ${formatTaskDueDate(item.due) ? `Due ${formatTaskDueDate(item.due)}` : "No due date"}
-                  ${item.notes ? ` · ${item.notes.slice(0, 100)}` : ""}
-                </div>
-              </div>
-            `).join("")}
-          </div>
-          <div class="task-empty" style="margin-top:12px;">
-            <a href="${data.tasks_web_url || GOOGLE_TASKS_URL}" target="_blank" rel="noreferrer">Open Google Tasks ↗</a>
-          </div>
-        `;
-      } catch (e) {
-        console.error("Could not load current tasks:", e);
-        panel.innerHTML = `<div class="task-empty">Current tasks could not be loaded right now.</div>`;
-      }
     }
 
     // ── Register service worker (PWA Share Target) ──
@@ -2553,14 +2310,6 @@
       });
     }
 
-    document.getElementById("capture-text-save")?.addEventListener("click", saveWrittenReflection);
-    document.getElementById("write-btn")?.addEventListener("click", async () => {
-      const panel = document.getElementById("capture-text-panel");
-      renderCaptureTextPanel(!!panel?.hidden);
-      await logUsageEvent("opened_write_capture", {
-        panel_open: !!panel?.hidden,
-      });
-    });
     document.getElementById("daily-brief-enable")?.addEventListener("click", async (event) => {
       if (event.currentTarget.dataset.action === "listen") {
         const disclosure = document.querySelector(".daily-brief-disclosure");
@@ -2589,10 +2338,7 @@
         return;
       }
 
-      const firstName = (user.displayName || user.email).split(" ")[0];
-      const firstNameEl = document.getElementById("first-name");
       const navNameEl = document.getElementById("nav-name");
-      if (firstNameEl) firstNameEl.textContent = firstName;
       if (navNameEl) navNameEl.textContent = user.displayName || user.email;
 
       const token = await user.getIdToken();
@@ -2623,38 +2369,6 @@
       // Check for incoming shared file after auth is ready
       await checkSharedFile();
 
-      // ── Record button ──
-      let mediaRecorder, chunks = [];
-
-      function handleRecord() {
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-          mediaRecorder.stop();
-          return;
-        }
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-          logUsageEvent("started_audio_capture");
-          mediaRecorder = new MediaRecorder(stream);
-          chunks = [];
-          mediaRecorder.ondataavailable = e => chunks.push(e.data);
-          mediaRecorder.onstop = async () => {
-            const blob = new Blob(chunks, { type: "audio/webm" });
-            const filename = `active-schema-${Date.now()}.webm`;
-            recordBtn.innerHTML = '<span class="record-mark" aria-hidden="true">🎙</span> Record';
-            recordBtn.classList.remove("btn-danger");
-            recordBtn.classList.add("btn-primary");
-            stream.getTracks().forEach(t => t.stop());
-            await uploadAudio(blob, filename);
-          };
-          mediaRecorder.start();
-          recordBtn.textContent = "⏹ Stop recording";
-          recordBtn.classList.remove("btn-primary");
-          recordBtn.classList.add("btn-danger");
-        }).catch(err => alert("Microphone access needed: " + err.message));
-      }
-
-      const recordBtn = document.getElementById("record-btn");
-      if (recordBtn) recordBtn.addEventListener("click", handleRecord);
-      renderCaptureTextPanel(false);
     });
 
     document.getElementById("signout-btn").addEventListener("click", async () => {
