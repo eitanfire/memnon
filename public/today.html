@@ -1989,10 +1989,33 @@
       }).map(([label]) => label);
     }
 
-    function renderStandingContext(profile) {
+    // state: "loading" (auth or /me hasn't answered -- placeholder, no claim),
+    // "error" (/me failed), or omitted (render from profile; null = signed out).
+    function renderStandingContext(profile, state = null) {
       const activeEl = document.getElementById("standing-context-active");
       const storedEl = document.getElementById("standing-context-stored");
       if (!activeEl || !storedEl) return;
+
+      activeEl.classList.remove("memnon-placeholder", "memnon-error");
+      activeEl.removeAttribute("aria-busy");
+      activeEl.removeAttribute("role");
+
+      if (state === "loading") {
+        activeEl.textContent = "";
+        activeEl.classList.add("memnon-placeholder");
+        activeEl.setAttribute("aria-busy", "true");
+        storedEl.hidden = true;
+        storedEl.textContent = "";
+        return;
+      }
+      if (state === "error") {
+        activeEl.textContent = "Your standing context couldn't be loaded just now.";
+        activeEl.classList.add("memnon-error");
+        activeEl.setAttribute("role", "alert");
+        storedEl.hidden = true;
+        storedEl.textContent = "";
+        return;
+      }
 
       // Signed out: state that plainly rather than claiming to hold nothing.
       if (!profile) {
@@ -2360,7 +2383,7 @@
     document.getElementById("daily-brief-share-btn")?.addEventListener("click", shareDailyBriefFeedLink);
     document.getElementById("daily-brief-regenerate-btn")?.addEventListener("click", regenerateDailyBrief);
     renderDailyBriefSubscription();
-    renderStandingContext(null);
+    renderStandingContext(null, PREVIEW_MODE ? null : "loading");
 
     // ── Auth state ──
     onAuthStateChanged(auth, async (user) => {
@@ -2400,6 +2423,9 @@
           reflection_style: data.reflection_style || "complete",
           include_teaching_context: getIncludeTeachingContextEntry(),
         });
+      } else {
+        // /me failed: say so instead of leaving a placeholder up forever.
+        renderStandingContext(null, "error");
       }
 
       // Check for incoming shared file after auth is ready

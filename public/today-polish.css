@@ -264,3 +264,23 @@ body.dashboard-page .btn-primary[aria-disabled="true"] {
   opacity: 1;
   cursor: not-allowed;
 }
+
+/* Placeholder for always-present slots: final height, no text, no layout jump */
+body.dashboard-page .memnon-placeholder {
+  display: block;
+  min-height: 1.45em;
+  max-width: 420px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #efe8dc 0%, #f6f1e8 50%, #efe8dc 100%);
+  background-size: 200% 100%;
+  animation: memnon-placeholder 1.4s ease-in-out infinite;
+}
+
+@keyframes memnon-placeholder {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.dashboard-page .memnon-placeholder { animation: none; }
+}

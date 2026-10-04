@@ -594,7 +594,7 @@ class TodayStaticContractTests(unittest.TestCase):
 
     # ── Standing context on Today (controller brief, 2026-09-12) ──
 
-    def _run_standing_context(self, profile_literal):
+    def _run_standing_context(self, profile_literal, state_literal="null"):
         """Run renderStandingContext against a stub DOM, return the two lines."""
         html = TODAY_PATH.read_text(encoding="utf-8")
         start = html.index("    const LANE_LABELS = {")
@@ -603,8 +603,24 @@ class TodayStaticContractTests(unittest.TestCase):
 
         script = f"""
 const vm = require("vm");
-const activeEl = {{ textContent: "", hidden: false }};
-const storedEl = {{ textContent: "", hidden: false }};
+function stubEl() {{
+  const classes = new Set();
+  const attrs = {{}};
+  return {{
+    textContent: "",
+    hidden: false,
+    classList: {{
+      add: (...c) => c.forEach((x) => classes.add(x)),
+      remove: (...c) => c.forEach((x) => classes.delete(x)),
+      contains: (x) => classes.has(x),
+    }},
+    setAttribute: (k, v) => {{ attrs[k] = String(v); }},
+    removeAttribute: (k) => {{ delete attrs[k]; }},
+    getAttribute: (k) => (k in attrs ? attrs[k] : null),
+  }};
+}}
+const activeEl = stubEl();
+const storedEl = stubEl();
 const context = {{
   REFLECTION_STYLE_LABELS: {{
     practical: "Practical guidance",
@@ -621,11 +637,15 @@ const context = {{
 }};
 vm.createContext(context);
 vm.runInContext({snippet!r}, context);
-context.renderStandingContext({profile_literal});
+context.renderStandingContext({profile_literal}, {state_literal});
 console.log(JSON.stringify({{
   active: activeEl.textContent,
   stored: storedEl.textContent,
   storedHidden: storedEl.hidden,
+  placeholder: activeEl.classList.contains("memnon-placeholder"),
+  busy: activeEl.getAttribute("aria-busy"),
+  error: activeEl.classList.contains("memnon-error"),
+  role: activeEl.getAttribute("role"),
 }}));
 """
         completed = subprocess.run(
@@ -636,6 +656,25 @@ console.log(JSON.stringify({{
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
         return json.loads(completed.stdout)
+
+    def test_standing_context_loading_is_a_placeholder_not_a_signed_out_claim(self):
+        # Polish pass 2026-10-04: the module-level render used to say "Sign in to
+        # see..." to signed-in users until /me answered.
+        result = self._run_standing_context("null", '"loading"')
+        self.assertEqual(result["active"], "")
+        self.assertTrue(result["placeholder"])
+        self.assertEqual(result["busy"], "true")
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        self.assertIn('renderStandingContext(null, PREVIEW_MODE ? null : "loading");', html)
+
+    def test_standing_context_me_failure_renders_an_error_not_a_stuck_placeholder(self):
+        result = self._run_standing_context("null", '"error"')
+        self.assertEqual(result["active"], "Your standing context couldn't be loaded just now.")
+        self.assertTrue(result["error"])
+        self.assertEqual(result["role"], "alert")
+        self.assertFalse(result["placeholder"])
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        self.assertIn('renderStandingContext(null, "error");', html)
 
     def test_standing_context_states_what_shapes_a_result_and_what_only_sits_stored(self):
         # The whole point of the brief: a user could not tell what standing
