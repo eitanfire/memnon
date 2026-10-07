@@ -1088,6 +1088,10 @@
         <button id="daily-brief-enable" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;">
           Turn on daily brief
         </button>
+        <!-- Which voices shaped the ready brief, read from what the generator
+             used (latest_episode.guide_voices_used), never from the selection.
+             The line is also the way to the selection surface. -->
+        <a id="daily-brief-voices" class="daily-brief-voices archive-quiet-link" href="/setup#guiding-voices" hidden></a>
         <details class="daily-brief-disclosure">
           <summary>How to listen</summary>
           <div class="daily-brief-copy" id="daily-brief-body-copy">
@@ -1221,6 +1225,9 @@
     // Preview only: ?brief=off|setup|before|after|unknown|ready|error renders that
     // daily-brief state as a signed-in user with captures, for design review.
     const MOCK_BRIEF_STATE = PREVIEW_MODE ? params.get("brief") : null;
+    // Preview only, with brief=ready: ?voices=unrecorded|none|1|2|5 sets which
+    // voices the episode reports using. Defaults to 2.
+    const MOCK_BRIEF_VOICES = PREVIEW_MODE ? params.get("voices") : null;
     const MOCK_REFLECTION_STATE = params.get("reflection") || "ready";
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -1298,6 +1305,20 @@
       return MOCK_DASHBOARD_STATES[MOCK_DASHBOARD_KEY] || MOCK_DASHBOARD_STATES.complete;
     }
 
+    function mockBriefVoices(key) {
+      const all = [
+        { guide_id: "julian_of_norwich", author: "Julian of Norwich" },
+        { guide_id: "thich_nhat_hanh", author: "Thich Nhat Hanh" },
+        { guide_id: "lao_tzu", author: "Lao Tzu" },
+        { guide_id: "pema_chodron", author: "Pema Chödrön" },
+        { guide_id: "epictetus", author: "Epictetus" },
+      ];
+      if (key === "unrecorded") return {};
+      if (key === "none") return { guide_voices_used: [] };
+      const count = Number(key) || 2;
+      return { guide_voices_used: all.slice(0, Math.min(count, all.length)) };
+    }
+
     function mockDailyBriefProfile(state) {
       const now = new Date().getHours();
       const feed = "https://memnon.app/feeds/preview.xml";
@@ -1312,7 +1333,11 @@
         case "unknown": return { ...base, daily_feed_enabled: true, daily_feed_url: feed,
           daily_feed_status: { state: "rebuilding", publish_hour_local: Math.max(now - 2, 0) } };
         case "ready": return { ...base, daily_feed_enabled: true, daily_feed_url: feed,
-          daily_feed_status: { state: "ready", latest_episode: { title: "Holding structure and presence", published_at: new Date().toISOString() } } };
+          daily_feed_status: { state: "ready", latest_episode: {
+            title: "Holding structure and presence",
+            published_at: new Date().toISOString(),
+            ...mockBriefVoices(MOCK_BRIEF_VOICES),
+          } } };
         case "error": return { ...base, daily_feed_enabled: true, daily_feed_url: feed, daily_feed_status: null };
         default: return { daily_feed_enabled: false, daily_feed_url: "" };
       }
@@ -1595,6 +1620,29 @@
     // 2026-08-15: a standing primary button soliciting opt-in on every
     // load was the one loud, always-present control on a page the rest of
     // this design deliberately made quiet-unless-earned.
+    // Copy for the ready brief's voices line (grounded-voices note, 2026-10-07).
+    // null/absent means the episode predates the record: no line, no guess.
+    // Three or more names don't fit one line at 390px, so the primary voice
+    // leads and the rest are counted.
+    function describeBriefVoices(voices) {
+      if (!Array.isArray(voices)) return "";
+      const names = voices.map((voice) => (voice && voice.author ? String(voice.author).trim() : "")).filter(Boolean);
+      if (!names.length) return "Shaped by your recent captures.";
+      if (names.length === 1) return `Shaped by ${names[0]}.`;
+      if (names.length === 2) return `Shaped by ${names[0]} and ${names[1]}.`;
+      return `Shaped by ${names[0]} and ${names.length - 1} more.`;
+    }
+
+    function renderBriefVoices(el, voices) {
+      if (!el) return;
+      const text = describeBriefVoices(voices);
+      el.hidden = !text;
+      el.textContent = text;
+      el.setAttribute("href", `${routes.setup}#guiding-voices`);
+      if (text) el.setAttribute("aria-label", `${text} Choose voices in setup.`);
+      else el.removeAttribute("aria-label");
+    }
+
     function renderDailyBriefSubscription(data = null) {
       const profile = data || currentProfileData || {};
       const enabled = !!profile.daily_feed_enabled;
@@ -1635,6 +1683,8 @@
       if (!card || !enableBtn || !urlWrap || !urlInput || !copyBtn || !overcastBtn || !shareBtn || !titleEl || !copyEl || !metaEl || !helpEl || !appleNote || !adminWrap || !adminCopy || !regenerateBtn) return;
 
       card.hidden = false;
+      const voicesEl = document.getElementById("daily-brief-voices");
+      if (voicesEl) voicesEl.hidden = true;
 
       function setControlPrimary(label) {
         enableBtn.hidden = false;
@@ -1746,6 +1796,7 @@
         titleEl.textContent = latestEpisode.title;
         copyEl.textContent = "Today's brief is ready in your private podcast feed.";
         metaEl.textContent = publishedTime ? `Published at ${publishedTime}` : "Published today";
+        renderBriefVoices(voicesEl, latestEpisode.guide_voices_used);
       } else if (hasFeedUrl && !statusObject) {
         // The feed exists but its status never answered: an error, not a claim.
         hideControl();

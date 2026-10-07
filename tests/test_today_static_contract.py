@@ -1630,5 +1630,64 @@ vm.runInContext({snippet!r}, context);
         )
 
 
+    # ── Grounded voices line on the ready brief (2026-10-07) ──
+
+    def _describe_brief_voices(self, voices_literal):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        start = html.index("    function describeBriefVoices(")
+        end = html.index("    function renderBriefVoices(", start)
+        script = f"""
+const vm = require("vm");
+const context = {{}};
+vm.createContext(context);
+vm.runInContext({html[start:end]!r}, context);
+console.log(JSON.stringify(context.describeBriefVoices({voices_literal})));
+"""
+        completed = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+        return json.loads(completed.stdout)
+
+    def test_voices_line_copy_follows_what_the_episode_used(self):
+        self.assertEqual(self._describe_brief_voices("undefined"), "")
+        self.assertEqual(self._describe_brief_voices("null"), "")
+        self.assertEqual(self._describe_brief_voices("[]"), "Shaped by your recent captures.")
+        self.assertEqual(self._describe_brief_voices('[{"author": "Lao Tzu"}]'), "Shaped by Lao Tzu.")
+        self.assertEqual(
+            self._describe_brief_voices('[{"author": "Julian of Norwich"}, {"author": "Thich Nhat Hanh"}]'),
+            "Shaped by Julian of Norwich and Thich Nhat Hanh.",
+        )
+        # Three names overflow one line at 390px (measured 405-422px of 324px).
+        self.assertEqual(
+            self._describe_brief_voices('[{"author": "Al-Ghazali"}, {"author": "Lao Tzu"}, {"author": "Epictetus"}]'),
+            "Shaped by Al-Ghazali and 2 more.",
+        )
+
+    def test_voices_line_reads_the_episode_record_not_the_selection(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        start = html.index("    function renderDailyBriefSubscription(")
+        end = html.index("    async function copyDailyBriefFeedLink(", start)
+        body = html[start:end]
+        self.assertIn("renderBriefVoices(voicesEl, latestEpisode.guide_voices_used)", body)
+        self.assertNotIn("selected_guides", body)
+        # Only the ready branch renders it; every render starts hidden.
+        self.assertEqual(body.count("renderBriefVoices("), 1)
+        self.assertLess(body.index("voicesEl.hidden = true"), body.index("if (authPending)"))
+        ready_start = body.index("// State 4: ready.")
+        self.assertGreater(body.index("renderBriefVoices("), ready_start)
+        self.assertLess(body.index("renderBriefVoices("), body.index("// The feed exists but its status never answered"))
+
+    def test_voices_line_is_one_hidden_link_to_the_voice_drawer_outside_the_disclosure(self):
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        markup_start = html.index('<a id="daily-brief-voices"')
+        markup = html[markup_start:html.index("</a>", markup_start)]
+        self.assertIn('href="/setup#guiding-voices"', markup)
+        self.assertIn(" hidden", markup)
+        self.assertLess(markup_start, html.index('<details class="daily-brief-disclosure">'))
+        self.assertGreater(markup_start, html.index('id="daily-brief-card"'))
+        setup = (REPO_ROOT / "public" / "setup.html").read_text(encoding="utf-8")
+        self.assertIn('id="guiding-voices"', setup)
+        self.assertIn("function openDrawerFromHash()", setup)
+
+
 if __name__ == "__main__":
     unittest.main()
