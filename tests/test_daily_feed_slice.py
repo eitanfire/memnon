@@ -359,7 +359,7 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertIn("Outside context:", result["segments"]["opening"])
         self.assertEqual(result["_weather_applied"], True)
 
-    def test_build_deterministic_daily_feed_result_uses_restrained_practical_stance(self):
+    def test_build_deterministic_daily_feed_result_uses_latest_insight_as_practical_briefing(self):
         result = self.main._build_deterministic_daily_feed_result(
             user_data={"preferred_name": "Jordan"},
             notes=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning."}],
@@ -368,9 +368,50 @@ class DailyFeedSliceTests(unittest.TestCase):
         )
         practical = result["segments"]["practical_briefing"]
         self.assertNotIn("One thread worth holding onto", practical)
-        self.assertIn("restrained stance", practical.lower())
+        self.assertNotIn("restrained stance", practical.lower())
+        self.assertIn("Protect the morning.", practical)
         self.assertNotIn("..", practical)
         self.assertEqual(result["segments"]["calendar_today"], "")
+
+    def test_build_deterministic_daily_feed_result_does_not_repeat_the_insight(self):
+        insight = "Name what I need to do, feel the feelings about it, then do it."
+        result = self.main._build_deterministic_daily_feed_result(
+            user_data={"preferred_name": "Jordan"},
+            notes=[{"title": "Therapy", "summary": "Choosing battles at school.", "insight": insight}],
+            local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
+            guide_passages=[{
+                "source_id": "pc_1", "author": "Pema Chödrön", "work": "When Things Fall Apart",
+                "ref": "ch. 1", "text": "Stay with the feeling.",
+            }],
+        )
+        script, _ = self.main._assemble_daily_feed_script(result["segments"])
+        self.assertEqual(script.count(insight), 1)
+        self.assertIn("Pema Chödrön", result["segments"]["reflective_grounding"])
+        self.assertIn("Choosing battles at school.", result["segments"]["reflective_grounding"])
+
+    def test_build_daily_feed_prompt_includes_chosen_guide_passages(self):
+        prompt = self.main._build_daily_feed_prompt(
+            user_data={"preferred_name": "Jordan", "reflection_style": "complete"},
+            notes=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}],
+            episode_type="standard",
+            local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
+            guide_passages=[{
+                "source_id": "mb_1", "author": "Martin Buber", "work": "I and Thou",
+                "ref": "Part I", "text": "All real living is meeting.",
+            }],
+        )
+        self.assertIn("WISDOM VOICES", prompt)
+        self.assertIn("All real living is meeting.", prompt)
+        self.assertIn("ground reflective_grounding in one of them", prompt)
+
+    def test_build_daily_feed_prompt_omits_guides_block_without_passages(self):
+        prompt = self.main._build_daily_feed_prompt(
+            user_data={"preferred_name": "Jordan", "reflection_style": "complete"},
+            notes=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}],
+            episode_type="standard",
+            local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
+        )
+        self.assertNotIn("--- WISDOM VOICES", prompt)
 
     def test_build_daily_feed_episode_attempts_weather_enrichment_and_continues_on_failure(self):
         user_ref = FakeUserRef({

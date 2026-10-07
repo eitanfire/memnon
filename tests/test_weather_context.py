@@ -113,6 +113,25 @@ class WeatherContextTests(unittest.TestCase):
         self.assertEqual(diagnostics["available"], False)
         self.assertEqual(diagnostics["unavailable_reason"], "geocoding_failed")
 
+    def test_load_weather_context_falls_back_to_school_city(self):
+        school_miss = '{"results":[]}'
+        city_hit = '{"results":[{"name":"Broomfield","latitude":39.92,"longitude":-105.08,"timezone":"America/Denver","admin1":"Colorado"}]}'
+        forecast_payload = '{"daily":{"temperature_2m_max":[71.0],"temperature_2m_min":[49.0],"precipitation_probability_max":[5],"precipitation_sum":[0.0],"weathercode":[1]}}'
+        with patch.object(
+            self.weather.urllib.request,
+            "urlopen",
+            side_effect=[_FakeResponse(school_miss), _FakeResponse(city_hit), _FakeResponse(forecast_payload)],
+        ):
+            context, updates, diagnostics = self.weather.load_weather_context({
+                "school_name": "Jefferson Academy",
+                "school_state": "CO",
+                "school_city": "BROOMFIELD",
+            })
+        self.assertEqual(context["day_type"], "clear")
+        self.assertEqual(updates["weather_geocoded_from"], "Jefferson Academy, CO")
+        self.assertEqual(updates["weather_latitude"], 39.92)
+        self.assertEqual(diagnostics["source"], "geocoded_school_city")
+
     def test_load_weather_context_marks_mild_day_as_available_but_omitted(self):
         forecast_payload = '{"daily":{"temperature_2m_max":[71.0],"temperature_2m_min":[52.0],"precipitation_probability_max":[5],"precipitation_sum":[0.0],"weathercode":[1],"wind_speed_10m_max":[9.0]}}'
         with patch.object(self.weather.urllib.request, "urlopen", return_value=_FakeResponse(forecast_payload)):

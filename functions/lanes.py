@@ -254,6 +254,37 @@ def build_sources_used(selected: list[dict]) -> list[dict]:
     ]
 
 
+def daily_feed_passages(user: dict, text: str) -> list[dict]:
+    """
+    Select guide passages for the daily feed from the user's chosen voices.
+    Same selection as reflect_prompt, but applies custom passages to copies
+    rather than to the shared SOURCES.
+
+    Returns list of dicts: { source_id, author, work, ref, text }
+    """
+    reflect_config  = user.get("reflect_config") or {}
+    selected_guides = reflect_config.get("selected_guides") or []
+    custom_passages = reflect_config.get("custom_passages") or {}
+
+    selected = select_passages(selected_guides, extract_themes(text))
+    passages = []
+    for item in selected:
+        g = item["guide"]
+        p = item["passage"]
+        passage_text = p["text"]
+        custom_text = custom_passages.get(item["guide_id"])
+        if custom_text and g.get("passages") and g["passages"][0].get("id") == p.get("id"):
+            passage_text = custom_text
+        passages.append({
+            "source_id": p["id"],
+            "author":    g["label"],
+            "work":      g.get("work", ""),
+            "ref":       p.get("ref", ""),
+            "text":      passage_text,
+        })
+    return passages
+
+
 # ── Reflect prompt ────────────────────────────────────────────────────────────
 
 def reflect_prompt(transcript: str, user: dict, max_tags: int = 5) -> tuple[str, list[dict]]:

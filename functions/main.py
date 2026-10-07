@@ -52,7 +52,7 @@ from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection_bytes, synthesize_reflection_mp3
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status
-from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
+from lanes import daily_feed_passages, extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 from weather_context import clear_weather_cache_fields, load_weather_context
 from workflows.ai import (
     generate_professional_analysis,
@@ -1936,6 +1936,7 @@ def _build_daily_feed_prompt(
     episode_type: str,
     local_now: datetime,
     weather_context: dict | None = None,
+    guide_passages: list[dict] | None = None,
 ) -> str:
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
     spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
@@ -1967,6 +1968,18 @@ def _build_daily_feed_prompt(
             f"Precipitation: {_safe_string(weather_context.get('precipitation_summary'))}\n"
             f"Orientation cue: {_safe_string(weather_context.get('orientation_cue'))}\n\n"
         )
+    guides_block = ""
+    if guide_passages:
+        passage_lines = [
+            f'{p["author"]} ({p["work"]}, {p["ref"]}):\n"{p["text"]}"'
+            for p in guide_passages
+        ]
+        guides_block = (
+            "--- WISDOM VOICES THE LISTENER HAS CHOSEN ---\n"
+            "These passages were selected because they relate to the recent reflections.\n\n"
+            + "\n\n".join(passage_lines)
+            + "\n\n"
+        )
 
     segment_requirements = (
         '"opening": "15 to 25 seconds, name the day and orient the listener",\n'
@@ -1986,7 +1999,7 @@ Person context: display name {preferred_name}; spoken name "{spoken_name}"; {con
 Present-day anchor available: {day_anchor}
 Continuity anchor candidate: {continuity_anchor or "none"}
 
-{weather_block}Recent reflection context:
+{weather_block}{guides_block}Recent reflection context:
 {notes_block}
 
 Return strict JSON only with this schema:
@@ -2014,6 +2027,8 @@ Rules:
 - Do not weave weather into practical_briefing, reflective_grounding, or meditative_close.
 - Keep meditative_close concise; it is the seed of a future optional meditative-only feed.
 - If there is too little specific material, be sparse rather than repetitive.
+- Never repeat a sentence or phrase from one segment in another.
+- If wisdom voices are provided, ground reflective_grounding in one of them: name the author, quote or closely paraphrase a short line, and connect it honestly to the reflections. Do not force a connection, and use at most two voices in the whole episode.
 """
 
 
@@ -2105,6 +2120,7 @@ def _build_deterministic_daily_feed_result(
     local_now: datetime,
     episode_type: str = "fallback",
     weather_context: dict | None = None,
+    guide_passages: list[dict] | None = None,
 ) -> dict:
     latest_note = notes[0] if notes else {}
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "listener").strip()
@@ -2124,23 +2140,43 @@ def _build_deterministic_daily_feed_result(
         opening_parts.append(weather_micro_cue)
     opening = " ".join(part for part in opening_parts if part).strip()
 
-    stance_seed = latest_insight or continuity_anchor or latest_summary
-    if stance_seed:
-        stance_text = stance_seed[:220].strip()
-        if not re.search(r"[.!?]$", stance_text):
-            stance_text += "."
-        practical_briefing = f"Let the day stay organized around one restrained stance: {stance_text}"
-    else:
-        practical_briefing = "Let the day stay organized around one restrained stance: protect one important thread and keep the pace simple."
+    def _sentence(text: str, limit: int = 240) -> str:
+        text = text.strip()
+        if len(text) > limit:
+            cut = text[:limit]
+            boundary = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+            text = cut[: boundary + 1] if boundary > 0 else cut.rsplit(" ", 1)[0]
+        if text and not re.search(r"[.!?\"”]$", text):
+            text += "."
+        return text
 
-    reflective_parts = [
-        f"In {latest_title}, you named a pattern that still matters today."
-    ]
-    if continuity_anchor:
-        reflective_parts.append(f"That pattern can be named simply: {continuity_anchor}")
+    # Each source line is spoken once: the latest insight carries the
+    # practical briefing, and the grounding draws on something else.
+    used_lines: set[str] = set()
+    stance_seed = latest_insight or latest_summary or continuity_anchor
+    if stance_seed:
+        practical_briefing = f"From your latest reflection, {latest_title}: {_sentence(stance_seed)}"
+        used_lines.add(stance_seed)
+    else:
+        practical_briefing = "Keep the pace simple today and protect one important thread."
+
+    reflective_parts = []
+    passage = (guide_passages or [None])[0]
+    if passage and _safe_string(passage.get("text")):
+        reflective_parts.append(f"{passage['author']} offers a way to hold this: “{_sentence(passage['text'], 260)}”")
+    if latest_summary and latest_summary not in used_lines:
+        reflective_parts.append(_sentence(latest_summary, 300))
+        used_lines.add(latest_summary)
+    elif len(notes) > 1:
+        earlier = notes[1]
+        earlier_line = _safe_string(earlier.get("insight") or earlier.get("summary"))
+        earlier_title = _safe_string(earlier.get("title"))
+        if earlier_line and earlier_line not in used_lines:
+            prefix = f"Earlier, in {earlier_title}, you were working with this: " if earlier_title else "Earlier, you were working with this: "
+            reflective_parts.append(prefix + _sentence(earlier_line))
     response_summary = _safe_string(latest_note.get("participant_response_summary") or latest_note.get("participant_response_excerpt"))
     if response_summary:
-        reflective_parts.append(f"You also answered back to the reflection in this way: {response_summary[:220].strip()}")
+        reflective_parts.append(f"You also answered back to the reflection in this way: {_sentence(response_summary, 220)}")
     reflective_grounding = " ".join(reflective_parts)
 
     meditative_close = "Carry one clear intention into the day: stay close to what feels true, and let one next step be enough."
@@ -2232,6 +2268,14 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         return _publish_silence_stub_episode(uid, episode_id, force=force)
 
     episode_type = "standard"
+    try:
+        guide_passages = daily_feed_passages(
+            user_data,
+            " ".join(_build_feed_note_brief(note) for note in notes),
+        )
+    except Exception as exc:
+        print(f"[{uid}] Daily feed guide passages unavailable: {exc}")
+        guide_passages = []
 
     def _save_episode_from_result(result: dict, selected_type: str, weather_applied: bool = False) -> dict:
         time_anchor = _safe_string(result.get("time_anchor"))
@@ -2280,7 +2324,15 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "audio_size_bytes": len(audio_bytes),
             "duration_seconds": duration_seconds,
             "segments_used": segments_used,
-            "context_sources_used": ["reflection_history"] + (["weather"] if weather_applied else []),
+            "context_sources_used": (
+                ["reflection_history"]
+                + (["guides"] if guide_passages else [])
+                + (["weather"] if weather_applied else [])
+            ),
+            "guide_passages_offered": [
+                {key: p[key] for key in ("source_id", "author", "ref")}
+                for p in guide_passages
+            ],
             "script_text": script_text,
             "script_segments": {key: _safe_string(value) for key, value in (segments or {}).items() if _safe_string(value)},
             "audio_mix_meta": audio_mix_meta,
@@ -2323,6 +2375,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             local_now,
             episode_type="fallback",
             weather_context=weather_context,
+            guide_passages=guide_passages,
         )
         return _save_episode_from_result(
             result,
@@ -2339,13 +2392,14 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             selected_type,
             local_now,
             weather_context=weather_context,
+            guide_passages=guide_passages,
         )
         result = _summarize(
             prompt,
             api_key,
             json_mode=True,
             timeout_seconds=120,
-            max_output_tokens=700,
+            max_output_tokens=2000,
         )
         segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
         original_opening = _safe_string(segments.get("opening"))
