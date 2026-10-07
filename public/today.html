@@ -1685,6 +1685,8 @@
       card.hidden = false;
       const voicesEl = document.getElementById("daily-brief-voices");
       if (voicesEl) voicesEl.hidden = true;
+      const disclosureEl = card.querySelector(".daily-brief-disclosure");
+      if (disclosureEl) disclosureEl.hidden = false;
 
       function setControlPrimary(label) {
         enableBtn.hidden = false;
@@ -1715,8 +1717,14 @@
       copyEl.removeAttribute("role");
 
       // Auth has not answered yet: show nothing rather than guessing. The
-      // callback re-renders the moment it does.
+      // callback re-renders the moment it does. That includes "How to
+      // listen": every line inside it is empty here, so opening it showed a
+      // blank panel for as long as /me took (7s on a cold start).
       if (authPending) {
+        if (disclosureEl) {
+          disclosureEl.open = false;
+          disclosureEl.hidden = true;
+        }
         hideControl();
         urlWrap.hidden = true;
         overcastBtn.hidden = true;

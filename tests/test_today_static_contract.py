@@ -1689,5 +1689,19 @@ console.log(JSON.stringify(context.describeBriefVoices({voices_literal})));
         self.assertIn("function openDrawerFromHash()", setup)
 
 
+    def test_how_to_listen_is_hidden_while_the_brief_is_pending(self):
+        # Every line inside the disclosure is empty until /me answers, so a
+        # visible "How to listen" opened to a blank panel during cold starts.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        start = html.index("    function renderDailyBriefSubscription(")
+        end = html.index("    async function copyDailyBriefFeedLink(", start)
+        body = html[start:end]
+        pending = body[body.index("if (authPending) {"):body.index("if (previewDisabled) {")]
+        self.assertIn("disclosureEl.hidden = true", pending)
+        self.assertIn("disclosureEl.open = false", pending)
+        # Every other state starts from a visible disclosure.
+        self.assertLess(body.index("disclosureEl.hidden = false"), body.index("if (authPending) {"))
+
+
 if __name__ == "__main__":
     unittest.main()
