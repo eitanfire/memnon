@@ -2125,32 +2125,6 @@
       `;
     }
 
-    function summarizeGuidingVoices(data) {
-      const styleKey = reflectionStyleKey(data);
-      const reflectionStyle = REFLECTION_STYLE_LABELS[styleKey];
-      const selectedGuides = data.reflect_config?.selected_guides || [];
-      const tradition = (data.tradition || "").trim();
-      const detailParts = [];
-      if (selectedGuides.length) {
-        detailParts.push(`${selectedGuides.length} guiding voice${selectedGuides.length === 1 ? "" : "s"}`);
-      }
-      if (tradition) detailParts.push(tradition);
-
-      return {
-        description: selectedGuides.length
-          ? `${selectedGuides.length} guiding voice${selectedGuides.length === 1 ? "" : "s"} selected${tradition ? ` · ${tradition}` : ""}.`
-          : "Thinkers and traditions selected in setup.",
-        detail: [reflectionStyle, ...detailParts].filter(Boolean).join(" · "),
-        copy: selectedGuides.length
-          ? styleKey === "complete"
-            ? "Practical guidance and grounded reflection, drawing on the voices you chose."
-            : `${reflectionStyle}, drawing on the voices you chose.`
-          : styleKey === "complete"
-            ? "Practical guidance and grounded reflection."
-            : `${reflectionStyle}, using the reflective voices you selected.`,
-      };
-    }
-
     function normalizeDashboardImageConfig(raw) {
       if (!raw || typeof raw !== "object") {
         return { kind: "preset", preset: "lattice" };

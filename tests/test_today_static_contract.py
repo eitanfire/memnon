@@ -740,7 +740,7 @@ console.log(JSON.stringify({{
     def _run_latest_result(self, note_literal, state_literal):
         html = TODAY_PATH.read_text(encoding="utf-8")
         start = html.index("    function renderLatestReflectionText(")
-        end = html.index("    function summarizeGuidingVoices(", start)
+        end = html.index("    function normalizeDashboardImageConfig(", start)
         snippet = html[start:end]
 
         script = f"""
