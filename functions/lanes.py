@@ -260,7 +260,7 @@ def daily_feed_passages(user: dict, text: str) -> list[dict]:
     Same selection as reflect_prompt, but applies custom passages to copies
     rather than to the shared SOURCES.
 
-    Returns list of dicts: { source_id, author, work, ref, text }
+    Returns list of dicts: { source_id, guide_id, author, work, ref, text }
     """
     reflect_config  = user.get("reflect_config") or {}
     selected_guides = reflect_config.get("selected_guides") or []
@@ -277,6 +277,7 @@ def daily_feed_passages(user: dict, text: str) -> list[dict]:
             passage_text = custom_text
         passages.append({
             "source_id": p["id"],
+            "guide_id":  item["guide_id"],
             "author":    g["label"],
             "work":      g.get("work", ""),
             "ref":       p.get("ref", ""),

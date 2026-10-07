@@ -1727,6 +1727,17 @@ def _build_daily_feed_status(uid: str, user_data: dict, now_utc: datetime | None
             "episode_type": _safe_string(latest.get("episode_type")),
             "date_key": latest_date_key,
             "published_at": _serialize_firestore_value(latest.get("published_at")),
+            # None means the episode predates the record, not that no voice
+            # shaped it; Today must not render a voices line from None.
+            "guide_voices_used": (
+                [
+                    {"guide_id": _safe_string(v.get("guide_id")), "author": _safe_string(v.get("author"))}
+                    for v in latest["guide_voices_used"]
+                    if isinstance(v, dict) and _safe_string(v.get("author"))
+                ]
+                if isinstance(latest.get("guide_voices_used"), list)
+                else None
+            ),
         }
 
     state = "disabled"
@@ -1971,7 +1982,7 @@ def _build_daily_feed_prompt(
     guides_block = ""
     if guide_passages:
         passage_lines = [
-            f'{p["author"]} ({p["work"]}, {p["ref"]}):\n"{p["text"]}"'
+            f'[{p["source_id"]}] {p["author"]} ({p["work"]}, {p["ref"]}):\n"{p["text"]}"'
             for p in guide_passages
         ]
         guides_block = (
@@ -2008,6 +2019,7 @@ Return strict JSON only with this schema:
   "description": "One sentence describing what shaped today's briefing.",
   "time_anchor": "The present-day anchor actually used.",
   "continuity_anchor": "The cross-time continuity anchor actually used.",
+  "voices_used": ["source_id of each wisdom-voice passage the script actually draws on; [] if none"],
   "segments": {{
     {segment_requirements}
   }}
@@ -2029,6 +2041,7 @@ Rules:
 - If there is too little specific material, be sparse rather than repetitive.
 - Never repeat a sentence or phrase from one segment in another.
 - If wisdom voices are provided, ground reflective_grounding in one of them: name the author, quote or closely paraphrase a short line, and connect it honestly to the reflections. Do not force a connection, and use at most two voices in the whole episode.
+- voices_used must list exactly the passages the script draws on, by the source_id shown in brackets. Offered is not used: leave out any passage the script does not quote, paraphrase, or name.
 """
 
 
@@ -2114,6 +2127,28 @@ def _build_daily_feed_generation_meta(
         },
     }
 
+def _daily_feed_voices_used(result: dict, guide_passages: list[dict], user_data: dict) -> list[dict]:
+    """The voices an episode drew on: the model's claim, kept only where it
+    names a passage that was actually offered, one entry per voice, in the
+    user's selection order so the primary voice leads."""
+    claimed = result.get("voices_used")
+    claimed_ids = {_safe_string(item) for item in claimed} if isinstance(claimed, list) else set()
+    selection = list(((user_data.get("reflect_config") or {}).get("selected_guides")) or [])
+    used: dict[str, dict] = {}
+    for passage in guide_passages or []:
+        guide_id = _safe_string(passage.get("guide_id"))
+        if passage.get("source_id") in claimed_ids and guide_id not in used:
+            used[guide_id] = {
+                "guide_id": guide_id,
+                "author": _safe_string(passage.get("author")),
+                "source_ids": [],
+            }
+        if guide_id in used and passage.get("source_id") in claimed_ids:
+            used[guide_id]["source_ids"].append(passage["source_id"])
+    rank = {gid: index for index, gid in enumerate(selection)}
+    return sorted(used.values(), key=lambda v: rank.get(v["guide_id"], len(rank)))
+
+
 def _build_deterministic_daily_feed_result(
     user_data: dict,
     notes: list[dict],
@@ -2161,8 +2196,10 @@ def _build_deterministic_daily_feed_result(
         practical_briefing = "Keep the pace simple today and protect one important thread."
 
     reflective_parts = []
+    voices_used = []
     passage = (guide_passages or [None])[0]
     if passage and _safe_string(passage.get("text")):
+        voices_used.append(passage["source_id"])
         reflective_parts.append(f"{passage['author']} offers a way to hold this: “{_sentence(passage['text'], 260)}”")
     if latest_summary and latest_summary not in used_lines:
         reflective_parts.append(_sentence(latest_summary, 300))
@@ -2187,6 +2224,7 @@ def _build_deterministic_daily_feed_result(
         "time_anchor": time_anchor,
         "continuity_anchor": continuity_anchor[:240],
         "_weather_applied": bool(weather_micro_cue),
+        "voices_used": voices_used,
         "segments": {
             "opening": opening,
             "practical_briefing": practical_briefing,
@@ -2314,6 +2352,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             audio_bytes = synthesize_reflection_bytes(script_text, voice=voice)
         storage_path = _upload_daily_feed_audio(uid, episode_id, audio_bytes)
         duration_seconds = _estimate_audio_duration_seconds(script_text)
+        guide_voices_used = _daily_feed_voices_used(result, guide_passages, user_data)
         episode_payload = {
             "date_key": episode_id,
             "published_at": firestore.SERVER_TIMESTAMP,
@@ -2326,9 +2365,10 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "segments_used": segments_used,
             "context_sources_used": (
                 ["reflection_history"]
-                + (["guides"] if guide_passages else [])
+                + (["guides"] if guide_voices_used else [])
                 + (["weather"] if weather_applied else [])
             ),
+            "guide_voices_used": guide_voices_used,
             "guide_passages_offered": [
                 {key: p[key] for key in ("source_id", "author", "ref")}
                 for p in guide_passages

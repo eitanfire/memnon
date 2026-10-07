@@ -404,6 +404,69 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertIn("All real living is meeting.", prompt)
         self.assertIn("ground reflective_grounding in one of them", prompt)
 
+    GUIDE_PASSAGES = [
+        {"source_id": "ag_1", "guide_id": "al_ghazali", "author": "Al-Ghazali", "work": "", "ref": "", "text": "Know yourself."},
+        {"source_id": "lt_33", "guide_id": "lao_tzu", "author": "Lao Tzu", "work": "", "ref": "", "text": "Knowing yourself is wisdom."},
+        {"source_id": "lt_64", "guide_id": "lao_tzu", "author": "Lao Tzu", "work": "", "ref": "", "text": "A journey of a thousand miles."},
+    ]
+    SELECTION = {"reflect_config": {"selected_guides": ["al_ghazali", "martin_buber", "lao_tzu"]}}
+
+    def test_voices_used_keeps_only_offered_passages_one_per_voice_in_selection_order(self):
+        used = self.main._daily_feed_voices_used(
+            {"voices_used": ["lt_64", "invented_1", "lt_33", "ag_1"]},
+            self.GUIDE_PASSAGES,
+            self.SELECTION,
+        )
+        self.assertEqual([v["author"] for v in used], ["Al-Ghazali", "Lao Tzu"])
+        self.assertEqual(used[1]["source_ids"], ["lt_33", "lt_64"])
+
+    def test_voices_used_is_empty_when_model_claims_nothing_or_omits_the_field(self):
+        self.assertEqual(self.main._daily_feed_voices_used({"voices_used": []}, self.GUIDE_PASSAGES, self.SELECTION), [])
+        self.assertEqual(self.main._daily_feed_voices_used({}, self.GUIDE_PASSAGES, self.SELECTION), [])
+        self.assertEqual(self.main._daily_feed_voices_used({"voices_used": "ag_1"}, self.GUIDE_PASSAGES, self.SELECTION), [])
+
+    def test_fallback_records_only_the_passage_it_speaks(self):
+        result = self.main._build_deterministic_daily_feed_result(
+            user_data={"preferred_name": "Jordan"},
+            notes=[{"title": "Therapy", "summary": "Choosing battles.", "insight": "Feel it, then do it."}],
+            local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
+            guide_passages=self.GUIDE_PASSAGES,
+        )
+        self.assertEqual(result["voices_used"], ["ag_1"])
+        no_guides = self.main._build_deterministic_daily_feed_result(
+            user_data={"preferred_name": "Jordan"},
+            notes=[{"title": "Therapy", "summary": "Choosing battles.", "insight": "Feel it, then do it."}],
+            local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(no_guides["voices_used"], [])
+
+    def test_status_distinguishes_unrecorded_voices_from_none_used(self):
+        user_data = {"daily_feed_enabled": True, "daily_feed_timezone": "America/Denver", "daily_feed_publish_hour_local": 4}
+        base = {"id": "2026-06-24", "date_key": "2026-06-24", "title": "T", "episode_type": "standard",
+                "published_at": datetime(2026, 6, 24, 10, 5, tzinfo=timezone.utc)}
+        now = datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc)
+        cases = [
+            (base, None),
+            ({**base, "guide_voices_used": []}, []),
+            ({**base, "guide_voices_used": [{"guide_id": "lao_tzu", "author": "Lao Tzu", "source_ids": ["lt_33"]}]},
+             [{"guide_id": "lao_tzu", "author": "Lao Tzu"}]),
+        ]
+        for episode, expected in cases:
+            with patch.object(self.main, "_load_latest_daily_feed_episode", return_value=episode):
+                status = self.main._build_daily_feed_status("user123", user_data, now)
+            self.assertEqual(status["latest_episode"]["guide_voices_used"], expected)
+
+    def test_build_daily_feed_prompt_asks_for_voices_used_by_source_id(self):
+        prompt = self.main._build_daily_feed_prompt(
+            user_data={"preferred_name": "Jordan", "reflection_style": "complete"},
+            notes=[{"title": "Recent reflection", "summary": "Stay steady", "insight": "Protect the morning"}],
+            episode_type="standard",
+            local_now=datetime(2026, 6, 24, 8, 0, tzinfo=timezone.utc),
+            guide_passages=self.GUIDE_PASSAGES,
+        )
+        self.assertIn("[lt_33] Lao Tzu", prompt)
+        self.assertIn('"voices_used"', prompt)
+
     def test_build_daily_feed_prompt_omits_guides_block_without_passages(self):
         prompt = self.main._build_daily_feed_prompt(
             user_data={"preferred_name": "Jordan", "reflection_style": "complete"},

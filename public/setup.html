@@ -514,7 +514,7 @@
     </div>
 
     <!-- ── Teaching context ── -->
-    <div class="card drawer-card is-open" id="dashboard-portrait" data-drawer="teaching-context">
+    <div class="card drawer-card is-open" id="teaching-context" data-drawer="teaching-context">
       <button type="button" class="drawer-toggle" aria-expanded="true" aria-controls="teaching-context-content">
         <div style="min-width:0;">
           <div class="drawer-toggle-main">
@@ -615,7 +615,7 @@
     </div>
 
     <!-- ── Guiding voices ── -->
-    <div class="card drawer-card" data-drawer="guiding-voices">
+    <div class="card drawer-card" id="guiding-voices" data-drawer="guiding-voices">
       <button type="button" class="drawer-toggle" aria-expanded="false" aria-controls="guiding-voices-content">
         <div style="min-width:0;">
           <div class="drawer-toggle-main">
@@ -1238,6 +1238,7 @@
         if (activeTraditionFilter !== 'all' && g.tradition !== activeTraditionFilter) continue;
         container.appendChild(makeVoiceChip(gid, g));
       }
+      refitOpenDrawer(container);
     }
 
     function makeVoiceChip(gid, g) {
@@ -1354,6 +1355,23 @@
         });
         setDrawerOpen(card, card.classList.contains('is-open'));
       });
+    }
+
+    // Links into setup (/setup#guiding-voices, /setup#dashboard-portrait)
+    // land on a drawer that starts closed, so open the one the hash names.
+    function openDrawerFromHash() {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      const card = id ? document.getElementById(id) : null;
+      if (!card || !card.classList.contains('drawer-card')) return;
+      setDrawerOpen(card, true);
+      card.scrollIntoView({ block: 'start' });
+    }
+
+    // An open drawer's max-height is measured once, so re-measure after its
+    // content is rebuilt (voice chips arrive after sources load).
+    function refitOpenDrawer(el) {
+      const card = el && el.closest('.drawer-card');
+      if (card && card.classList.contains('is-open')) setDrawerOpen(card, true);
     }
 
     function updateGoogleTasksUI() {
@@ -1721,7 +1739,9 @@
     buildPresetPortraitOptions();
     buildNarrationVoiceOptions();
     initializeDrawers();
+    openDrawerFromHash();
     window.addEventListener('resize', initializeDrawers);
+    window.addEventListener('hashchange', openDrawerFromHash);
 
     document.getElementById('upload-portrait-btn').addEventListener('click', () => {
       document.getElementById('portrait-file-input').click();
