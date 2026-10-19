@@ -1775,16 +1775,69 @@ def _get_storage_bucket():
     return storage.bucket()
 
 
+# Feed audio (daily briefings and library episodes) lives in its own bucket. The default
+# bucket is the Cloud Functions upload bucket, which deletes every object after one day,
+# so a daily episode used to vanish before the next one replaced it. The feed bucket keeps
+# library audio and deletes daily-feed/ objects after 30 days (bucket lifecycle rule).
+FEED_AUDIO_BUCKET = os.environ.get("MEMNON_FEED_AUDIO_BUCKET", "memnon-app-feed-audio")
+
+
+def _get_feed_audio_bucket():
+    _get_db()
+    return storage.bucket(FEED_AUDIO_BUCKET)
+
+
 def _upload_daily_feed_audio(uid: str, episode_id: str, audio_bytes: bytes) -> str:
     path = _daily_feed_audio_storage_path(uid, episode_id)
-    blob = _get_storage_bucket().blob(path)
+    blob = _get_feed_audio_bucket().blob(path)
     blob.upload_from_string(audio_bytes, content_type="audio/mpeg")
     return path
 
 
 def _download_daily_feed_audio(storage_path: str) -> bytes:
-    blob = _get_storage_bucket().blob(storage_path)
+    blob = _get_feed_audio_bucket().blob(storage_path)
     return blob.download_as_bytes()
+
+
+# Library feed: a second private feed on the same token that keeps every episode
+# (readings, recorded talks), unlike the daily feed, which only serves the latest.
+LIBRARY_FEED_AUDIO_PREFIX = "library-feed"
+LIBRARY_FEED_EPISODE_LIMIT = 300
+
+
+def _library_feed_url_for_token(token: str) -> str:
+    return f"{DAILY_FEED_ROUTE_BASE}/{urllib.parse.quote(token)}/library.xml"
+
+
+def _library_feed_audio_url(token: str, episode_id: str) -> str:
+    return f"{DAILY_FEED_ROUTE_BASE}/{urllib.parse.quote(token)}/library/{urllib.parse.quote(episode_id)}.mp3"
+
+
+def _library_feed_audio_storage_path(uid: str, episode_id: str) -> str:
+    return f"{LIBRARY_FEED_AUDIO_PREFIX}/{uid}/{episode_id}.mp3"
+
+
+def _load_library_feed_episodes(uid: str) -> list[dict]:
+    docs = (
+        _get_db()
+        .collection("users")
+        .document(uid)
+        .collection("library_episodes")
+        .order_by("published_at", direction=firestore.Query.DESCENDING)
+        .limit(LIBRARY_FEED_EPISODE_LIMIT)
+        .stream()
+    )
+    episodes = []
+    for snap in docs:
+        payload = snap.to_dict() or {}
+        payload["id"] = snap.id
+        episodes.append(payload)
+    return episodes
+
+
+def _user_for_feed_token(token: str):
+    matches = list(_get_db().collection("users").where("daily_feed_token", "==", token).limit(1).stream())
+    return matches[0] if matches else None
 
 
 WORKFLOW_VOICE_AUDIO_PREFIX = "workflow-voice-audio"
@@ -2498,6 +2551,35 @@ def _render_daily_feed_rss(user_data: dict, token: str, episodes: list[dict]) ->
             f"<guid isPermaLink=\"false\">{guid}</guid><pubDate>{pub_rfc2822}</pubDate></item>"
         )
     item_block = "".join(items)
+    return _rss_document(show_title, show_description, feed_link, item_block)
+
+
+def _render_library_feed_rss(user_data: dict, token: str, episodes: list[dict]) -> str:
+    preferred_name = _safe_string(user_data.get("preferred_name")) or "Memnon listener"
+    show_title = xml_escape(f"Memnon Library — {preferred_name}")
+    show_description = xml_escape("Readings and recordings saved to your private Memnon library.")
+    feed_link = xml_escape(_library_feed_url_for_token(token))
+    items = []
+    for episode in episodes:
+        episode_id = _safe_string(episode.get("id"))
+        if not episode_id:
+            continue
+        title = xml_escape(_safe_string(episode.get("title")) or episode_id)
+        description = xml_escape(_safe_string(episode.get("description")) or "")
+        enclosure_url = xml_escape(_library_feed_audio_url(token, episode_id))
+        pub_dt = _coerce_datetime(episode.get("published_at")) or datetime.utcnow()
+        pub_rfc2822 = pub_dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        length = _safe_int(episode.get("audio_size_bytes"), 0)
+        guid = xml_escape(f"{token}:library:{episode_id}")
+        items.append(
+            f"<item><title>{title}</title><description>{description}</description>"
+            f"<enclosure url=\"{enclosure_url}\" length=\"{length}\" type=\"audio/mpeg\" />"
+            f"<guid isPermaLink=\"false\">{guid}</guid><pubDate>{pub_rfc2822}</pubDate></item>"
+        )
+    return _rss_document(show_title, show_description, feed_link, "".join(items))
+
+
+def _rss_document(show_title: str, show_description: str, feed_link: str, item_block: str) -> str:
     return (
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
         "<rss version=\"2.0\"><channel>"
@@ -3729,6 +3811,39 @@ def daily_feed_rss(token: str):
             "Cache-Control": "private, max-age=300",
         },
     )
+
+
+@flask_app.route("/feed/<token>/library.xml")
+def library_feed_rss(token: str):
+    """Return the private library feed: every saved reading or recording, newest first."""
+    token = _safe_string(token)
+    user_doc = _user_for_feed_token(token) if token else None
+    if not user_doc:
+        return ("not found", 404)
+    xml_body = _render_library_feed_rss(user_doc.to_dict() or {}, token, _load_library_feed_episodes(user_doc.id))
+    return (xml_body, 200, {"Content-Type": "application/rss+xml; charset=utf-8", "Cache-Control": "private, max-age=300"})
+
+
+@flask_app.route("/feed/<token>/library/<episode_id>.mp3")
+def library_feed_audio(token: str, episode_id: str):
+    """Stream one library episode for the token's owner."""
+    token = _safe_string(token)
+    episode_id = _safe_string(episode_id)
+    user_doc = _user_for_feed_token(token) if token and episode_id else None
+    if not user_doc:
+        return ("not found", 404)
+    snap = _get_db().collection("users").document(user_doc.id).collection("library_episodes").document(episode_id).get()
+    if not snap.exists:
+        return ("not found", 404)
+    storage_path = _safe_string((snap.to_dict() or {}).get("audio_storage_path"))
+    if not storage_path:
+        return ("not found", 404)
+    try:
+        audio_bytes = _download_daily_feed_audio(storage_path)
+    except Exception as exc:
+        print(f"[{user_doc.id}] Could not read library audio {episode_id}: {exc}")
+        return ("not found", 404)
+    return (audio_bytes, 200, {"Content-Type": "audio/mpeg", "Content-Length": str(len(audio_bytes)), "Cache-Control": "private, max-age=3600"})
 
 
 @flask_app.route("/feed/<token>/<episode_id>.mp3")
