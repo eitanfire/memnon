@@ -87,6 +87,32 @@ def _resolved_location_matches_anchor(top: dict, anchor: str) -> bool:
     return bool(school_name and resolved_name and school_name in resolved_name)
 
 
+def _geocode_place(name: str, *, timeout_seconds: float) -> dict | None:
+    """Return the top Open-Meteo match for name if it plausibly is that place."""
+    geocode_query = urllib.parse.urlencode({
+        "name": name,
+        "count": 1,
+        "language": "en",
+        "format": "json",
+    })
+    try:
+        geocode_payload = _fetch_json(
+            f"{OPEN_METEO_GEOCODE_URL}?{geocode_query}",
+            timeout_seconds=timeout_seconds,
+        )
+    except Exception:
+        return None
+    results = geocode_payload.get("results") or []
+    if not results:
+        return None
+    top = results[0]
+    if not top.get("timezone") or not _resolved_location_matches_anchor(top, name):
+        return None
+    if top.get("latitude") is None or top.get("longitude") is None:
+        return None
+    return top
+
+
 def load_weather_context(
     user_data: dict,
     *,
@@ -110,32 +136,15 @@ def load_weather_context(
     if cached_anchor == anchor and latitude is not None and longitude is not None:
         source = "cached_coordinates"
     else:
-        try:
-            geocode_query = urllib.parse.urlencode({
-                "name": anchor,
-                "count": 1,
-                "language": "en",
-                "format": "json",
-            })
-            geocode_payload = _fetch_json(
-                f"{OPEN_METEO_GEOCODE_URL}?{geocode_query}",
-                timeout_seconds=timeout_seconds,
-            )
-        except Exception:
-            return None, {}, {
-                "available": False,
-                "source": "",
-                "unavailable_reason": "geocoding_failed",
-            }
-        results = geocode_payload.get("results") or []
-        if not results:
-            return None, {}, {
-                "available": False,
-                "source": "",
-                "unavailable_reason": "geocoding_failed",
-            }
-        top = results[0]
-        if not top.get("timezone") or not _resolved_location_matches_anchor(top, anchor):
+        # School names rarely resolve in a place-name geocoder, so fall back to
+        # the school's city. The cache stays keyed by the school anchor.
+        top = _geocode_place(anchor, timeout_seconds=timeout_seconds)
+        source = "geocoded_school_name"
+        school_city = str((user_data or {}).get("school_city") or "").strip()
+        if top is None and school_city:
+            top = _geocode_place(school_city, timeout_seconds=timeout_seconds)
+            source = "geocoded_school_city"
+        if top is None:
             return None, {}, {
                 "available": False,
                 "source": "",
@@ -144,13 +153,6 @@ def load_weather_context(
         latitude = top.get("latitude")
         longitude = top.get("longitude")
         timezone_name = str(top.get("timezone") or "").strip()
-        if latitude is None or longitude is None or not timezone_name:
-            return None, {}, {
-                "available": False,
-                "source": "",
-                "unavailable_reason": "geocoding_failed",
-            }
-        source = "geocoded_school_name"
         resolved_name = " ".join(
             str(top.get(key) or "").strip()
             for key in ("name", "admin1")

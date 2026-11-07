@@ -32,7 +32,7 @@ import traceback
 import urllib.parse
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from xml.sax.saxutils import escape as xml_escape
@@ -52,7 +52,7 @@ from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection_bytes, synthesize_reflection_mp3
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status
-from lanes import extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
+from lanes import daily_feed_passages, extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 from weather_context import clear_weather_cache_fields, load_weather_context
 from workflows.ai import (
     generate_professional_analysis,
@@ -1541,6 +1541,175 @@ def _normalize_task_item(item: dict) -> dict:
     }
 
 
+TODAY_OVERVIEW_MAX_CANDIDATES = 8
+
+
+def _task_due_date(task: dict) -> date | None:
+    """Google Tasks stores only a due date; the time part is always midnight UTC."""
+    raw = _safe_string(task.get("due"))
+    if len(raw) < 10:
+        return None
+    try:
+        return date.fromisoformat(raw[:10])
+    except ValueError:
+        return None
+
+
+def _task_title_is_speakable(title: str) -> bool:
+    return bool(re.search(r"[A-Za-z0-9]", title or "")) and len(title.strip()) >= 2
+
+
+def _rank_overview_tasks(items: list[dict], today: date, limit: int = TODAY_OVERVIEW_MAX_CANDIDATES) -> list[dict]:
+    """Order open tasks for the spoken overview: due today or overdue first,
+    then due this week, then everything else by most recently updated."""
+    candidates = []
+    for item in items or []:
+        task = _normalize_task_item(item)
+        if task["status"] == "completed" or not task["id"] or not _task_title_is_speakable(task["title"]):
+            continue
+        due = _task_due_date(task)
+        if due is not None and due <= today:
+            bucket = 0
+        elif due is not None and due <= today + timedelta(days=7):
+            bucket = 1
+        else:
+            bucket = 2
+        task["due_date"] = due.isoformat() if due else ""
+        task["bucket"] = bucket
+        candidates.append(task)
+    # Stable sorts: newest update first, then by due date within the dated
+    # buckets, then by bucket.
+    candidates.sort(key=lambda t: _safe_string(t.get("updated")), reverse=True)
+    candidates.sort(key=lambda t: t["due_date"] if t["bucket"] < 2 else "")
+    candidates.sort(key=lambda t: t["bucket"])
+    return candidates[:limit]
+
+
+def _load_overview_tasks(uid: str, user_data: dict, today: date) -> tuple[list[dict], str]:
+    """Read open personal tasks for the spoken overview. Read-only. Returns
+    (ranked candidates, omission_reason); any failure is a silent omission.
+    `today` is the user's local date. No to-do reminders on days off: on
+    Saturday and Sunday nothing is fetched at all."""
+    if today.weekday() >= 5:
+        return [], "weekend"
+    if not _user_tasks_connected(user_data):
+        return [], "not_connected"
+    tasklist_id = _safe_string(user_data.get("google_tasks_list_id"))
+    if not tasklist_id:
+        return [], "no_list"
+    try:
+        service = _tasks_service_for_user(uid)
+        if not service:
+            return [], "no_credentials"
+        result = service.tasks().list(
+            tasklist=tasklist_id,
+            maxResults=100,
+            showCompleted=False,
+            showHidden=False,
+        ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Tasks overview unavailable: {exc}")
+        return [], "api_error"
+    ranked = _rank_overview_tasks((result or {}).get("items") or [], today)
+    if not ranked:
+        return [], "no_open_tasks"
+    return ranked, ""
+
+
+def _overview_task_ref(index: int) -> str:
+    return f"T{index + 1}"
+
+
+def _overview_tasks_used(result: dict, tasks: list[dict]) -> tuple[list[dict], dict | None]:
+    """Map the model's task refs back to real tasks, keeping only refs that
+    were offered. Nothing is recorded when the overview was not spoken."""
+    if not tasks or not _safe_string(((result or {}).get("segments") or {}).get("today_overview")):
+        return [], None
+    by_ref = {_overview_task_ref(i): t for i, t in enumerate(tasks)}
+    claimed = result.get("tasks_used")
+    used: list[dict] = []
+    for ref in claimed if isinstance(claimed, list) else []:
+        task = by_ref.get(_safe_string(ref).upper())
+        if task and all(u["id"] != task["id"] for u in used):
+            used.append({"id": task["id"], "title": task["title"]})
+    drop_task = by_ref.get(_safe_string(result.get("task_drop_suggested")).upper())
+    drop = {"id": drop_task["id"], "title": drop_task["title"]} if drop_task else None
+    return used, drop
+
+
+# A bare weekday ("due Sunday") is only unambiguous inside the coming week.
+SPOKEN_WEEKDAY_HORIZON_DAYS = 6
+
+
+def _spoken_due_date(due: date, today: date) -> str:
+    """How a due date is said aloud: today, tomorrow, a weekday within the
+    next 6 days, otherwise the month and day so a far date never sounds
+    like this week."""
+    days = (due - today).days
+    if days == 0:
+        return "today"
+    if days == 1:
+        return "tomorrow"
+    if 1 < days <= SPOKEN_WEEKDAY_HORIZON_DAYS:
+        return due.strftime("%A")
+    return f"{due.strftime('%B')} {_ordinal_day(due.day)}"
+
+
+def _spoken_due(task: dict, today: date) -> str:
+    due = _task_due_date(task)
+    if due is None:
+        return ""
+    if due < today:
+        return "it is overdue"
+    return f"it is due {_spoken_due_date(due, today)}"
+
+
+def _prompt_due(task: dict, today: date) -> str:
+    """Due wording handed to the model: the exact spoken form plus the day
+    count, so it cannot turn a far date into a bare weekday."""
+    due = _task_due_date(task)
+    if due is None:
+        return "no due date"
+    days = (due - today).days
+    if days < 0:
+        late = -days
+        return f"overdue since {due.strftime('%B')} {_ordinal_day(due.day)}, {late} day{'s' if late != 1 else ''} late"
+    if days == 0:
+        return "due today"
+    if days == 1:
+        return "due tomorrow"
+    return f'due in {days} days; say "{_spoken_due_date(due, today)}"'
+
+
+def _build_deterministic_today_overview(tasks: list[dict], today: date) -> tuple[str, list[str], str]:
+    """Spoken overview without the model: up to three priorities and one
+    thing to let go of. Returns (text, task refs named, drop ref)."""
+    if not tasks:
+        return "", [], ""
+    count = len(tasks)
+    priority_count = min(3, count - 1) if count > 1 else 1
+    priorities = list(range(priority_count))
+    drop_index = None
+    if count > 1:
+        later = [i for i in range(priority_count, count) if tasks[i]["bucket"] > 0]
+        drop_index = later[-1] if later else count - 1
+    lead_ins = ["Start with", "After that,", "And if there is room,"]
+    sentences = ["Here is the shape of the day before anything else."]
+    for position, index in enumerate(priorities):
+        task = tasks[index]
+        due = _spoken_due(task, today)
+        sentence = f"{lead_ins[position]} {task['title']}"
+        sentence += f", because {due}." if due else "."
+        sentences.append(sentence)
+    if drop_index is not None:
+        sentences.append(
+            f"One thing to set down or hand off today: {tasks[drop_index]['title']}. It can wait without costing you."
+        )
+    refs = [_overview_task_ref(i) for i in priorities]
+    drop_ref = _overview_task_ref(drop_index) if drop_index is not None else ""
+    return " ".join(sentences), refs, drop_ref
+
+
 def _find_or_create_media_folder(service) -> str:
     return _find_or_create_folder(service, "memnon-media")
 
@@ -1727,6 +1896,17 @@ def _build_daily_feed_status(uid: str, user_data: dict, now_utc: datetime | None
             "episode_type": _safe_string(latest.get("episode_type")),
             "date_key": latest_date_key,
             "published_at": _serialize_firestore_value(latest.get("published_at")),
+            # None means the episode predates the record, not that no voice
+            # shaped it; Today must not render a voices line from None.
+            "guide_voices_used": (
+                [
+                    {"guide_id": _safe_string(v.get("guide_id")), "author": _safe_string(v.get("author"))}
+                    for v in latest["guide_voices_used"]
+                    if isinstance(v, dict) and _safe_string(v.get("author"))
+                ]
+                if isinstance(latest.get("guide_voices_used"), list)
+                else None
+            ),
         }
 
     state = "disabled"
@@ -1764,16 +1944,69 @@ def _get_storage_bucket():
     return storage.bucket()
 
 
+# Feed audio (daily briefings and library episodes) lives in its own bucket. The default
+# bucket is the Cloud Functions upload bucket, which deletes every object after one day,
+# so a daily episode used to vanish before the next one replaced it. The feed bucket keeps
+# library audio and deletes daily-feed/ objects after 30 days (bucket lifecycle rule).
+FEED_AUDIO_BUCKET = os.environ.get("MEMNON_FEED_AUDIO_BUCKET", "memnon-app-feed-audio")
+
+
+def _get_feed_audio_bucket():
+    _get_db()
+    return storage.bucket(FEED_AUDIO_BUCKET)
+
+
 def _upload_daily_feed_audio(uid: str, episode_id: str, audio_bytes: bytes) -> str:
     path = _daily_feed_audio_storage_path(uid, episode_id)
-    blob = _get_storage_bucket().blob(path)
+    blob = _get_feed_audio_bucket().blob(path)
     blob.upload_from_string(audio_bytes, content_type="audio/mpeg")
     return path
 
 
 def _download_daily_feed_audio(storage_path: str) -> bytes:
-    blob = _get_storage_bucket().blob(storage_path)
+    blob = _get_feed_audio_bucket().blob(storage_path)
     return blob.download_as_bytes()
+
+
+# Library feed: a second private feed on the same token that keeps every episode
+# (readings, recorded talks), unlike the daily feed, which only serves the latest.
+LIBRARY_FEED_AUDIO_PREFIX = "library-feed"
+LIBRARY_FEED_EPISODE_LIMIT = 300
+
+
+def _library_feed_url_for_token(token: str) -> str:
+    return f"{DAILY_FEED_ROUTE_BASE}/{urllib.parse.quote(token)}/library.xml"
+
+
+def _library_feed_audio_url(token: str, episode_id: str) -> str:
+    return f"{DAILY_FEED_ROUTE_BASE}/{urllib.parse.quote(token)}/library/{urllib.parse.quote(episode_id)}.mp3"
+
+
+def _library_feed_audio_storage_path(uid: str, episode_id: str) -> str:
+    return f"{LIBRARY_FEED_AUDIO_PREFIX}/{uid}/{episode_id}.mp3"
+
+
+def _load_library_feed_episodes(uid: str) -> list[dict]:
+    docs = (
+        _get_db()
+        .collection("users")
+        .document(uid)
+        .collection("library_episodes")
+        .order_by("published_at", direction=firestore.Query.DESCENDING)
+        .limit(LIBRARY_FEED_EPISODE_LIMIT)
+        .stream()
+    )
+    episodes = []
+    for snap in docs:
+        payload = snap.to_dict() or {}
+        payload["id"] = snap.id
+        episodes.append(payload)
+    return episodes
+
+
+def _user_for_feed_token(token: str):
+    matches = list(_get_db().collection("users").where("daily_feed_token", "==", token).limit(1).stream())
+    return matches[0] if matches else None
 
 
 WORKFLOW_VOICE_AUDIO_PREFIX = "workflow-voice-audio"
@@ -1936,6 +2169,8 @@ def _build_daily_feed_prompt(
     episode_type: str,
     local_now: datetime,
     weather_context: dict | None = None,
+    guide_passages: list[dict] | None = None,
+    overview_tasks: list[dict] | None = None,
 ) -> str:
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
     spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
@@ -1967,14 +2202,61 @@ def _build_daily_feed_prompt(
             f"Precipitation: {_safe_string(weather_context.get('precipitation_summary'))}\n"
             f"Orientation cue: {_safe_string(weather_context.get('orientation_cue'))}\n\n"
         )
+    guides_block = ""
+    if guide_passages:
+        passage_lines = [
+            f'[{p["source_id"]}] {p["author"]} ({p["work"]}, {p["ref"]}):\n"{p["text"]}"'
+            for p in guide_passages
+        ]
+        guides_block = (
+            "--- WISDOM VOICES THE LISTENER HAS CHOSEN ---\n"
+            "These passages were selected because they relate to the recent reflections.\n\n"
+            + "\n\n".join(passage_lines)
+            + "\n\n"
+        )
 
+    tasks_block = ""
+    if overview_tasks:
+        today = local_now.date()
+        task_lines = []
+        for index, task in enumerate(overview_tasks):
+            task_lines.append(f"[{_overview_task_ref(index)}] {task['title']} ({_prompt_due(task, today)})")
+        tasks_block = (
+            "--- OPEN PERSONAL TASKS (ranked: overdue or due today, then this week, then recently updated) ---\n"
+            + "\n".join(task_lines)
+            + "\n\n"
+        )
+
+    overview_requirement = (
+        '"today_overview": "60 to 90 seconds, spoken orientation to the day from the open tasks",\n'
+        if overview_tasks else ""
+    )
     segment_requirements = (
         '"opening": "15 to 25 seconds, name the day and orient the listener",\n'
+        + overview_requirement +
         '"practical_briefing": "60 to 120 seconds, name what matters most and why",\n'
         '"calendar_today": "20 to 45 seconds, leave empty string for Phase 1 unless true calendar context exists",\n'
         '"reflective_grounding": "60 to 120 seconds, connect today to a real pattern across time",\n'
         '"meditative_close": "20 to 45 seconds, brief closing line that can later seed a meditative-only feed"'
     )
+
+    tasks_schema = ""
+    tasks_rules = ""
+    if overview_tasks:
+        tasks_schema = (
+            '\n  "tasks_used": ["ref (T1, T2, ...) of each task today_overview names"],'
+            '\n  "task_drop_suggested": "ref of the one task today_overview says to drop or delegate",'
+        )
+        tasks_rules = (
+            "- today_overview comes right after the opening and orients the day from the open tasks. "
+            "Name 3 to 5 priorities (fewer only if fewer tasks exist), each with a short reason it matters today, "
+            "and say plainly what is due or overdue.\n"
+            "- Say due dates exactly as given in quotes for each task. Never use a bare weekday for a task due more than 6 days out.\n"
+            "- today_overview must suggest exactly one task to drop or delegate today, and say why it can wait or who could take it.\n"
+            "- Never read the task list out in order or recite every task. Choose, group, and speak like a chief of staff in the car.\n"
+            "- Do not repeat today_overview content in practical_briefing; practical_briefing stays grounded in the reflections.\n"
+            "- tasks_used lists the refs today_overview names; task_drop_suggested is the single ref it says to drop or delegate.\n"
+        )
 
     return f"""You are writing a private daily audio briefing for {preferred_name}.
 
@@ -1986,7 +2268,7 @@ Person context: display name {preferred_name}; spoken name "{spoken_name}"; {con
 Present-day anchor available: {day_anchor}
 Continuity anchor candidate: {continuity_anchor or "none"}
 
-{weather_block}Recent reflection context:
+{weather_block}{tasks_block}{guides_block}Recent reflection context:
 {notes_block}
 
 Return strict JSON only with this schema:
@@ -1995,6 +2277,7 @@ Return strict JSON only with this schema:
   "description": "One sentence describing what shaped today's briefing.",
   "time_anchor": "The present-day anchor actually used.",
   "continuity_anchor": "The cross-time continuity anchor actually used.",
+  "voices_used": ["source_id of each wisdom-voice passage the script actually draws on; [] if none"],{tasks_schema}
   "segments": {{
     {segment_requirements}
   }}
@@ -2014,7 +2297,10 @@ Rules:
 - Do not weave weather into practical_briefing, reflective_grounding, or meditative_close.
 - Keep meditative_close concise; it is the seed of a future optional meditative-only feed.
 - If there is too little specific material, be sparse rather than repetitive.
-"""
+- Never repeat a sentence or phrase from one segment in another.
+- If wisdom voices are provided, ground reflective_grounding in one of them: name the author, quote or closely paraphrase a short line, and connect it honestly to the reflections. Do not force a connection, and use at most two voices in the whole episode.
+- voices_used must list exactly the passages the script draws on, by the source_id shown in brackets. Offered is not used: leave out any passage the script does not quote, paraphrase, or name.
+{tasks_rules}"""
 
 
 def _build_opening_weather_rewrite_prompt(
@@ -2080,10 +2366,23 @@ def _build_daily_feed_generation_meta(
     weather_context: dict | None,
     weather_diagnostics: dict,
     weather_applied: bool,
+    tasks_offered: int = 0,
+    tasks_applied: bool = False,
+    tasks_omission_reason: str = "",
+    tasks_used: list[dict] | None = None,
+    task_drop_suggested: dict | None = None,
 ) -> dict:
     weather_context = weather_context or {}
     weather_diagnostics = weather_diagnostics or {}
+    tasks_used = tasks_used or []
     return {
+        "tasks_overview": {
+            "offered": tasks_offered,
+            "applied": tasks_applied,
+            "omission_reason": "" if tasks_applied else (tasks_omission_reason or ("not_spoken" if tasks_offered else "")),
+        },
+        "tasks_used": tasks_used,
+        "task_drop_suggested": task_drop_suggested,
         "recent_notes_available": recent_notes_available,
         "generation_mode": generation_mode,
         "calendar_context_available": False,
@@ -2099,12 +2398,36 @@ def _build_daily_feed_generation_meta(
         },
     }
 
+def _daily_feed_voices_used(result: dict, guide_passages: list[dict], user_data: dict) -> list[dict]:
+    """The voices an episode drew on: the model's claim, kept only where it
+    names a passage that was actually offered, one entry per voice, in the
+    user's selection order so the primary voice leads."""
+    claimed = result.get("voices_used")
+    claimed_ids = {_safe_string(item) for item in claimed} if isinstance(claimed, list) else set()
+    selection = list(((user_data.get("reflect_config") or {}).get("selected_guides")) or [])
+    used: dict[str, dict] = {}
+    for passage in guide_passages or []:
+        guide_id = _safe_string(passage.get("guide_id"))
+        if passage.get("source_id") in claimed_ids and guide_id not in used:
+            used[guide_id] = {
+                "guide_id": guide_id,
+                "author": _safe_string(passage.get("author")),
+                "source_ids": [],
+            }
+        if guide_id in used and passage.get("source_id") in claimed_ids:
+            used[guide_id]["source_ids"].append(passage["source_id"])
+    rank = {gid: index for index, gid in enumerate(selection)}
+    return sorted(used.values(), key=lambda v: rank.get(v["guide_id"], len(rank)))
+
+
 def _build_deterministic_daily_feed_result(
     user_data: dict,
     notes: list[dict],
     local_now: datetime,
     episode_type: str = "fallback",
     weather_context: dict | None = None,
+    guide_passages: list[dict] | None = None,
+    overview_tasks: list[dict] | None = None,
 ) -> dict:
     latest_note = notes[0] if notes else {}
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "listener").strip()
@@ -2124,24 +2447,50 @@ def _build_deterministic_daily_feed_result(
         opening_parts.append(weather_micro_cue)
     opening = " ".join(part for part in opening_parts if part).strip()
 
-    stance_seed = latest_insight or continuity_anchor or latest_summary
-    if stance_seed:
-        stance_text = stance_seed[:220].strip()
-        if not re.search(r"[.!?]$", stance_text):
-            stance_text += "."
-        practical_briefing = f"Let the day stay organized around one restrained stance: {stance_text}"
-    else:
-        practical_briefing = "Let the day stay organized around one restrained stance: protect one important thread and keep the pace simple."
+    def _sentence(text: str, limit: int = 240) -> str:
+        text = text.strip()
+        if len(text) > limit:
+            cut = text[:limit]
+            boundary = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+            text = cut[: boundary + 1] if boundary > 0 else cut.rsplit(" ", 1)[0]
+        if text and not re.search(r"[.!?\"”]$", text):
+            text += "."
+        return text
 
-    reflective_parts = [
-        f"In {latest_title}, you named a pattern that still matters today."
-    ]
-    if continuity_anchor:
-        reflective_parts.append(f"That pattern can be named simply: {continuity_anchor}")
+    # Each source line is spoken once: the latest insight carries the
+    # practical briefing, and the grounding draws on something else.
+    used_lines: set[str] = set()
+    stance_seed = latest_insight or latest_summary or continuity_anchor
+    if stance_seed:
+        practical_briefing = f"From your latest reflection, {latest_title}: {_sentence(stance_seed)}"
+        used_lines.add(stance_seed)
+    else:
+        practical_briefing = "Keep the pace simple today and protect one important thread."
+
+    reflective_parts = []
+    voices_used = []
+    passage = (guide_passages or [None])[0]
+    if passage and _safe_string(passage.get("text")):
+        voices_used.append(passage["source_id"])
+        reflective_parts.append(f"{passage['author']} offers a way to hold this: “{_sentence(passage['text'], 260)}”")
+    if latest_summary and latest_summary not in used_lines:
+        reflective_parts.append(_sentence(latest_summary, 300))
+        used_lines.add(latest_summary)
+    elif len(notes) > 1:
+        earlier = notes[1]
+        earlier_line = _safe_string(earlier.get("insight") or earlier.get("summary"))
+        earlier_title = _safe_string(earlier.get("title"))
+        if earlier_line and earlier_line not in used_lines:
+            prefix = f"Earlier, in {earlier_title}, you were working with this: " if earlier_title else "Earlier, you were working with this: "
+            reflective_parts.append(prefix + _sentence(earlier_line))
     response_summary = _safe_string(latest_note.get("participant_response_summary") or latest_note.get("participant_response_excerpt"))
     if response_summary:
-        reflective_parts.append(f"You also answered back to the reflection in this way: {response_summary[:220].strip()}")
+        reflective_parts.append(f"You also answered back to the reflection in this way: {_sentence(response_summary, 220)}")
     reflective_grounding = " ".join(reflective_parts)
+
+    today_overview, overview_refs, overview_drop_ref = _build_deterministic_today_overview(
+        overview_tasks or [], local_now.date()
+    )
 
     meditative_close = "Carry one clear intention into the day: stay close to what feels true, and let one next step be enough."
 
@@ -2151,8 +2500,12 @@ def _build_deterministic_daily_feed_result(
         "time_anchor": time_anchor,
         "continuity_anchor": continuity_anchor[:240],
         "_weather_applied": bool(weather_micro_cue),
+        "voices_used": voices_used,
+        "tasks_used": overview_refs,
+        "task_drop_suggested": overview_drop_ref,
         "segments": {
             "opening": opening,
+            "today_overview": today_overview,
             "practical_briefing": practical_briefing,
             "calendar_today": "",
             "reflective_grounding": reflective_grounding,
@@ -2162,7 +2515,7 @@ def _build_deterministic_daily_feed_result(
 
 
 def _assemble_daily_feed_script(segments: dict) -> tuple[str, list[str]]:
-    ordered_ids = ["opening", "practical_briefing", "calendar_today", "reflective_grounding", "meditative_close"]
+    ordered_ids = ["opening", "today_overview", "practical_briefing", "calendar_today", "reflective_grounding", "meditative_close"]
     parts = []
     used = []
     for segment_id in ordered_ids:
@@ -2232,6 +2585,22 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         return _publish_silence_stub_episode(uid, episode_id, force=force)
 
     episode_type = "standard"
+    try:
+        guide_passages = daily_feed_passages(
+            user_data,
+            " ".join(_build_feed_note_brief(note) for note in notes),
+        )
+    except Exception as exc:
+        print(f"[{uid}] Daily feed guide passages unavailable: {exc}")
+        guide_passages = []
+
+    # Personal tasks for the spoken overview. Read-only; any failure omits
+    # the segment silently, the way weather does.
+    try:
+        overview_tasks, tasks_omission_reason = _load_overview_tasks(uid, user_data, local_now.date())
+    except Exception as exc:
+        print(f"[{uid}] Tasks overview unavailable: {exc}")
+        overview_tasks, tasks_omission_reason = [], "unexpected_tasks_exception"
 
     def _save_episode_from_result(result: dict, selected_type: str, weather_applied: bool = False) -> dict:
         time_anchor = _safe_string(result.get("time_anchor"))
@@ -2243,13 +2612,16 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         if selected_type == "fallback" and (not time_anchor or not continuity_anchor):
             raise RuntimeError("Fallback episode missing required anchors")
         segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
+        if not overview_tasks:
+            segments.pop("today_overview", None)
+        tasks_used, task_drop_suggested = _overview_tasks_used(result, overview_tasks)
         script_text, segments_used = _assemble_daily_feed_script(segments)
         if not script_text:
             raise RuntimeError("Daily feed script is empty")
         title = _safe_string(result.get("title")) or f"{_format_natural_date(episode_id)} — Daily Memnon briefing"
         description = _safe_string(result.get("description")) or "A grounded daily briefing from Memnon."
         voice = _normalize_narration_voice(user_data.get("narration_voice"))
-        professional_text = _daily_feed_section_text(segments, ["opening", "practical_briefing", "calendar_today"])
+        professional_text = _daily_feed_section_text(segments, ["opening", "today_overview", "practical_briefing", "calendar_today"])
         reflective_text = _daily_feed_section_text(segments, ["reflective_grounding", "meditative_close"])
         audio_mix_meta = {
             "professional_music_track": "",
@@ -2270,6 +2642,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             audio_bytes = synthesize_reflection_bytes(script_text, voice=voice)
         storage_path = _upload_daily_feed_audio(uid, episode_id, audio_bytes)
         duration_seconds = _estimate_audio_duration_seconds(script_text)
+        guide_voices_used = _daily_feed_voices_used(result, guide_passages, user_data)
         episode_payload = {
             "date_key": episode_id,
             "published_at": firestore.SERVER_TIMESTAMP,
@@ -2280,7 +2653,17 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "audio_size_bytes": len(audio_bytes),
             "duration_seconds": duration_seconds,
             "segments_used": segments_used,
-            "context_sources_used": ["reflection_history"] + (["weather"] if weather_applied else []),
+            "context_sources_used": (
+                ["reflection_history"]
+                + (["tasks"] if "today_overview" in segments_used else [])
+                + (["guides"] if guide_voices_used else [])
+                + (["weather"] if weather_applied else [])
+            ),
+            "guide_voices_used": guide_voices_used,
+            "guide_passages_offered": [
+                {key: p[key] for key in ("source_id", "author", "ref")}
+                for p in guide_passages
+            ],
             "script_text": script_text,
             "script_segments": {key: _safe_string(value) for key, value in (segments or {}).items() if _safe_string(value)},
             "audio_mix_meta": audio_mix_meta,
@@ -2296,6 +2679,11 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
                 weather_context=weather_context,
                 weather_diagnostics=weather_diagnostics,
                 weather_applied=weather_applied,
+                tasks_offered=len(overview_tasks),
+                tasks_applied="today_overview" in segments_used,
+                tasks_omission_reason=tasks_omission_reason,
+                tasks_used=tasks_used,
+                task_drop_suggested=task_drop_suggested,
             ),
         }
         _daily_feed_episode_ref(uid, episode_id).set(episode_payload, merge=True)
@@ -2323,6 +2711,8 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             local_now,
             episode_type="fallback",
             weather_context=weather_context,
+            guide_passages=guide_passages,
+            overview_tasks=overview_tasks,
         )
         return _save_episode_from_result(
             result,
@@ -2339,13 +2729,15 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             selected_type,
             local_now,
             weather_context=weather_context,
+            guide_passages=guide_passages,
+            overview_tasks=overview_tasks,
         )
         result = _summarize(
             prompt,
             api_key,
             json_mode=True,
             timeout_seconds=120,
-            max_output_tokens=700,
+            max_output_tokens=2600 if overview_tasks else 2000,
         )
         segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
         original_opening = _safe_string(segments.get("opening"))
@@ -2404,6 +2796,35 @@ def _render_daily_feed_rss(user_data: dict, token: str, episodes: list[dict]) ->
             f"<guid isPermaLink=\"false\">{guid}</guid><pubDate>{pub_rfc2822}</pubDate></item>"
         )
     item_block = "".join(items)
+    return _rss_document(show_title, show_description, feed_link, item_block)
+
+
+def _render_library_feed_rss(user_data: dict, token: str, episodes: list[dict]) -> str:
+    preferred_name = _safe_string(user_data.get("preferred_name")) or "Memnon listener"
+    show_title = xml_escape(f"Memnon Library — {preferred_name}")
+    show_description = xml_escape("Readings and recordings saved to your private Memnon library.")
+    feed_link = xml_escape(_library_feed_url_for_token(token))
+    items = []
+    for episode in episodes:
+        episode_id = _safe_string(episode.get("id"))
+        if not episode_id:
+            continue
+        title = xml_escape(_safe_string(episode.get("title")) or episode_id)
+        description = xml_escape(_safe_string(episode.get("description")) or "")
+        enclosure_url = xml_escape(_library_feed_audio_url(token, episode_id))
+        pub_dt = _coerce_datetime(episode.get("published_at")) or datetime.utcnow()
+        pub_rfc2822 = pub_dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        length = _safe_int(episode.get("audio_size_bytes"), 0)
+        guid = xml_escape(f"{token}:library:{episode_id}")
+        items.append(
+            f"<item><title>{title}</title><description>{description}</description>"
+            f"<enclosure url=\"{enclosure_url}\" length=\"{length}\" type=\"audio/mpeg\" />"
+            f"<guid isPermaLink=\"false\">{guid}</guid><pubDate>{pub_rfc2822}</pubDate></item>"
+        )
+    return _rss_document(show_title, show_description, feed_link, "".join(items))
+
+
+def _rss_document(show_title: str, show_description: str, feed_link: str, item_block: str) -> str:
     return (
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
         "<rss version=\"2.0\"><channel>"
@@ -3635,6 +4056,39 @@ def daily_feed_rss(token: str):
             "Cache-Control": "private, max-age=300",
         },
     )
+
+
+@flask_app.route("/feed/<token>/library.xml")
+def library_feed_rss(token: str):
+    """Return the private library feed: every saved reading or recording, newest first."""
+    token = _safe_string(token)
+    user_doc = _user_for_feed_token(token) if token else None
+    if not user_doc:
+        return ("not found", 404)
+    xml_body = _render_library_feed_rss(user_doc.to_dict() or {}, token, _load_library_feed_episodes(user_doc.id))
+    return (xml_body, 200, {"Content-Type": "application/rss+xml; charset=utf-8", "Cache-Control": "private, max-age=300"})
+
+
+@flask_app.route("/feed/<token>/library/<episode_id>.mp3")
+def library_feed_audio(token: str, episode_id: str):
+    """Stream one library episode for the token's owner."""
+    token = _safe_string(token)
+    episode_id = _safe_string(episode_id)
+    user_doc = _user_for_feed_token(token) if token and episode_id else None
+    if not user_doc:
+        return ("not found", 404)
+    snap = _get_db().collection("users").document(user_doc.id).collection("library_episodes").document(episode_id).get()
+    if not snap.exists:
+        return ("not found", 404)
+    storage_path = _safe_string((snap.to_dict() or {}).get("audio_storage_path"))
+    if not storage_path:
+        return ("not found", 404)
+    try:
+        audio_bytes = _download_daily_feed_audio(storage_path)
+    except Exception as exc:
+        print(f"[{user_doc.id}] Could not read library audio {episode_id}: {exc}")
+        return ("not found", 404)
+    return (audio_bytes, 200, {"Content-Type": "audio/mpeg", "Content-Length": str(len(audio_bytes)), "Cache-Control": "private, max-age=3600"})
 
 
 @flask_app.route("/feed/<token>/<episode_id>.mp3")

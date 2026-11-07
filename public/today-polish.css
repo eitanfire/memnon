@@ -200,6 +200,22 @@ body.dashboard-page .daily-brief-disclosure > summary {
   font-size: var(--fs-meta);
 }
 
+/* Ready brief's voices line: its own meta-size line under the headline,
+   flush with the row like "How to listen". An indent to the title text
+   costs the 26px that two long names need at 390px. */
+body.dashboard-page .daily-brief-voices {
+  flex: 1 0 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+  white-space: normal; /* .archive-quiet-link is nowrap */
+  margin-top: -4px;
+  font-size: var(--fs-meta);
+}
+
+body.dashboard-page .daily-brief-voices[hidden] {
+  display: none;
+}
+
 /* Admin regenerate stays quiet: never the ready state's primary styling */
 body.dashboard-page #daily-brief-regenerate-btn {
   background: transparent;
