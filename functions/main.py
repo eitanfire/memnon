@@ -54,6 +54,14 @@ from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status
 from lanes import daily_feed_passages, extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 from weather_context import clear_weather_cache_fields, load_weather_context
+from capture_tokens import (
+    bearer_token as _bearer_token,
+    capture_token_summary,
+    is_capture_token,
+    issue_capture_token,
+    revoke_capture_token,
+    verify_capture_token,
+)
 from workflows.ai import (
     generate_professional_analysis,
     generate_professional_note,
@@ -881,6 +889,9 @@ def _verify_firebase_token(req) -> str | None:
     header = req.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
         return None
+    # Capture tokens authenticate POST /workflows/captures and nothing else.
+    if is_capture_token(header[7:].strip()):
+        return None
     try:
         _get_db()
         return fb_auth.verify_id_token(header[7:])["uid"]
@@ -888,11 +899,26 @@ def _verify_firebase_token(req) -> str | None:
         return None
 
 
+def _verify_capture_token(req) -> str | None:
+    """uid for a valid `Authorization: Bearer mcap_...` header, else None.
+    Only the capture-creation route may call this."""
+    raw = _bearer_token(req)
+    if not is_capture_token(raw):
+        return None
+    try:
+        return verify_capture_token(_get_db(), raw)
+    except Exception as exc:
+        print(f"Capture token check failed: {exc}")
+        return None
+
+
 flask_app.register_blueprint(
     create_workflows_blueprint(
         verify_token=_verify_firebase_token,
-        service_provider=_workflow_service,
-        transcribe_audio=transcribe_audio_bytes,
+        # Late-bound so each request uses the current module function.
+        verify_capture_token=lambda req: _verify_capture_token(req),
+        service_provider=lambda: _workflow_service(),
+        transcribe_audio=lambda *args: transcribe_audio_bytes(*args),
         transcription_api_key_provider=load_openai_api_key,
         archive_voice_capture_audio=lambda **kwargs: _upload_workflow_voice_audio(**kwargs),
         download_voice_capture_audio=lambda storage_path: _download_workflow_voice_audio(storage_path),
@@ -4127,6 +4153,26 @@ def daily_feed_audio(token: str, episode_id: str):
     )
 
 
+@flask_app.route("/capture-token", methods=["GET", "POST", "DELETE"])
+def capture_token_route():
+    """Show, create/regenerate, or revoke the signed-in user's capture token.
+    The raw token appears only in the POST response, once."""
+    uid = _verify_firebase_token(request)
+    if not uid:
+        return jsonify({"error": "unauthorized"}), 401
+    db = _get_db()
+    if request.method == "POST":
+        raw, summary = issue_capture_token(db, uid)
+        _log_usage_event(uid, "issued_capture_token", {})
+        return jsonify({**summary, "token": raw}), 201
+    if request.method == "DELETE":
+        existed = revoke_capture_token(db, uid, firestore.DELETE_FIELD)
+        _log_usage_event(uid, "revoked_capture_token", {"existed": existed})
+        return jsonify({"active": False})
+    doc = db.collection("users").document(uid).get()
+    return jsonify(capture_token_summary(doc.to_dict() if doc.exists else {}))
+
+
 @flask_app.route("/me")
 def get_me():
     """Return user config (no tokens) for the signed-in user."""
@@ -4136,6 +4182,7 @@ def get_me():
     doc = _get_db().collection("users").document(uid).get()
     data = doc.to_dict() if doc.exists else {}
     data.pop("google_drive_token", None)   # never send tokens to frontend
+    data["capture_token"] = capture_token_summary(data)
     data["google_tasks_connected"] = _user_tasks_connected(data)
     data["research_recommendations"] = (_load_research_signals().get("recommendations") or {})
     if data.get("daily_feed_token"):

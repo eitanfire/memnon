@@ -52,7 +52,10 @@ def create_workflows_blueprint(
     transcription_api_key_provider=None,
     archive_voice_capture_audio=None,
     download_voice_capture_audio=None,
+    verify_capture_token=None,
 ):
+    """verify_capture_token, when given, is consulted by POST /captures only:
+    a long-lived per-user capture token may create captures and nothing else."""
     blueprint = Blueprint("workflows", __name__)
 
     def _sanitize_capture_payload(payload: dict) -> dict:
@@ -111,6 +114,8 @@ def create_workflows_blueprint(
     @blueprint.route("/captures", methods=["POST"])
     def create_capture():
         uid = verify_token(request)
+        if not uid and verify_capture_token is not None:
+            uid = verify_capture_token(request)
         if not uid:
             return jsonify({"error": "unauthorized"}), 401
 
