@@ -104,7 +104,7 @@ class TodayOverviewTests(unittest.TestCase):
     def setUpClass(cls):
         cls.main = load_main_module()
 
-    def _generate(self, user_data, service, model_result=None, summarize_error=None):
+    def _generate(self, user_data, service, model_result=None, summarize_error=None, now_utc=NOW_UTC):
         """Run the real episode builder with storage, audio and the model faked.
         Returns (episode, prompts sent to the model)."""
         user_ref = FakeUserRef(dict(user_data))
@@ -131,7 +131,7 @@ class TodayOverviewTests(unittest.TestCase):
             patch.object(self.main, "_tasks_service_for_user", return_value=service),
             patch.object(self.main, "_log_usage_event"),
         ):
-            episode = self.main._build_daily_feed_episode("user123", user_ref.data, now_utc=NOW_UTC, force=True)
+            episode = self.main._build_daily_feed_episode("user123", user_ref.data, now_utc=now_utc, force=True)
         episode["_professional_text"] = synth.call_args.kwargs["professional_text"]
         return episode, prompts
 
@@ -186,6 +186,41 @@ class TodayOverviewTests(unittest.TestCase):
         self.assertNotIn("today_overview", episode["segments_used"])
         self.assertEqual(episode["generation_meta"]["tasks_overview"]["omission_reason"], "api_error")
         self.assertNotIn("task", episode["script_text"].lower())
+
+    # ── Weekends: no to-do reminders on days off ─────────────────────────────
+
+    def assertWeekendEpisodeWithoutOverview(self, now_utc, expected_date_key):
+        service = FakeTasksService()
+        episode, prompts = self._generate(CONNECTED_USER, service, now_utc=now_utc)
+        self.assertEqual(episode["date_key"], expected_date_key)
+        self.assertOverviewOmitted(episode, prompts, "weekend")
+        # Not fetched at all, so nothing can be recorded as used.
+        self.assertEqual(service.list_calls, [])
+        # The rest of the episode is unchanged.
+        self.assertEqual(
+            episode["segments_used"],
+            ["opening", "practical_briefing", "reflective_grounding", "meditative_close"],
+        )
+
+    def test_overview_omitted_on_saturday_without_fetching_tasks(self):
+        # 18:00 UTC is 11:00 Saturday in Denver.
+        self.assertWeekendEpisodeWithoutOverview(datetime(2026, 11, 7, 18, 0, tzinfo=timezone.utc), "2026-11-07")
+
+    def test_overview_omitted_on_sunday_without_fetching_tasks(self):
+        # 03:00 UTC Monday is still 20:00 Sunday in Denver: the local date decides.
+        self.assertWeekendEpisodeWithoutOverview(datetime(2026, 11, 9, 3, 0, tzinfo=timezone.utc), "2026-11-08")
+
+    def test_overview_spoken_on_friday_evening_even_when_utc_is_saturday(self):
+        # 03:00 UTC Saturday is 20:00 Friday in Denver.
+        service = FakeTasksService()
+        episode, _ = self._generate(
+            CONNECTED_USER, service, now_utc=datetime(2026, 11, 7, 3, 0, tzinfo=timezone.utc)
+        )
+        self.assertEqual(episode["date_key"], "2026-11-06")
+        self.assertEqual(episode["segments_used"][:2], ["opening", "today_overview"])
+        self.assertEqual(len(service.list_calls), 1)
+        self.assertTrue(episode["generation_meta"]["tasks_overview"]["applied"])
+        self.assertEqual(len(episode["generation_meta"]["tasks_used"]), 3)
 
     # ── Overview present ─────────────────────────────────────────────────────
 

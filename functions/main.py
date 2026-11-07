@@ -1587,7 +1587,11 @@ def _rank_overview_tasks(items: list[dict], today: date, limit: int = TODAY_OVER
 
 def _load_overview_tasks(uid: str, user_data: dict, today: date) -> tuple[list[dict], str]:
     """Read open personal tasks for the spoken overview. Read-only. Returns
-    (ranked candidates, omission_reason); any failure is a silent omission."""
+    (ranked candidates, omission_reason); any failure is a silent omission.
+    `today` is the user's local date. No to-do reminders on days off: on
+    Saturday and Sunday nothing is fetched at all."""
+    if today.weekday() >= 5:
+        return [], "weekend"
     if not _user_tasks_connected(user_data):
         return [], "not_connected"
     tasklist_id = _safe_string(user_data.get("google_tasks_list_id"))
