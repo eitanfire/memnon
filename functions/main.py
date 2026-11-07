@@ -32,7 +32,7 @@ import traceback
 import urllib.parse
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from xml.sax.saxutils import escape as xml_escape
@@ -1541,6 +1541,140 @@ def _normalize_task_item(item: dict) -> dict:
     }
 
 
+TODAY_OVERVIEW_MAX_CANDIDATES = 8
+
+
+def _task_due_date(task: dict) -> date | None:
+    """Google Tasks stores only a due date; the time part is always midnight UTC."""
+    raw = _safe_string(task.get("due"))
+    if len(raw) < 10:
+        return None
+    try:
+        return date.fromisoformat(raw[:10])
+    except ValueError:
+        return None
+
+
+def _task_title_is_speakable(title: str) -> bool:
+    return bool(re.search(r"[A-Za-z0-9]", title or "")) and len(title.strip()) >= 2
+
+
+def _rank_overview_tasks(items: list[dict], today: date, limit: int = TODAY_OVERVIEW_MAX_CANDIDATES) -> list[dict]:
+    """Order open tasks for the spoken overview: due today or overdue first,
+    then due this week, then everything else by most recently updated."""
+    candidates = []
+    for item in items or []:
+        task = _normalize_task_item(item)
+        if task["status"] == "completed" or not task["id"] or not _task_title_is_speakable(task["title"]):
+            continue
+        due = _task_due_date(task)
+        if due is not None and due <= today:
+            bucket = 0
+        elif due is not None and due <= today + timedelta(days=7):
+            bucket = 1
+        else:
+            bucket = 2
+        task["due_date"] = due.isoformat() if due else ""
+        task["bucket"] = bucket
+        candidates.append(task)
+    # Stable sorts: newest update first, then by due date within the dated
+    # buckets, then by bucket.
+    candidates.sort(key=lambda t: _safe_string(t.get("updated")), reverse=True)
+    candidates.sort(key=lambda t: t["due_date"] if t["bucket"] < 2 else "")
+    candidates.sort(key=lambda t: t["bucket"])
+    return candidates[:limit]
+
+
+def _load_overview_tasks(uid: str, user_data: dict, today: date) -> tuple[list[dict], str]:
+    """Read open personal tasks for the spoken overview. Read-only. Returns
+    (ranked candidates, omission_reason); any failure is a silent omission."""
+    if not _user_tasks_connected(user_data):
+        return [], "not_connected"
+    tasklist_id = _safe_string(user_data.get("google_tasks_list_id"))
+    if not tasklist_id:
+        return [], "no_list"
+    try:
+        service = _tasks_service_for_user(uid)
+        if not service:
+            return [], "no_credentials"
+        result = service.tasks().list(
+            tasklist=tasklist_id,
+            maxResults=100,
+            showCompleted=False,
+            showHidden=False,
+        ).execute()
+    except Exception as exc:
+        print(f"[{uid}] Tasks overview unavailable: {exc}")
+        return [], "api_error"
+    ranked = _rank_overview_tasks((result or {}).get("items") or [], today)
+    if not ranked:
+        return [], "no_open_tasks"
+    return ranked, ""
+
+
+def _overview_task_ref(index: int) -> str:
+    return f"T{index + 1}"
+
+
+def _overview_tasks_used(result: dict, tasks: list[dict]) -> tuple[list[dict], dict | None]:
+    """Map the model's task refs back to real tasks, keeping only refs that
+    were offered. Nothing is recorded when the overview was not spoken."""
+    if not tasks or not _safe_string(((result or {}).get("segments") or {}).get("today_overview")):
+        return [], None
+    by_ref = {_overview_task_ref(i): t for i, t in enumerate(tasks)}
+    claimed = result.get("tasks_used")
+    used: list[dict] = []
+    for ref in claimed if isinstance(claimed, list) else []:
+        task = by_ref.get(_safe_string(ref).upper())
+        if task and all(u["id"] != task["id"] for u in used):
+            used.append({"id": task["id"], "title": task["title"]})
+    drop_task = by_ref.get(_safe_string(result.get("task_drop_suggested")).upper())
+    drop = {"id": drop_task["id"], "title": drop_task["title"]} if drop_task else None
+    return used, drop
+
+
+def _spoken_due(task: dict, today: date) -> str:
+    due = _task_due_date(task)
+    if due is None:
+        return ""
+    if due < today:
+        return "it is overdue"
+    if due == today:
+        return "it is due today"
+    if due == today + timedelta(days=1):
+        return "it is due tomorrow"
+    return f"it is due {due.strftime('%A')}"
+
+
+def _build_deterministic_today_overview(tasks: list[dict], today: date) -> tuple[str, list[str], str]:
+    """Spoken overview without the model: up to three priorities and one
+    thing to let go of. Returns (text, task refs named, drop ref)."""
+    if not tasks:
+        return "", [], ""
+    count = len(tasks)
+    priority_count = min(3, count - 1) if count > 1 else 1
+    priorities = list(range(priority_count))
+    drop_index = None
+    if count > 1:
+        later = [i for i in range(priority_count, count) if tasks[i]["bucket"] > 0]
+        drop_index = later[-1] if later else count - 1
+    lead_ins = ["Start with", "After that,", "And if there is room,"]
+    sentences = ["Here is the shape of the day before anything else."]
+    for position, index in enumerate(priorities):
+        task = tasks[index]
+        due = _spoken_due(task, today)
+        sentence = f"{lead_ins[position]} {task['title']}"
+        sentence += f", because {due}." if due else "."
+        sentences.append(sentence)
+    if drop_index is not None:
+        sentences.append(
+            f"One thing to set down or hand off today: {tasks[drop_index]['title']}. It can wait without costing you."
+        )
+    refs = [_overview_task_ref(i) for i in priorities]
+    drop_ref = _overview_task_ref(drop_index) if drop_index is not None else ""
+    return " ".join(sentences), refs, drop_ref
+
+
 def _find_or_create_media_folder(service) -> str:
     return _find_or_create_folder(service, "memnon-media")
 
@@ -2001,6 +2135,7 @@ def _build_daily_feed_prompt(
     local_now: datetime,
     weather_context: dict | None = None,
     guide_passages: list[dict] | None = None,
+    overview_tasks: list[dict] | None = None,
 ) -> str:
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
     spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
@@ -2045,13 +2180,48 @@ def _build_daily_feed_prompt(
             + "\n\n"
         )
 
+    tasks_block = ""
+    if overview_tasks:
+        today = local_now.date()
+        task_lines = []
+        for index, task in enumerate(overview_tasks):
+            due = _spoken_due(task, today) or "no due date"
+            task_lines.append(f"[{_overview_task_ref(index)}] {task['title']} ({due})")
+        tasks_block = (
+            "--- OPEN PERSONAL TASKS (ranked: overdue or due today, then this week, then recently updated) ---\n"
+            + "\n".join(task_lines)
+            + "\n\n"
+        )
+
+    overview_requirement = (
+        '"today_overview": "60 to 90 seconds, spoken orientation to the day from the open tasks",\n'
+        if overview_tasks else ""
+    )
     segment_requirements = (
         '"opening": "15 to 25 seconds, name the day and orient the listener",\n'
+        + overview_requirement +
         '"practical_briefing": "60 to 120 seconds, name what matters most and why",\n'
         '"calendar_today": "20 to 45 seconds, leave empty string for Phase 1 unless true calendar context exists",\n'
         '"reflective_grounding": "60 to 120 seconds, connect today to a real pattern across time",\n'
         '"meditative_close": "20 to 45 seconds, brief closing line that can later seed a meditative-only feed"'
     )
+
+    tasks_schema = ""
+    tasks_rules = ""
+    if overview_tasks:
+        tasks_schema = (
+            '\n  "tasks_used": ["ref (T1, T2, ...) of each task today_overview names"],'
+            '\n  "task_drop_suggested": "ref of the one task today_overview says to drop or delegate",'
+        )
+        tasks_rules = (
+            "- today_overview comes right after the opening and orients the day from the open tasks. "
+            "Name 3 to 5 priorities (fewer only if fewer tasks exist), each with a short reason it matters today, "
+            "and say plainly what is due or overdue.\n"
+            "- today_overview must suggest exactly one task to drop or delegate today, and say why it can wait or who could take it.\n"
+            "- Never read the task list out in order or recite every task. Choose, group, and speak like a chief of staff in the car.\n"
+            "- Do not repeat today_overview content in practical_briefing; practical_briefing stays grounded in the reflections.\n"
+            "- tasks_used lists the refs today_overview names; task_drop_suggested is the single ref it says to drop or delegate.\n"
+        )
 
     return f"""You are writing a private daily audio briefing for {preferred_name}.
 
@@ -2063,7 +2233,7 @@ Person context: display name {preferred_name}; spoken name "{spoken_name}"; {con
 Present-day anchor available: {day_anchor}
 Continuity anchor candidate: {continuity_anchor or "none"}
 
-{weather_block}{guides_block}Recent reflection context:
+{weather_block}{tasks_block}{guides_block}Recent reflection context:
 {notes_block}
 
 Return strict JSON only with this schema:
@@ -2072,7 +2242,7 @@ Return strict JSON only with this schema:
   "description": "One sentence describing what shaped today's briefing.",
   "time_anchor": "The present-day anchor actually used.",
   "continuity_anchor": "The cross-time continuity anchor actually used.",
-  "voices_used": ["source_id of each wisdom-voice passage the script actually draws on; [] if none"],
+  "voices_used": ["source_id of each wisdom-voice passage the script actually draws on; [] if none"],{tasks_schema}
   "segments": {{
     {segment_requirements}
   }}
@@ -2095,7 +2265,7 @@ Rules:
 - Never repeat a sentence or phrase from one segment in another.
 - If wisdom voices are provided, ground reflective_grounding in one of them: name the author, quote or closely paraphrase a short line, and connect it honestly to the reflections. Do not force a connection, and use at most two voices in the whole episode.
 - voices_used must list exactly the passages the script draws on, by the source_id shown in brackets. Offered is not used: leave out any passage the script does not quote, paraphrase, or name.
-"""
+{tasks_rules}"""
 
 
 def _build_opening_weather_rewrite_prompt(
@@ -2161,10 +2331,23 @@ def _build_daily_feed_generation_meta(
     weather_context: dict | None,
     weather_diagnostics: dict,
     weather_applied: bool,
+    tasks_offered: int = 0,
+    tasks_applied: bool = False,
+    tasks_omission_reason: str = "",
+    tasks_used: list[dict] | None = None,
+    task_drop_suggested: dict | None = None,
 ) -> dict:
     weather_context = weather_context or {}
     weather_diagnostics = weather_diagnostics or {}
+    tasks_used = tasks_used or []
     return {
+        "tasks_overview": {
+            "offered": tasks_offered,
+            "applied": tasks_applied,
+            "omission_reason": "" if tasks_applied else (tasks_omission_reason or ("not_spoken" if tasks_offered else "")),
+        },
+        "tasks_used": tasks_used,
+        "task_drop_suggested": task_drop_suggested,
         "recent_notes_available": recent_notes_available,
         "generation_mode": generation_mode,
         "calendar_context_available": False,
@@ -2209,6 +2392,7 @@ def _build_deterministic_daily_feed_result(
     episode_type: str = "fallback",
     weather_context: dict | None = None,
     guide_passages: list[dict] | None = None,
+    overview_tasks: list[dict] | None = None,
 ) -> dict:
     latest_note = notes[0] if notes else {}
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "listener").strip()
@@ -2269,6 +2453,10 @@ def _build_deterministic_daily_feed_result(
         reflective_parts.append(f"You also answered back to the reflection in this way: {_sentence(response_summary, 220)}")
     reflective_grounding = " ".join(reflective_parts)
 
+    today_overview, overview_refs, overview_drop_ref = _build_deterministic_today_overview(
+        overview_tasks or [], local_now.date()
+    )
+
     meditative_close = "Carry one clear intention into the day: stay close to what feels true, and let one next step be enough."
 
     return {
@@ -2278,8 +2466,11 @@ def _build_deterministic_daily_feed_result(
         "continuity_anchor": continuity_anchor[:240],
         "_weather_applied": bool(weather_micro_cue),
         "voices_used": voices_used,
+        "tasks_used": overview_refs,
+        "task_drop_suggested": overview_drop_ref,
         "segments": {
             "opening": opening,
+            "today_overview": today_overview,
             "practical_briefing": practical_briefing,
             "calendar_today": "",
             "reflective_grounding": reflective_grounding,
@@ -2289,7 +2480,7 @@ def _build_deterministic_daily_feed_result(
 
 
 def _assemble_daily_feed_script(segments: dict) -> tuple[str, list[str]]:
-    ordered_ids = ["opening", "practical_briefing", "calendar_today", "reflective_grounding", "meditative_close"]
+    ordered_ids = ["opening", "today_overview", "practical_briefing", "calendar_today", "reflective_grounding", "meditative_close"]
     parts = []
     used = []
     for segment_id in ordered_ids:
@@ -2368,6 +2559,14 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         print(f"[{uid}] Daily feed guide passages unavailable: {exc}")
         guide_passages = []
 
+    # Personal tasks for the spoken overview. Read-only; any failure omits
+    # the segment silently, the way weather does.
+    try:
+        overview_tasks, tasks_omission_reason = _load_overview_tasks(uid, user_data, local_now.date())
+    except Exception as exc:
+        print(f"[{uid}] Tasks overview unavailable: {exc}")
+        overview_tasks, tasks_omission_reason = [], "unexpected_tasks_exception"
+
     def _save_episode_from_result(result: dict, selected_type: str, weather_applied: bool = False) -> dict:
         time_anchor = _safe_string(result.get("time_anchor"))
         continuity_anchor = _safe_string(result.get("continuity_anchor"))
@@ -2378,13 +2577,16 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         if selected_type == "fallback" and (not time_anchor or not continuity_anchor):
             raise RuntimeError("Fallback episode missing required anchors")
         segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
+        if not overview_tasks:
+            segments.pop("today_overview", None)
+        tasks_used, task_drop_suggested = _overview_tasks_used(result, overview_tasks)
         script_text, segments_used = _assemble_daily_feed_script(segments)
         if not script_text:
             raise RuntimeError("Daily feed script is empty")
         title = _safe_string(result.get("title")) or f"{_format_natural_date(episode_id)} — Daily Memnon briefing"
         description = _safe_string(result.get("description")) or "A grounded daily briefing from Memnon."
         voice = _normalize_narration_voice(user_data.get("narration_voice"))
-        professional_text = _daily_feed_section_text(segments, ["opening", "practical_briefing", "calendar_today"])
+        professional_text = _daily_feed_section_text(segments, ["opening", "today_overview", "practical_briefing", "calendar_today"])
         reflective_text = _daily_feed_section_text(segments, ["reflective_grounding", "meditative_close"])
         audio_mix_meta = {
             "professional_music_track": "",
@@ -2418,6 +2620,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "segments_used": segments_used,
             "context_sources_used": (
                 ["reflection_history"]
+                + (["tasks"] if "today_overview" in segments_used else [])
                 + (["guides"] if guide_voices_used else [])
                 + (["weather"] if weather_applied else [])
             ),
@@ -2441,6 +2644,11 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
                 weather_context=weather_context,
                 weather_diagnostics=weather_diagnostics,
                 weather_applied=weather_applied,
+                tasks_offered=len(overview_tasks),
+                tasks_applied="today_overview" in segments_used,
+                tasks_omission_reason=tasks_omission_reason,
+                tasks_used=tasks_used,
+                task_drop_suggested=task_drop_suggested,
             ),
         }
         _daily_feed_episode_ref(uid, episode_id).set(episode_payload, merge=True)
@@ -2469,6 +2677,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             episode_type="fallback",
             weather_context=weather_context,
             guide_passages=guide_passages,
+            overview_tasks=overview_tasks,
         )
         return _save_episode_from_result(
             result,
@@ -2486,13 +2695,14 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             local_now,
             weather_context=weather_context,
             guide_passages=guide_passages,
+            overview_tasks=overview_tasks,
         )
         result = _summarize(
             prompt,
             api_key,
             json_mode=True,
             timeout_seconds=120,
-            max_output_tokens=2000,
+            max_output_tokens=2600 if overview_tasks else 2000,
         )
         segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
         original_opening = _safe_string(segments.get("opening"))
