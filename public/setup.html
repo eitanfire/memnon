@@ -703,6 +703,49 @@
       </div>
     </div>
 
+    <div class="card drawer-card" id="capture-token" data-drawer="capture-token">
+      <button type="button" class="drawer-toggle" aria-expanded="false" aria-controls="capture-token-content">
+        <div style="min-width:0;">
+          <div class="drawer-toggle-main">
+            <span style="font-size:1.4rem;">🎙️</span>
+            <h2 style="margin:0;">One-press capture</h2>
+          </div>
+          <div class="drawer-toggle-copy">
+            A capture token lets an iPhone Shortcut on the Action Button send recordings to Memnon.
+          </div>
+        </div>
+        <span class="drawer-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="drawer-content" id="capture-token-content">
+        <p class="muted" style="margin-bottom:12px;">
+          The token can only create captures. It cannot read your notes, settings, or anything else.
+          It is shown once; Memnon keeps only a fingerprint of it.
+        </p>
+        <p id="capture-token-status" class="tasks-helper" style="margin-top:0; margin-bottom:12px;">No capture token yet.</p>
+        <div id="capture-token-reveal" style="display:none; margin-bottom:12px;">
+          <label for="capture-token-value">Your capture token (copy it now; it will not be shown again)</label>
+          <input id="capture-token-value" type="text" readonly spellcheck="false" autocomplete="off" style="font-family:monospace; font-size:0.8rem;" />
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+          <button type="button" id="capture-token-create-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">Create token</button>
+          <button type="button" id="capture-token-copy-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem; display:none;">Copy token</button>
+          <button type="button" id="capture-token-revoke-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem; display:none;">Revoke</button>
+        </div>
+        <div class="tasks-helper" style="margin-top:0;">
+          <strong>Action Button Shortcut</strong>
+          <ol style="margin:6px 0 0 18px; padding:0;">
+            <li>In Shortcuts, make a new shortcut. Add <em>Record Audio</em> (Start Recording: Immediately; Finish Recording: On Tap).</li>
+            <li>Add <em>Get Contents of URL</em>: URL <code>https://memnon.app/api/workflows/captures</code>, Method <code>POST</code>.</li>
+            <li>Headers: <code>Authorization</code> = <code>Bearer</code> followed by a space and your token.</li>
+            <li>Request Body: <em>Form</em>. Add a <em>File</em> field named <code>file</code> set to <em>Recorded Audio</em>.</li>
+            <li>Optional: add <em>Show Notification</em> with the result so you know it landed.</li>
+            <li>Settings → Action Button → Shortcut → choose it.</li>
+          </ol>
+          <p style="margin:8px 0 0;">Recordings up to 5 MB (roughly five minutes). If the token leaks, press Regenerate or Revoke; the old one stops working at once.</p>
+        </div>
+      </div>
+    </div>
+
     <div class="card setup-secondary-card" style="display:none;">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
         <span style="font-size:1.4rem;">✅</span>
@@ -1858,6 +1901,80 @@
       el.innerHTML = `<strong>Recommended reflective default:</strong> ${styleLabel}. ${explanation}`;
     }
 
+    function formatCaptureTokenTime(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+    }
+
+    function renderCaptureToken(summary, rawToken = '') {
+      const status = document.getElementById('capture-token-status');
+      const reveal = document.getElementById('capture-token-reveal');
+      const value = document.getElementById('capture-token-value');
+      const createBtn = document.getElementById('capture-token-create-btn');
+      const copyBtn = document.getElementById('capture-token-copy-btn');
+      const revokeBtn = document.getElementById('capture-token-revoke-btn');
+      if (!status) return;
+      const active = Boolean(summary && summary.active);
+      if (active) {
+        const created = formatCaptureTokenTime(summary.created_at);
+        const used = formatCaptureTokenTime(summary.last_used_at);
+        status.textContent = `Active token ending in ${summary.hint || '····'}`
+          + (created ? `, created ${created}` : '')
+          + (used ? `. Last used ${used}.` : '. Not used yet.');
+      } else {
+        status.textContent = 'No capture token yet.';
+      }
+      reveal.style.display = rawToken ? 'block' : 'none';
+      value.value = rawToken;
+      copyBtn.style.display = rawToken ? 'inline-flex' : 'none';
+      revokeBtn.style.display = active ? 'inline-flex' : 'none';
+      createBtn.textContent = active ? 'Regenerate token' : 'Create token';
+      setDrawerOpen(document.getElementById('capture-token'), document.getElementById('capture-token').classList.contains('is-open'));
+    }
+
+    async function captureTokenRequest(method) {
+      if (!currentUser) return null;
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API}/capture-token`, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Capture token request failed: ${res.status}`);
+      return res.json();
+    }
+
+    function bindCaptureTokenControls() {
+      const createBtn = document.getElementById('capture-token-create-btn');
+      const copyBtn = document.getElementById('capture-token-copy-btn');
+      const revokeBtn = document.getElementById('capture-token-revoke-btn');
+      if (!createBtn || createBtn.dataset.bound === 'true') return;
+      createBtn.dataset.bound = 'true';
+      createBtn.addEventListener('click', async () => {
+        if (createBtn.textContent.startsWith('Regenerate')
+            && !confirm('Regenerate? The current token stops working immediately, so update your Shortcut.')) return;
+        try {
+          const data = await captureTokenRequest('POST');
+          if (data) renderCaptureToken(data, data.token || '');
+        } catch (e) {
+          document.getElementById('capture-token-status').textContent = 'Could not create a token right now.';
+        }
+      });
+      copyBtn.addEventListener('click', async () => {
+        const value = document.getElementById('capture-token-value').value;
+        try { await navigator.clipboard.writeText(value); copyBtn.textContent = 'Copied'; }
+        catch (e) { document.getElementById('capture-token-value').select(); }
+      });
+      revokeBtn.addEventListener('click', async () => {
+        if (!confirm('Revoke this capture token? Your Shortcut will stop working.')) return;
+        try {
+          renderCaptureToken(await captureTokenRequest('DELETE'));
+        } catch (e) {
+          document.getElementById('capture-token-status').textContent = 'Could not revoke the token right now.';
+        }
+      });
+    }
+
     async function fetchMe(forceRefresh = false) {
       if (!currentUser) return {};
       const token = await currentUser.getIdToken(forceRefresh);
@@ -2040,8 +2157,11 @@
       currentUser = user;
       trackAnalytics("signed_in", { surface: "setup" });
       document.getElementById("nav-name").textContent = user.displayName || user.email;
+      bindCaptureTokenControls();
       try {
-        prefill(await fetchMe());
+        const me = await fetchMe();
+        prefill(me);
+        renderCaptureToken(me.capture_token);
       } catch (e) {
         console.error("Could not load setup profile:", e);
       }
