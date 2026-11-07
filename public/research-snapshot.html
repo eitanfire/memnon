@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memnon Research Snapshot</title>
+<meta name="description" content="What teachers told me in Memnon's discovery research, and what I'm building next. Every person is anonymized." />
+<link rel="icon" type="image/svg+xml" href="/brand/memnon-icon-mini.svg" />
+<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Memnon" />
+    <meta property="og:url" content="https://memnon.app/research-snapshot" />
+    <meta property="og:title" content="Memnon research snapshot: what teachers told me, and what I&#x27;m building next" />
+    <meta property="og:description" content="Discovery research with teachers and mentors: 17 recordings, 7 anonymized user profiles, and the roadmap they set." />
+    <meta property="og:image" content="https://memnon.app/brand/og-research-snapshot.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="627" />
+    <meta name="twitter:card" content="summary_large_image" />
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f8f7f4;
+    --paper: #ffffff;
+    --ink: #1a1a1a;
+    --muted: #6b7280;
+    --line: #e8e6e0;
+    --brand: #5c4327;
+    --brand-soft: #f7f1e6;
+    --strong: #2f6b4f;
+    --strong-soft: #e7f2ec;
+    --medium: #9a6a12;
+    --medium-soft: #fbf1dd;
+    --weak: #8a8f98;
+    --weak-soft: #f1f2f4;
+    --shipped: #2563eb;
+    --shipped-soft: #eff6ff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  h1, h2, h3, .num, .lockup span { font-family: "Fredoka", system-ui, sans-serif; }
+  nav { padding: 18px 0; }
+  .lockup { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+  .lockup img { width: 28px; height: 28px; }
+  .lockup span { font-weight: 600; font-size: 21px; color: var(--brand); }
+
+  header.hero { padding: 28px 0 8px; }
+  .eyebrow { font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); font-weight: 600; }
+  h1 { font-size: clamp(2rem, 4.6vw, 3rem); line-height: 1.12; margin: 10px 0 14px; font-weight: 600; }
+  .lede { font-size: 1.12rem; color: #3b3b3b; max-width: 720px; margin: 0; }
+  .privacy-note {
+    display: flex; gap: 10px; align-items: flex-start;
+    margin-top: 20px; padding: 12px 14px; max-width: 720px;
+    background: var(--brand-soft); border-radius: 10px; font-size: 0.92rem; color: #4a3a26;
+  }
+
+  section { padding: 34px 0; border-top: 1px solid var(--line); }
+  section:first-of-type { border-top: none; }
+  h2 { font-size: 1.6rem; margin: 0 0 6px; font-weight: 600; }
+  .section-lede { color: var(--muted); margin: 0 0 22px; max-width: 720px; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .num { font-size: 2.1rem; line-height: 1; color: var(--brand); font-weight: 600; }
+  .stat p { margin: 8px 0 0; font-size: 0.9rem; color: var(--muted); }
+
+  .story { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .step { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .step .label { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand); }
+  .step h3 { margin: 6px 0 6px; font-size: 1.15rem; font-weight: 600; }
+  .step p { margin: 0; color: #333; font-size: 0.97rem; }
+
+  /* Signal matrix */
+  .matrix { display: grid; grid-template-columns: 110px repeat(3, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+  .matrix .axis { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; }
+  .matrix .colhead { font-size: 0.82rem; font-weight: 600; text-align: center; padding: 4px 0; }
+  .cell { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; min-height: 92px; padding: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+  .cell.hot { background: var(--strong-soft); border-color: #cfe5d8; }
+  .dot { font-size: 0.78rem; border-radius: 999px; padding: 3px 9px; background: #fff; border: 1px solid var(--line); }
+  .matrix-note { font-size: 0.85rem; color: var(--muted); margin-top: 10px; }
+
+  /* People */
+  .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .person { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .person h3 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 0.74rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+  .tag.strong { background: var(--strong-soft); color: var(--strong); }
+  .tag.medium { background: var(--medium-soft); color: var(--medium); }
+  .tag.weak { background: var(--weak-soft); color: var(--weak); }
+  .tag.urgent { background: #fdecec; color: #a33a3a; }
+  .tag.calm { background: var(--weak-soft); color: #5d636c; }
+  .person dl { margin: 0; display: grid; gap: 8px; }
+  .person dt { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  .person dd { margin: 2px 0 0; font-size: 0.94rem; color: #2b2b2b; }
+  .person dd.none { color: var(--muted); font-style: italic; }
+
+  /* Themes */
+  .themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .theme { background: var(--paper); border-left: 4px solid var(--brand); border-radius: 10px; padding: 14px 16px; font-size: 0.97rem; }
+  .sessions { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 18px; }
+  .session { background: var(--brand-soft); border-radius: var(--radius); padding: 18px; }
+  .session h3 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 600; color: #4a3a26; }
+  .session p { margin: 0; font-size: 0.95rem; color: #4a3a26; }
+
+  /* Decisions */
+  .decisions { display: grid; gap: 10px; }
+  .decision { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .decision > div { padding: 14px 16px; font-size: 0.95rem; }
+  .decision .heard { background: #fbfaf7; border-right: 1px solid var(--line); color: #444; }
+  .decision .label { display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .decision .did .label { color: var(--brand); }
+
+  /* Board */
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .column { background: #efede7; border-radius: var(--radius); padding: 12px; }
+  .column h3 { margin: 4px 6px 12px; font-size: 1.05rem; display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; }
+  .column h3 small { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+  .card { background: var(--paper); border-radius: 10px; padding: 12px 13px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  .card:last-child { margin-bottom: 0; }
+  .card strong { display: block; font-size: 0.95rem; margin-bottom: 4px; }
+  .card p { margin: 0 0 8px; font-size: 0.86rem; color: #4b4b4b; }
+  .card .why { font-size: 0.78rem; color: var(--muted); }
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-bottom: 6px; }
+  .badge.shipped { background: var(--shipped-soft); color: var(--shipped); }
+  .badge.planned { background: var(--brand-soft); color: var(--brand); }
+
+  footer { padding: 30px 0 50px; color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--line); }
+  footer a { color: var(--brand); }
+
+  @media (max-width: 760px) {
+    .board { grid-template-columns: 1fr; }
+    .decision { grid-template-columns: 1fr; }
+    .decision .heard { border-right: none; border-bottom: 1px solid var(--line); }
+    .matrix { grid-template-columns: 58px repeat(3, minmax(0, 1fr)); gap: 5px; }
+    .dot { font-size: 0.7rem; padding: 3px 7px; white-space: normal; overflow-wrap: anywhere; }
+    .matrix .colhead, .matrix .axis { font-size: 0.72rem; }
+    .cell { min-height: 70px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="lockup" href="/"><img src="/brand/memnon-icon.svg" alt="" /><span>memnon</span></a>
+    </nav>
+
+    <header class="hero">
+      <div class="eyebrow">Research snapshot · Discovery at InnEdCO 2026</div>
+      <h1>What teachers told me, and what I'm building next</h1>
+      <p class="lede">Memnon started as a voice-reflection workflow I built for myself. Before turning it into a product for teachers, I went looking for the people closest to the problem. This page shows what they told me, how it changed the product, and where it goes next.</p>
+      <div class="privacy-note">
+        <span aria-hidden="true">🔒</span>
+        <span>Everyone here is anonymized: roles only, no names, no organizations, and no one's own words. Memnon keeps teachers' reflections in their own Google Drive, so none of that appears here either.</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>At a glance</h2>
+      <p class="section-lede">Conversations and sessions at InnEdCO in June 2026, recorded, transcribed, then reviewed and logged by hand.</p>
+      <div class="stats">
+        <div class="stat"><div class="num">17</div><p>recordings captured</p></div>
+        <div class="stat"><div class="num">13</div><p>fully processed and coded</p></div>
+        <div class="stat"><div class="num">7</div><p>potential-user profiles</p></div>
+        <div class="stat"><div class="num">3</div><p>strong signals of need</p></div>
+        <div class="stat"><div class="num">4</div><p>profiles where the problem is urgent</p></div>
+        <div class="stat"><div class="num">5</div><p>themes shared across a panel's speakers</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>How I got here</h2>
+      <p class="section-lede">The research came out of a product that didn't stick.</p>
+      <div class="story">
+        <div class="step">
+          <div class="label">The first bet</div>
+          <h3>Teach League</h3>
+          <p>An AI app for planning lessons and grading. Teachers liked it when I showed it to them, but very few kept using it on their own.</p>
+        </div>
+        <div class="step">
+          <div class="label">Why it didn't stick</div>
+          <h3>One more system</h3>
+          <p>New teachers needed help with planning but were already juggling too many new tools. Seasoned teachers had their own systems. What both called hardest was the never-ending demands and criticism.</p>
+        </div>
+        <div class="step">
+          <div class="label">The new hypothesis</div>
+          <h3>Reflection, not productivity</h3>
+          <p>Maybe what teachers need is a place to process a hard day out loud, the way they would with a trusted colleague. I took that question to InnEdCO.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Where the signal was strongest</h2>
+      <p class="section-lede">Each person placed by how clearly they showed the need and how urgent it was for them. The strongest, most urgent signals came from teacher mentors and from a teacher already reflecting with a chatbot on his own.</p>
+      <div class="matrix" role="table" aria-label="People by signal strength and urgency">
+        <div></div>
+        <div class="colhead" role="columnheader">Weak signal</div>
+        <div class="colhead" role="columnheader">Medium signal</div>
+        <div class="colhead" role="columnheader">Strong signal</div>
+
+        <div class="axis" role="rowheader">High urgency</div>
+        <div class="cell" role="cell"></div>
+        <div class="cell" role="cell"><span class="dot">Specialized-program educators</span></div>
+        <div class="cell hot" role="cell"><span class="dot">Teacher-support leader</span><span class="dot">Teacher mentor and cohort lead</span><span class="dot">Teacher with an AI reflection habit</span></div>
+
+        <div class="axis" role="rowheader">Medium urgency</div>
+        <div class="cell" role="cell"><span class="dot">Classroom AI access educator</span></div>
+        <div class="cell" role="cell"><span class="dot">AI-curious peer</span><span class="dot">Learning-access connector</span></div>
+        <div class="cell" role="cell"></div>
+      </div>
+      <p class="matrix-note">Signal strength reflects what was actually said or recorded, not enthusiasm. Three conversations didn't capture a direct reaction to Memnon, so they're rated on the problem alone.</p>
+    </section>
+
+    <section>
+      <h2>Who I talked to</h2>
+      <p class="section-lede">Seven profiles (one covers two colleagues), described by role. Where a reaction to Memnon wasn't captured, it says so.</p>
+      <div class="people">
+        <div class="person">
+          <h3>Teacher-support leader</h3>
+          <div class="tags"><span class="tag strong">Strong signal</span><span class="tag urgent">High urgency</span></div>
+          <dl>
+            <div><dt>Working on</dt><dd>Supporting and keeping new teachers through practical coaching and encouragement</dd></div>
+            <div><dt>Reaction to Memnon</dt><dd>Strong resonance with honest, safe, private reflection</dd></div>
+            <div><dt>What matters</dt><dd>Concrete scaffolds, modeled language, help with parent communication, and mentoring that isn't punitive</dd></div>
+          </dl>
+        </div>
+        <div class="person">
+          <h3>Teacher mentor and cohort lead</h3>
+          <div class="tags"><span class="tag strong">Strong signal</span><span class="tag urgent">High urgency</span></div>
+          <dl>
+            <div><dt>Working on</dt><dd>Supporting a group of math teachers while protecting their growth, judgment and energy</dd></div>
+            <div><dt>Reaction to Memnon</dt><dd class="none">Not captured directly; the mentoring context points to a strong fit</dd></div>
+            <div><dt>What matters</dt><dd>Play in learning, and growth that doesn't collapse into compliance-heavy practice</dd></div>
+          </dl>
+        </div>
+        <div class="person">
+          <h3>Teacher with an AI reflection habit</h3>
+          <div class="tags"><span class="tag strong">Strong signal</span><span class="tag urgent">High urgency</span></div>
+          <dl>
+            <div><dt>Working on</dt><dd>Tools that support teaching while keeping the teacher's voice and autonomy</dd></div>
+            <div><dt>Reaction to Memnon</dt><dd>Said he would use something like it; he already talks through hard days with a chatbot, which covers many of the same points</dd></div>
+            <div><dt>What matters</dt><dd>Reflection that helps with isolation and hard classroom moments, grounded in real teaching rather than sales pitches</dd></div>
+          </dl>
+        </div>
+        <div class="person">
+          <h3>Specialized-program educators</h3>
+          <div class="tags"><span class="tag medium">Medium signal</span><span class="tag urgent">High urgency</span></div>
+          <dl>
+            <div><dt>Working on</dt><dd>Helping adults, then students, use powerful tools safely in behavior, autism and accessibility settings</dd></div>
+            <div><dt>Reaction to Memnon</dt><dd>Open to educator-facing tools that support accessibility</dd></div>
+            <div><dt>What matters</dt><dd>Adult-first pilots to lower risk, strong professional development, and communication support</dd></div>
+          </dl>
+        </div>
+        <div class="person">
+          <h3>AI-curious peer</h3>
+          <div class="tags"><span class="tag medium">Medium signal</span><span class="tag calm">Medium urgency</span></div>
+          <dl>
+            <div><dt>Working on</dt><dd>Turning voice and running thoughts into useful AI-supported workflows instead of scattered notes</dd></div>
+            <div><dt>Reaction to Memnon</dt><dd>Positive; connected it to voice-to-AI tools already on the market</dd></div>
+            <div><dt>What matters</dt><dd>Voice-first capture already reads as a real category. The workflow made sense on its own, not because AI was new</dd></div>
+          </dl>
+        </div>
+        <div class="person">
+          <h3>Learning-access connector</h3>
+          <div class="tags"><span class="tag medium">Medium signal</span><span class="tag calm">Medium urgency</span></div>
+          <dl>
+            <div><dt>Working on</dt><dd>Using AI responsibly to improve learning access for underserved learners</dd></div>
+            <div><dt>Reaction to Memnon</dt><dd class="none">Not captured</dd></div>
+            <div><dt>What matters</dt><dd>Responsible AI, and practical responsibility in how education tools are designed</dd></div>
+          </dl>
+        </div>
+        <div class="person">
+          <h3>Classroom AI access educator</h3>
+          <div class="tags"><span class="tag weak">Weak signal</span><span class="tag calm">Medium urgency</span></div>
+          <dl>
+            <div><dt>Working on</dt><dd>Teaching students to use AI well where access and resources are limited</dd></div>
+            <div><dt>Reaction to Memnon</dt><dd class="none">Not captured</dd></div>
+            <div><dt>What matters</dt><dd>Students need access to powerful tools; limited supplies shape how they get used</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>What came up across speakers</h2>
+      <p class="section-lede">Themes shared by the speakers on a panel about teaching citizenship in the age of AI, plus two sessions that shaped the product.</p>
+      <div class="themes">
+        <div class="theme">How to support teachers without overwhelming them</div>
+        <div class="theme">Institutional adoption versus what works in a real classroom</div>
+        <div class="theme">What responsible AI looks like in actual implementation</div>
+        <div class="theme">Citizenship, ethics and truth when students use AI</div>
+        <div class="theme">AI literacy versus digital literacy</div>
+      </div>
+      <div class="sessions">
+        <div class="session">
+          <h3>Session: scaffolding new teachers</h3>
+          <p>New teachers often ask for advice but still need concrete language and moves they can use in the moment. Parent communication templates and non-punitive observation were framed as retention support, not compliance.</p>
+        </div>
+        <div class="session">
+          <h3>Session: AI citizenship, process over product</h3>
+          <p>If students are graded only on right answers, they'll take the fastest path. Teachers were already using AI for reflection and spoken responses that value explanation and process over speed.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>What it changed</h2>
+      <p class="section-lede">Each decision traces back to something I heard.</p>
+      <div class="decisions">
+        <div class="decision">
+          <div class="heard"><span class="label">What I heard</span>The most urgent need was support for new teachers, from the people who mentor them.</div>
+          <div class="did"><span class="label">What I did</span>Built Memnon for teachers in mentored programs, not as a general productivity tool.</div>
+        </div>
+        <div class="decision">
+          <div class="heard"><span class="label">What I heard</span>Honest reflection only happens when it feels safe and private.</div>
+          <div class="did"><span class="label">What I did</span>Made reflection private by default: each teacher's reflections live in their own Google Drive, not on Memnon's servers.</div>
+        </div>
+        <div class="decision">
+          <div class="heard"><span class="label">What I heard</span>Teachers are already overwhelmed by new systems.</div>
+          <div class="did"><span class="label">What I did</span>Delivered the result where they already are: a short daily podcast in the podcast app they already use.</div>
+        </div>
+        <div class="decision">
+          <div class="heard"><span class="label">What I heard</span>Generic AI advice feels like a sales pitch, not like real teaching.</div>
+          <div class="did"><span class="label">What I did</span>Grounded every reflection in subject- and grade-specific practice and in thinkers each teacher chooses, from bell hooks to John Dewey.</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>What's next</h2>
+      <p class="section-lede">The roadmap, drawn from the research. Unmet needs set what gets built next.</p>
+      <div class="board">
+        <div class="column">
+          <h3>Now <small>shipped</small></h3>
+          <div class="card"><span class="badge shipped">Shipped</span><strong>Daily grounded podcast</strong><p>Each morning, a short reflection for the day ahead, in the teacher's own podcast app.</p><div class="why">From: new-teacher support was the most urgent need</div></div>
+          <div class="card"><span class="badge shipped">Shipped</span><strong>Private by default</strong><p>Reflections stay in the teacher's own Google Drive.</p><div class="why">From: honest reflection needs safety</div></div>
+          <div class="card"><span class="badge shipped">Shipped</span><strong>Reflect by voice or text</strong><p>Talk it out after a hard day, or type during a planning period.</p><div class="why">From: voice-first capture already reads as a real workflow</div></div>
+        </div>
+        <div class="column">
+          <h3>Next <small>planned</small></h3>
+          <div class="card"><span class="badge planned">Planned</span><strong>Reflection for hard moments</strong><p>Prompts for a difficult parent conversation or a lesson that fell apart, with language a teacher can actually use.</p><div class="why">From: scaffolds and parent communication matter most to new teachers</div></div>
+          <div class="card"><span class="badge planned">Planned</span><strong>Opt-in sharing with a mentor</strong><p>The teacher decides if and when a reflection reaches their mentor. Nothing is shared by default.</p><div class="why">From: mentors want to help, and teachers value privacy</div></div>
+          <div class="card"><span class="badge planned">Planned</span><strong>Lighter research capture</strong><p>Each conversation was coded by hand. Next is a faster way to log what I hear, so discovery keeps pace with users.</p><div class="why">From: my own friction running this research</div></div>
+        </div>
+        <div class="column">
+          <h3>Later <small>exploring</small></h3>
+          <div class="card"><span class="badge planned">Exploring</span><strong>Patterns for mentors, never individuals</strong><p>Opt-in, anonymized themes across a group of teachers, so a mentor sees what the cohort is facing without reading anyone's reflection.</p><div class="why">From: mentors support groups, not just individuals</div></div>
+          <div class="card"><span class="badge planned">Exploring</span><strong>Specialized and accessibility settings</strong><p>Adult-first pilots with educators in behavior, autism and accessibility programs.</p><div class="why">From: high urgency in specialized programs</div></div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p><strong>Method.</strong> Conversations and sessions recorded at InnEdCO, June 2026, transcribed and coded by hand into a running research log. Signal strength reflects what was said or recorded; where a reaction wasn't captured, the card says so. No reflection text from any Memnon user appears on this page.</p>
+      <p><a href="https://memnon.app">memnon.app</a> · Built by Eitan Fire</p>
+    </footer>
+  </div>
+</body>
+</html>
