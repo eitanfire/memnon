@@ -1637,17 +1637,48 @@ def _overview_tasks_used(result: dict, tasks: list[dict]) -> tuple[list[dict], d
     return used, drop
 
 
+# A bare weekday ("due Sunday") is only unambiguous inside the coming week.
+SPOKEN_WEEKDAY_HORIZON_DAYS = 6
+
+
+def _spoken_due_date(due: date, today: date) -> str:
+    """How a due date is said aloud: today, tomorrow, a weekday within the
+    next 6 days, otherwise the month and day so a far date never sounds
+    like this week."""
+    days = (due - today).days
+    if days == 0:
+        return "today"
+    if days == 1:
+        return "tomorrow"
+    if 1 < days <= SPOKEN_WEEKDAY_HORIZON_DAYS:
+        return due.strftime("%A")
+    return f"{due.strftime('%B')} {_ordinal_day(due.day)}"
+
+
 def _spoken_due(task: dict, today: date) -> str:
     due = _task_due_date(task)
     if due is None:
         return ""
     if due < today:
         return "it is overdue"
-    if due == today:
-        return "it is due today"
-    if due == today + timedelta(days=1):
-        return "it is due tomorrow"
-    return f"it is due {due.strftime('%A')}"
+    return f"it is due {_spoken_due_date(due, today)}"
+
+
+def _prompt_due(task: dict, today: date) -> str:
+    """Due wording handed to the model: the exact spoken form plus the day
+    count, so it cannot turn a far date into a bare weekday."""
+    due = _task_due_date(task)
+    if due is None:
+        return "no due date"
+    days = (due - today).days
+    if days < 0:
+        late = -days
+        return f"overdue since {due.strftime('%B')} {_ordinal_day(due.day)}, {late} day{'s' if late != 1 else ''} late"
+    if days == 0:
+        return "due today"
+    if days == 1:
+        return "due tomorrow"
+    return f'due in {days} days; say "{_spoken_due_date(due, today)}"'
 
 
 def _build_deterministic_today_overview(tasks: list[dict], today: date) -> tuple[str, list[str], str]:
@@ -2189,8 +2220,7 @@ def _build_daily_feed_prompt(
         today = local_now.date()
         task_lines = []
         for index, task in enumerate(overview_tasks):
-            due = _spoken_due(task, today) or "no due date"
-            task_lines.append(f"[{_overview_task_ref(index)}] {task['title']} ({due})")
+            task_lines.append(f"[{_overview_task_ref(index)}] {task['title']} ({_prompt_due(task, today)})")
         tasks_block = (
             "--- OPEN PERSONAL TASKS (ranked: overdue or due today, then this week, then recently updated) ---\n"
             + "\n".join(task_lines)
@@ -2221,6 +2251,7 @@ def _build_daily_feed_prompt(
             "- today_overview comes right after the opening and orients the day from the open tasks. "
             "Name 3 to 5 priorities (fewer only if fewer tasks exist), each with a short reason it matters today, "
             "and say plainly what is due or overdue.\n"
+            "- Say due dates exactly as given in quotes for each task. Never use a bare weekday for a task due more than 6 days out.\n"
             "- today_overview must suggest exactly one task to drop or delegate today, and say why it can wait or who could take it.\n"
             "- Never read the task list out in order or recite every task. Choose, group, and speak like a chief of staff in the car.\n"
             "- Do not repeat today_overview content in practical_briefing; practical_briefing stays grounded in the reflections.\n"

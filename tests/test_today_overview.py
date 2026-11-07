@@ -232,8 +232,10 @@ class TodayOverviewTests(unittest.TestCase):
         self.assertTrue(episode["_professional_text"].startswith("Today is Monday, November 9th.\n\nTwo things"))
         self.assertIn("tasks", episode["context_sources_used"])
         prompt = prompts[0]
-        self.assertIn("[T1] Renew car registration (it is overdue)", prompt)
-        self.assertIn("[T2] Email Dana the grant budget (it is due today)", prompt)
+        self.assertIn("[T1] Renew car registration (overdue since November 5th, 4 days late)", prompt)
+        self.assertIn("[T2] Email Dana the grant budget (due today)", prompt)
+        self.assertIn('[T3] Draft Willow case study (due in 3 days; say "Thursday")', prompt)
+        self.assertIn("Never use a bare weekday for a task due more than 6 days out", prompt)
         self.assertIn("exactly one task to drop or delegate", prompt)
         self.assertIn("Never read the task list out", prompt)
 
@@ -268,6 +270,39 @@ class TodayOverviewTests(unittest.TestCase):
         meta = episode["generation_meta"]
         self.assertEqual([t["id"] for t in meta["tasks_used"]], ["b", "a", "c"])
         self.assertEqual(meta["task_drop_suggested"], {"id": "e", "title": "Book dentist"})
+
+    # ── Due-date wording (heard on Monday 2026-11-09) ────────────────────────
+
+    def _due_wording(self, due_iso):
+        task = {"id": "x", "title": "Thing", "due": f"{due_iso}T00:00:00.000Z", "status": "needsAction"}
+        spoken = self.main._spoken_due(task, TODAY)
+        prompt = self.main._build_daily_feed_prompt(
+            CONNECTED_USER, [{"title": "t", "summary": "s"}], "standard", NOW_UTC,
+            overview_tasks=self.main._rank_overview_tasks([task], TODAY),
+        )
+        line = next(l for l in prompt.splitlines() if l.startswith("[T1] Thing"))
+        return spoken, line
+
+    def test_due_tomorrow(self):
+        spoken, line = self._due_wording("2026-11-10")
+        self.assertEqual(spoken, "it is due tomorrow")
+        self.assertEqual(line, "[T1] Thing (due tomorrow)")
+
+    def test_due_in_three_days_uses_weekday(self):
+        spoken, line = self._due_wording("2026-11-12")
+        self.assertEqual(spoken, "it is due Thursday")
+        self.assertEqual(line, '[T1] Thing (due in 3 days; say "Thursday")')
+
+    def test_due_in_seven_days_uses_date_not_weekday(self):
+        spoken, line = self._due_wording("2026-11-16")
+        self.assertEqual(spoken, "it is due November 16th")
+        self.assertEqual(line, '[T1] Thing (due in 7 days; say "November 16th")')
+
+    def test_due_in_thirteen_days_uses_date_not_weekday(self):
+        spoken, line = self._due_wording("2026-11-22")
+        self.assertEqual(spoken, "it is due November 22nd")
+        self.assertEqual(line, '[T1] Thing (due in 13 days; say "November 22nd")')
+        self.assertNotIn("Sunday", line)
 
     # ── Ranking ──────────────────────────────────────────────────────────────
 
