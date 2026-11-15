@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Memnon Design Gallery</title>
+<link rel="icon" type="image/svg+xml" href="../brand/memnon-icon-mini.svg" />
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&display=swap" rel="stylesheet" />
+<!--
+  The gallery shell. It reads manifest.js and never needs editing.
+  Add versions with scripts/freeze_design.py (or by hand in manifest.js).
+  Routes:  #/                         all projects
+           #/p/<project>              one project, newest version open
+           #/p/<project>/<version>    one version
+           #/c/<project>/<a>/<b>      two versions side by side
+-->
+<style>
+  :root {
+    --bg: #f8f7f4;
+    --paper: #ffffff;
+    --ink: #1a1a1a;
+    --muted: #6b7280;
+    --line: #e8e6e0;
+    --brand: #5c4327;
+    --brand-soft: #f7f1e6;
+    --stage: #ecebe6;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --paper: #1f1d1a;
+      --ink: #f2efe9;
+      --muted: #a39e95;
+      --line: #34312c;
+      --brand: #d9b98c;
+      --brand-soft: #2a241c;
+      --stage: #0f0e0d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  a { color: inherit; }
+  button, select {
+    font: inherit;
+    color: inherit;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--paper); }
+  button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+  header.top {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--paper);
+  }
+  .lockup { display: flex; align-items: center; gap: 8px; text-decoration: none; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 1.15rem; }
+  .lockup img { width: 26px; height: 26px; }
+  .crumb { color: var(--muted); }
+  .crumb a { text-decoration: none; }
+  .crumb a:hover { color: var(--ink); }
+  .spacer { flex: 1; }
+
+  /* ---------- home ---------- */
+  main.home { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+  .home h1 { font-family: Fredoka, sans-serif; font-weight: 600; font-size: 1.8rem; margin: 0 0 4px; }
+  .home .lede { color: var(--muted); margin: 0 0 28px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+  .card {
+    display: block; text-decoration: none; background: var(--paper);
+    border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+    transition: border-color .15s, transform .15s;
+  }
+  .card:hover { border-color: var(--brand); transform: translateY(-1px); }
+  .thumb { position: relative; height: 190px; overflow: hidden; background: var(--stage); border-bottom: 1px solid var(--line); }
+  .thumb iframe {
+    position: absolute; top: 0; left: 0; width: 1280px; height: 800px; border: 0;
+    transform: scale(.25); transform-origin: 0 0; pointer-events: none;
+  }
+  .card .body { padding: 14px 16px 16px; }
+  .card h2 { margin: 0 0 2px; font-size: 1.05rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .9rem; }
+  .meta { margin-top: 10px; font-size: .8rem; color: var(--muted); }
+  .empty { padding: 40px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
+  .empty code { background: var(--brand-soft); padding: 2px 6px; border-radius: 4px; }
+
+  /* ---------- project ---------- */
+  .project { display: grid; grid-template-columns: 280px 1fr; height: calc(100vh - 55px); }
+  aside.versions { border-right: 1px solid var(--line); background: var(--paper); overflow-y: auto; padding: 16px; }
+  aside h1 { font-size: 1.1rem; margin: 0 0 4px; }
+  aside .desc { color: var(--muted); font-size: .88rem; margin: 0 0 16px; }
+  .vlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .vlist a {
+    display: block; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px;
+    text-decoration: none;
+  }
+  .vlist a:hover { background: var(--bg); }
+  .vlist a[aria-current="true"] { background: var(--brand-soft); border-color: var(--brand); }
+  .vlist .vlabel { font-weight: 600; font-size: .92rem; display: block; }
+  .vlist .vdate { font-size: .78rem; color: var(--muted); }
+  .vlist .vnote { font-size: .82rem; color: var(--muted); display: block; margin-top: 4px; }
+  .vlist .pick { float: right; font-size: .75rem; padding: 2px 8px; }
+
+  section.viewer { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .toolbar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--paper);
+  }
+  .toolbar .group { display: flex; gap: 4px; }
+  .toolbar .source { font-size: .8rem; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
+  .stage { flex: 1; display: grid; gap: 1px; background: var(--line); min-height: 0; }
+  .stage.two { grid-template-columns: 1fr 1fr; }
+  .pane { display: flex; flex-direction: column; background: var(--stage); min-width: 0; min-height: 0; }
+  .pane-head {
+    display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+    background: var(--paper); border-bottom: 1px solid var(--line); font-size: .85rem;
+  }
+  .pane-head select { flex: 1; min-width: 0; }
+  .pane-head a { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+  .frame-box { flex: 1; position: relative; overflow: auto; min-height: 0; }
+  .frame-box iframe {
+    position: absolute; top: 16px; left: 50%; border: 0; background: #fff;
+    transform-origin: top center; box-shadow: 0 2px 16px rgba(0,0,0,.12); border-radius: 6px;
+  }
+
+  @media (max-width: 760px) {
+    .project { grid-template-columns: 1fr; height: auto; }
+    aside.versions { border-right: 0; border-bottom: 1px solid var(--line); }
+    section.viewer { height: 80vh; }
+    .stage.two { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  }
+</style>
+<script src="manifest.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="lockup" href="#/"><img src="../brand/memnon-icon.svg" alt="" /><span>Design gallery</span></a>
+  <span class="crumb" id="crumb"></span>
+  <span class="spacer"></span>
+</header>
+<div id="app"></div>
+
+<script>
+(() => {
+  const DATA = window.GALLERY || { projects: [] };
+  const WIDTHS = { phone: 390, tablet: 768, desktop: 1280 };
+  const app = document.getElementById("app");
+  const crumb = document.getElementById("crumb");
+  let width = safeGet("gallery-width") || "desktop";
+
+  function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+  function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const newestFirst = (p) => [...p.versions].sort((a, b) => (b.date + b.id).localeCompare(a.date + a.id));
+  const findProject = (id) => DATA.projects.find((p) => p.id === id);
+  const fmtDate = (d) => new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+  function route() {
+    const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
+    if (parts[0] === "p" && findProject(parts[1])) return renderProject(findProject(parts[1]), parts[2], null);
+    if (parts[0] === "c" && findProject(parts[1])) return renderProject(findProject(parts[1]), parts[2], parts[3]);
+    renderHome();
+  }
+
+  // ---------------------------------------------------------- home
+  function renderHome() {
+    crumb.innerHTML = "";
+    document.title = "Memnon Design Gallery";
+    const cards = DATA.projects.map((p) => {
+      const latest = newestFirst(p)[0];
+      return `<a class="card" href="#/p/${encodeURIComponent(p.id)}">
+        <div class="thumb">${latest ? `<iframe src="${esc(latest.path)}" loading="lazy" tabindex="-1" aria-hidden="true"></iframe>` : ""}</div>
+        <div class="body">
+          <h2>${esc(p.name)}</h2>
+          <p>${esc(p.description)}</p>
+          <div class="meta">${p.versions.length} version${p.versions.length === 1 ? "" : "s"}${latest ? ` · latest ${fmtDate(latest.date)}` : ""}</div>
+        </div>
+      </a>`;
+    }).join("");
+    app.innerHTML = `<main class="home">
+      <h1>Design gallery</h1>
+      <p class="lede">Every frozen version of every Memnon screen. Open a project to flip through versions or compare two side by side.</p>
+      ${cards ? `<div class="grid">${cards}</div>` : `<div class="empty">No projects yet. Run <code>python3 scripts/freeze_design.py</code> to add one.</div>`}
+    </main>`;
+  }
+
+  // ---------------------------------------------------------- project
+  function renderProject(project, aId, bId) {
+    const versions = newestFirst(project);
+    if (!versions.length) return renderHome();
+    const byId = (id) => versions.find((v) => v.id === id);
+    const a = byId(aId) || versions[0];
+    const b = bId ? (byId(bId) || versions[1] || versions[0]) : null;
+    const compare = !!b;
+
+    crumb.innerHTML = `/ <a href="#/p/${encodeURIComponent(project.id)}">${esc(project.name)}</a>`;
+    document.title = `${project.name} · Design Gallery`;
+
+    const href = (x, y) => y
+      ? `#/c/${encodeURIComponent(project.id)}/${encodeURIComponent(x)}/${encodeURIComponent(y)}`
+      : `#/p/${encodeURIComponent(project.id)}/${encodeURIComponent(x)}`;
+
+    const list = versions.map((v) => {
+      const current = v.id === a.id || (b && v.id === b.id);
+      // Clicking a version opens it on the left; "vs" puts it on the right next to the current left one.
+      const pickTarget = v.id === a.id || (b && v.id === b.id) ? null : href(a.id, v.id);
+      return `<li><a href="${compare ? href(v.id, b.id === v.id ? a.id : b.id) : href(v.id)}" aria-current="${current}">
+        ${pickTarget ? `<span class="pick" data-href="${pickTarget}" role="button" tabindex="0" title="Compare with the left version">vs</span>` : ""}
+        <span class="vlabel">${esc(v.label)}</span>
+        <span class="vdate">${fmtDate(v.date)}${v.commit ? ` · ${esc(v.commit)}` : ""}</span>
+        ${v.note ? `<span class="vnote">${esc(v.note)}</span>` : ""}
+      </a></li>`;
+    }).join("");
+
+    const options = (sel) => versions.map((v) => `<option value="${esc(v.id)}"${v.id === sel.id ? " selected" : ""}>${esc(fmtDate(v.date))} · ${esc(v.label)}</option>`).join("");
+    const pane = (v, side) => `<div class="pane">
+      <div class="pane-head">
+        <select data-side="${side}" aria-label="${side === "a" ? "Left" : "Right"} version">${options(v)}</select>
+        <a href="${esc(v.path)}" target="_blank" rel="noopener">Open ↗</a>
+      </div>
+      <div class="frame-box"><iframe src="${esc(v.path)}" title="${esc(v.label)}"></iframe></div>
+    </div>`;
+
+    app.innerHTML = `<div class="project">
+      <aside class="versions">
+        <h1>${esc(project.name)}</h1>
+        <p class="desc">${esc(project.description)}</p>
+        <ul class="vlist">${list}</ul>
+      </aside>
+      <section class="viewer">
+        <div class="toolbar">
+          <div class="group" role="group" aria-label="Viewport width">
+            ${Object.keys(WIDTHS).map((w) => `<button data-width="${w}" aria-pressed="${w === width}">${w[0].toUpperCase() + w.slice(1)}</button>`).join("")}
+          </div>
+          <button id="compare-toggle" aria-pressed="${compare}">${compare ? "Single view" : "Compare"}</button>
+          <span class="spacer"></span>
+          <span class="source">${esc(a.source || "")}</span>
+        </div>
+        <div class="stage${compare ? " two" : ""}">${pane(a, "a")}${compare ? pane(b, "b") : ""}</div>
+      </section>
+    </div>`;
+
+    app.querySelectorAll("select[data-side]").forEach((s) => s.addEventListener("change", () => {
+      const left = s.dataset.side === "a" ? s.value : a.id;
+      const right = s.dataset.side === "b" ? s.value : (b && b.id);
+      location.hash = href(left, right);
+    }));
+    app.querySelectorAll("[data-width]").forEach((btn) => btn.addEventListener("click", () => {
+      width = btn.dataset.width; safeSet("gallery-width", width);
+      app.querySelectorAll("[data-width]").forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+      fitFrames();
+    }));
+    app.querySelector("#compare-toggle").addEventListener("click", () => {
+      location.hash = compare ? href(a.id) : href(a.id, (versions.find((v) => v.id !== a.id) || a).id);
+    });
+    app.querySelectorAll(".pick").forEach((el) => {
+      const go = (e) => { e.preventDefault(); e.stopPropagation(); location.hash = el.dataset.href; };
+      el.addEventListener("click", go);
+      el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") go(e); });
+    });
+    app.querySelectorAll(".frame-box iframe").forEach((f) => f.addEventListener("load", () => fitFrame(f)));
+    fitFrames();
+  }
+
+  // Render each version at a real device width, then scale it down to fit its pane.
+  function fitFrame(frame) {
+    const box = frame.parentElement;
+    const device = WIDTHS[width];
+    const scale = Math.min(1, (box.clientWidth - 32) / device);
+    let contentHeight = 0;
+    try { contentHeight = frame.contentDocument.documentElement.scrollHeight; } catch {}
+    const viewportHeight = (box.clientHeight - 32) / scale;
+    const height = Math.max(viewportHeight, contentHeight || 0);
+    frame.style.width = device + "px";
+    frame.style.height = height + "px";
+    frame.style.transform = `translateX(-50%) scale(${scale})`;
+    // The scaled frame no longer reserves its own height; a spacer keeps the box scrollable.
+    let spacer = box.querySelector(".spacer-h");
+    if (!spacer) { spacer = document.createElement("div"); spacer.className = "spacer-h"; box.appendChild(spacer); }
+    spacer.style.height = height * scale + 32 + "px";
+  }
+  function fitFrames() { app.querySelectorAll(".frame-box iframe").forEach(fitFrame); }
+
+  window.addEventListener("hashchange", route);
+  window.addEventListener("resize", fitFrames);
+  route();
+})();
+</script>
+</body>
+</html>
