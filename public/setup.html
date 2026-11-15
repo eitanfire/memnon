@@ -703,7 +703,9 @@
       </div>
     </div>
 
-    <div class="card drawer-card" id="capture-token" data-drawer="capture-token">
+    <!-- One-press capture (Action Button Shortcut) is hidden for now: experimental, Eitan-only.
+         The /api/capture-token and /api/workflows/captures routes are unchanged. -->
+    <div class="card drawer-card" id="capture-token" data-drawer="capture-token" style="display:none;">
       <button type="button" class="drawer-toggle" aria-expanded="false" aria-controls="capture-token-content">
         <div style="min-width:0;">
           <div class="drawer-toggle-main">
