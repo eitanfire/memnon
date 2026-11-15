@@ -390,6 +390,17 @@ class TodayStaticContractTests(unittest.TestCase):
         self.assertNotIn('<details class="latest-result-details" open', html)
         self.assertNotIn('<details class="daily-brief-disclosure" open', html)
 
+    def test_daily_brief_status_line_is_outside_the_disclosure(self):
+        # "Turn on daily brief" reports progress, success and errors through
+        # #daily-brief-status. While it lived inside the closed How-to-listen
+        # disclosure, turning the brief on looked like nothing happened.
+        html = TODAY_PATH.read_text(encoding="utf-8")
+        card_start = html.index('id="daily-brief-card"')
+        disclosure_start = html.index('<details class="daily-brief-disclosure">', card_start)
+        status_at = html.index('id="daily-brief-status"', card_start)
+        self.assertLess(status_at, disclosure_start, "#daily-brief-status must sit outside the How-to-listen disclosure")
+        self.assertIn(".daily-brief-status:empty {", html)
+
     def test_daily_brief_mechanics_are_nested_inside_the_disclosure(self):
         html = TODAY_PATH.read_text(encoding="utf-8")
 

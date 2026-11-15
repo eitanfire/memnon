@@ -420,8 +420,11 @@
       display: none !important;
     }
     .daily-brief-status {
-      margin-top: 10px;
-      min-height: 1.2em;
+      flex-basis: 100%;
+      margin-top: 2px;
+    }
+    .daily-brief-status:empty {
+      display: none;
     }
     .daily-brief-admin {
       margin-top: 12px;
@@ -1092,6 +1095,11 @@
              used (latest_episode.guide_voices_used), never from the selection.
              The line is also the way to the selection surface. -->
         <a id="daily-brief-voices" class="daily-brief-voices archive-quiet-link" href="/setup#guiding-voices" hidden></a>
+        <!-- Progress, success and error for the row's own actions (turn on,
+             copy, Overcast, share). Outside the disclosure on purpose: a
+             message inside a closed "How to listen" is a click nobody makes,
+             so turning the brief on looked like nothing happened. -->
+        <div id="daily-brief-status" class="capture-text-status daily-brief-status" aria-live="polite"></div>
         <details class="daily-brief-disclosure">
           <summary>How to listen</summary>
           <div class="daily-brief-copy" id="daily-brief-body-copy">
@@ -1121,7 +1129,6 @@
               <strong>Apple Podcasts:</strong> open <strong>Library</strong>, tap <strong>…</strong>, choose <strong>Add a Show by URL</strong>, then paste this private feed link.
             </div>
           </div>
-          <div id="daily-brief-status" class="capture-text-status daily-brief-status" aria-live="polite"></div>
           <div id="daily-brief-admin-wrap" class="daily-brief-admin" hidden>
             <span class="daily-brief-admin-label">Admin tools</span>
             <div id="daily-brief-admin-copy" class="daily-brief-admin-copy"></div>
