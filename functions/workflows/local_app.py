@@ -195,6 +195,7 @@ def _local_profile(repository) -> dict:
         "email": "local-dev@example.com",
         "drive_connected": True,
         "google_tasks_connected": False,
+        "google_calendar_connected": False,
         "research_recommendations": {},
         "daily_feed_enabled": LOCAL_DAILY_FEED_STATE["enabled"],
         "daily_feed_url": LOCAL_DAILY_FEED_STATE["feed_url"],

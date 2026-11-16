@@ -781,6 +781,28 @@
 
     <div class="card setup-secondary-card">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:1.4rem;">📅</span>
+        <h2 style="margin:0;">Google Calendar</h2>
+      </div>
+      <p class="muted" style="margin-bottom:18px;">
+        Memnon can read today's appointments so the daily brief walks through the shape of your day. Read-only, and only the calendars you show in Google Calendar.
+      </p>
+
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px;">
+        <button type="button" id="connect-calendar-btn" class="btn btn-outline" style="padding:8px 12px; font-size:0.82rem;">
+          Connect Google Calendar
+        </button>
+        <span id="calendar-connection-status" class="tasks-helper" style="margin-top:0;">
+          Google Calendar is not connected yet.
+        </span>
+      </div>
+      <p class="tasks-helper">
+        Nothing is written to your calendar. If a day has no appointments, the brief simply skips that part.
+      </p>
+    </div>
+
+    <div class="card setup-secondary-card">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
         <span style="font-size:1.4rem;">🔒</span>
         <h2 style="margin:0;">Privacy</h2>
       </div>
@@ -1228,6 +1250,7 @@
     const portraitObjectUrls = new Map();
     let voicePreviewObjectUrl = null;
     let googleTasksConnected = false;
+    let googleCalendarConnected = false;
     let availableTaskLists = [];
     let selectedTaskListId = '';
     let selectedTaskListName = '';
@@ -1453,6 +1476,19 @@
         singleNote.style.display = 'none';
         select.style.display = 'block';
       }
+    }
+
+    function updateGoogleCalendarUI() {
+      const status = document.getElementById('calendar-connection-status');
+      const button = document.getElementById('connect-calendar-btn');
+      if (!status || !button) return;
+      if (!googleCalendarConnected) {
+        status.textContent = 'Google Calendar is not connected yet.';
+        button.textContent = 'Connect Google Calendar';
+        return;
+      }
+      status.textContent = 'Google Calendar is connected in read-only mode.';
+      button.textContent = 'Reconnect Google Calendar';
     }
 
     function populateGoogleTaskLists() {
@@ -1794,12 +1830,17 @@
       const returnTo = `${window.location.origin}${window.location.pathname}`;
       window.location.href = `${API}/auth/start?include_tasks=1&force_consent=1&return_to=${encodeURIComponent(returnTo)}`;
     });
+    document.getElementById('connect-calendar-btn').addEventListener('click', () => {
+      const returnTo = `${window.location.origin}${window.location.pathname}`;
+      window.location.href = `${API}/auth/start?include_calendar=1&force_consent=1&return_to=${encodeURIComponent(returnTo)}`;
+    });
     document.getElementById('google-tasks-list').addEventListener('change', (event) => {
       selectedTaskListId = event.target.value;
       const match = availableTaskLists.find((item) => item.id === selectedTaskListId);
       selectedTaskListName = match?.title || '';
     });
     updateGoogleTasksUI();
+    updateGoogleCalendarUI();
 
     document.getElementById('portrait-file-input').addEventListener('change', async (event) => {
       const file = event.target.files?.[0];
@@ -1882,6 +1923,8 @@
       selectedTaskListId = data.google_tasks_list_id || '';
       selectedTaskListName = data.google_tasks_list_name || '';
       updateGoogleTasksUI();
+      googleCalendarConnected = !!data.google_calendar_connected;
+      updateGoogleCalendarUI();
       renderResearchRecommendation(recommendation, hasExplicitStyle);
     }
 
