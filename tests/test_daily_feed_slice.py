@@ -766,7 +766,126 @@ class DailyFeedSliceTests(unittest.TestCase):
         self.assertEqual(result["generation_meta"]["weather"]["applied"], False)
         self.assertEqual(result["generation_meta"]["weather"]["unavailable_reason"], "forecast_failed")
 
-    def test_stale_notes_publish_silence_stub_when_last_episode_was_standard(self):
+    def test_stale_notes_still_generate_a_standard_episode(self):
+        """A quiet week is not a reason to skip the brief: tasks and the day
+        itself carry it, and older reflections are offered as background."""
+        user_ref = FakeUserRef({"email": "eitanfire@gmail.com", "daily_feed_timezone": "America/Denver"})
+
+        class EpisodeRef:
+            def __init__(self):
+                self.saved = {}
+
+            def get(self):
+                if self.saved:
+                    return FakeDoc(self.saved, True, "2026-06-24")
+                return FakeDoc({}, False, "2026-06-24")
+
+            def set(self, payload, merge=False):
+                self.saved.update(payload)
+
+        episode_ref = EpisodeRef()
+        captured_prompts = []
+
+        def fake_summarize(prompt, *_args, **_kwargs):
+            captured_prompts.append(prompt)
+            return {
+                "title": "June 24 — Shape of the day",
+                "description": "desc",
+                "time_anchor": "Today is Wednesday, June 24th.",
+                "continuity_anchor": "Old",
+                "segments": {
+                    "opening": "Today is Wednesday, June 24th.",
+                    "practical_briefing": "Keep the list short.",
+                    "calendar_today": "",
+                    "reflective_grounding": "A while back you noted something old.",
+                    "meditative_close": "One next step is enough.",
+                },
+            }
+
+        with (
+            patch.dict(self.main.os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False),
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+            patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[
+                {"title": "Old reflection", "summary": "Stale", "insight": "Old", "created_at": "2026-06-01T10:00:00Z"}
+            ]),
+            patch.object(self.main, "_load_latest_daily_feed_episode", return_value={"episode_type": "standard"}),
+            patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
+            patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
+            patch.object(self.main, "_summarize", side_effect=fake_summarize),
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            result = self.main._build_daily_feed_episode(
+                "user123",
+                user_ref.data,
+                now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(result["episode_type"], "standard")
+        self.assertEqual(result["generation_meta"]["recent_notes_available"], False)
+        self.assertIn("reflection_history", result["context_sources_used"])
+        self.assertEqual(len(captured_prompts), 1)
+        self.assertIn("none captured in the last 7 days", captured_prompts[0])
+        self.assertIn("No reflection was captured recently", captured_prompts[0])
+
+    def test_no_reflections_at_all_still_generate_an_episode_from_tasks(self):
+        """With no notes whatsoever the brief is built from the open tasks and
+        the present-day anchor, in the deterministic fallback as well."""
+        user_ref = FakeUserRef({
+            "email": "eitanfire@gmail.com",
+            "daily_feed_timezone": "America/Denver",
+            "preferred_name": "Jordan",
+        })
+
+        class EpisodeRef:
+            def __init__(self):
+                self.saved = {}
+
+            def get(self):
+                if self.saved:
+                    return FakeDoc(self.saved, True, "2026-06-24")
+                return FakeDoc({}, False, "2026-06-24")
+
+            def set(self, payload, merge=False):
+                self.saved.update(payload)
+
+        episode_ref = EpisodeRef()
+        today = datetime(2026, 6, 24, 6, 0, tzinfo=timezone.utc).date()
+        ranked_tasks = self.main._rank_overview_tasks([
+            {"id": "t1", "title": "Send the field trip forms", "due": "2026-06-24T00:00:00.000Z", "status": "needsAction"},
+            {"id": "t2", "title": "Draft the parent newsletter", "due": "2026-06-26T00:00:00.000Z", "status": "needsAction"},
+            {"id": "t3", "title": "Reorganize the supply closet", "status": "needsAction"},
+        ], today)
+
+        with (
+            patch.dict(self.main.os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False),
+            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
+            patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[]),
+            patch.object(self.main, "_load_overview_tasks", return_value=(ranked_tasks, "")),
+            patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
+            patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
+            patch.object(self.main, "_summarize", side_effect=RuntimeError("model down")),
+            patch.object(self.main, "_log_usage_event"),
+        ):
+            result = self.main._build_daily_feed_episode(
+                "user123",
+                user_ref.data,
+                now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(result["episode_type"], "fallback")
+        self.assertIn("today_overview", result["segments_used"])
+        self.assertIn("Send the field trip forms", result["script_segments"]["today_overview"])
+        self.assertIn("Send the field trip forms", result["script_segments"]["practical_briefing"])
+        self.assertTrue(result["script_segments"]["reflective_grounding"])
+        self.assertIn("tasks", result["context_sources_used"])
+        self.assertNotIn("reflection_history", result["context_sources_used"])
+        self.assertEqual(result["script_meta"]["has_continuity_anchor"], True)
+        self.assertEqual(result["generation_meta"]["recent_notes_available"], False)
+        self.assertIn("Send the field trip forms", result["title"])
+
+    def test_no_reflections_and_no_tasks_still_generate_an_episode(self):
         user_ref = FakeUserRef({"email": "eitanfire@gmail.com", "daily_feed_timezone": "America/Denver"})
 
         class EpisodeRef:
@@ -784,13 +903,14 @@ class DailyFeedSliceTests(unittest.TestCase):
         episode_ref = EpisodeRef()
 
         with (
+            patch.dict(self.main.os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False),
             patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
             patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
-            patch.object(self.main, "_load_recent_feed_notes", return_value=[
-                {"title": "Old reflection", "summary": "Stale", "insight": "Old", "created_at": "2026-06-01T10:00:00Z"}
-            ]),
-            patch.object(self.main, "_load_latest_daily_feed_episode", return_value={"episode_type": "standard"}),
+            patch.object(self.main, "_load_recent_feed_notes", return_value=[]),
+            patch.object(self.main, "_load_overview_tasks", return_value=([], "no_open_tasks")),
             patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),
+            patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
+            patch.object(self.main, "_summarize", side_effect=RuntimeError("model down")),
             patch.object(self.main, "_log_usage_event"),
         ):
             result = self.main._build_daily_feed_episode(
@@ -799,32 +919,14 @@ class DailyFeedSliceTests(unittest.TestCase):
                 now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
             )
 
-        self.assertEqual(result["episode_type"], "silence_stub")
-        self.assertEqual(result["title"], self.main.SILENCE_STUB_TITLE)
+        self.assertEqual(result["episode_type"], "fallback")
+        self.assertNotIn("today_overview", result["segments_used"])
+        self.assertIn("opening", result["segments_used"])
+        self.assertEqual(result["script_meta"]["has_continuity_anchor"], True)
+        self.assertEqual(result["context_sources_used"], [])
+        self.assertNotIn("recent reflection", result["title"])
 
-    def test_stale_notes_stay_silent_when_last_episode_was_already_a_stub(self):
-        user_ref = FakeUserRef({"email": "eitanfire@gmail.com", "daily_feed_timezone": "America/Denver"})
-
-        class EpisodeRef:
-            def get(self):
-                return FakeDoc({}, False, "2026-06-24")
-
-        with (
-            patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
-            patch.object(self.main, "_daily_feed_episode_ref", return_value=EpisodeRef()),
-            patch.object(self.main, "_load_recent_feed_notes", return_value=[
-                {"title": "Old reflection", "summary": "Stale", "insight": "Old", "created_at": "2026-06-01T10:00:00Z"}
-            ]),
-            patch.object(self.main, "_load_latest_daily_feed_episode", return_value={"episode_type": "silence_stub"}),
-        ):
-            with self.assertRaises(self.main._DailyFeedSilenceSkip):
-                self.main._build_daily_feed_episode(
-                    "user123",
-                    user_ref.data,
-                    now_utc=datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc),
-                )
-
-    def test_daily_feed_worker_treats_silence_skip_as_non_error(self):
+    def test_daily_feed_worker_builds_an_episode_on_a_quiet_day(self):
         user_doc = FakeDoc({
             "daily_feed_timezone": "America/Denver",
             "daily_feed_publish_hour_local": 0,
@@ -853,15 +955,15 @@ class DailyFeedSliceTests(unittest.TestCase):
         with (
             patch.object(self.main, "_get_db", return_value=FakeSchedDB()),
             patch.object(self.main, "_ensure_daily_feed_config", side_effect=lambda uid, data: data),
-            patch.object(self.main, "_build_daily_feed_episode", side_effect=self.main._DailyFeedSilenceSkip("quiet")),
+            patch.object(self.main, "_build_daily_feed_episode", return_value={"id": "2026-06-24"}) as build,
         ):
             # Call the undecorated function directly -- the scheduler_fn.on_schedule
             # wrapper expects a real HTTP request object to translate into a
             # ScheduledEvent, which isn't what this test is exercising.
-            # Should not raise, and should not attempt to write an error doc
-            # (there is no writable user ref mocked here, so any attempt to
-            # call .set() on the real Firestore client would blow up loudly).
             self.main.daily_feed_worker.__wrapped__(None)
+
+        build.assert_called_once()
+        self.assertEqual(build.call_args.args[0], "user123")
 
     def test_sparse_bridged_note_still_produces_continuity_anchor_and_brief(self):
         bridged_note = {
