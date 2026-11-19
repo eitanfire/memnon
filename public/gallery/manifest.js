@@ -34,6 +34,24 @@ window.GALLERY = {
           "source": "public/today.html?mock=grounded&brief=before",
           "commit": "28b83e6",
           "path": "projects/today/2026-11-14-grounded-profile-brief-before/index.html"
+        },
+        {
+          "id": "2026-09-13-before-the-oct-4-cleanup",
+          "date": "2026-09-13",
+          "label": "Before the Oct 4 cleanup",
+          "note": "Last version before the dead tasks card was removed and the brief collapsed to four states.",
+          "source": "public/today.html?mock=complete&brief=ready",
+          "commit": "e2aafe9",
+          "path": "projects/today/2026-09-13-before-the-oct-4-cleanup/index.html"
+        },
+        {
+          "id": "2026-10-04-oct-4-redesign",
+          "date": "2026-10-04",
+          "label": "Oct 4 redesign",
+          "note": "Tokens, one warm accent, a recording state, four brief states, standing-context placeholder.",
+          "source": "public/today.html?mock=complete&brief=ready",
+          "commit": "bd6fa7c",
+          "path": "projects/today/2026-10-04-oct-4-redesign/index.html"
         }
       ]
     },

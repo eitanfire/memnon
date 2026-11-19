@@ -1,0 +1,43 @@
+name: Design Gallery Reminder
+
+# Non-blocking: if a PR changes a public/ page or stylesheet but adds no
+# gallery version, leave a warning so the author decides whether the change
+# was significant enough to freeze (see AGENTS.md). Never fails the build.
+on:
+  pull_request:
+    paths:
+      - 'public/*.html'
+      - 'public/*.css'
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for gallery versions
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          design=$(echo "$changed" | grep -E '^public/[^/]+\.(html|css)$' | grep -v -E '^public/(privacy|terms|research)\.html$' || true)
+          if [ -z "$design" ]; then
+            echo "No gallery-tracked design files changed."
+            exit 0
+          fi
+          if echo "$changed" | grep -q '^public/gallery/manifest.js$'; then
+            echo "Design files changed and the gallery was updated."
+            exit 0
+          fi
+          files=$(echo "$design" | paste -sd, -)
+          echo "::warning title=No design gallery version::This PR changes $files but adds no gallery version. If the change is significant (see AGENTS.md), run scripts/freeze_design.py."
+          {
+            echo "### Design gallery"
+            echo "Changed: \`$files\`. No new version in \`public/gallery/manifest.js\`."
+            echo
+            echo "Fine for small fixes. For a significant visual change, freeze before/after versions (AGENTS.md)."
+          } >> "$GITHUB_STEP_SUMMARY"

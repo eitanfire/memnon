@@ -175,7 +175,7 @@ Freeze a page (rendered in headless Chrome, so `?mock=` / `?brief=` preview stat
 python3 scripts/freeze_design.py today.html --project today --label "Brief ready" --query "mock=complete&brief=ready" --note "What changed"
 ```
 
-This writes `public/gallery/projects/<project>/<date-slug>/index.html`, copies images into the shared, content-hashed `public/gallery/assets/`, strips all scripts, and appends the version to `public/gallery/manifest.js`. Never edit a frozen version; freeze a new one. To preview locally: `python3 -m http.server 5178 --directory public`, then open `http://127.0.0.1:5178/gallery/`.
+This writes `public/gallery/projects/<project>/<date-slug>/index.html`, copies images into the shared, content-hashed `public/gallery/assets/`, strips all scripts, and appends the version to `public/gallery/manifest.js`. Never edit a frozen version; freeze a new one. Add `--ref main` (or any commit) to freeze a page as it was at that commit, e.g. a "before" version or a past redesign. `python3 scripts/design_gallery_status.py` shows which projects are behind their live page. When to freeze is spelled out in `AGENTS.md`. To preview locally: `python3 -m http.server 5178 --directory public`, then open `http://127.0.0.1:5178/gallery/`.
 
 ## Installation
 

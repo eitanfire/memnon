@@ -46,6 +46,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = REPO_ROOT / "public"
 GALLERY = PUBLIC / "gallery"
+# Where pages and assets are read from: public/ in the working tree, or an
+# exported copy of public/ at --ref. The gallery is always written to GALLERY.
+SOURCE = PUBLIC
 MANIFEST = GALLERY / "manifest.js"
 ASSET_STORE = GALLERY / "assets"
 MANIFEST_PREFIX = "window.GALLERY = "
@@ -80,7 +83,7 @@ class CleanUrlHandler(http.server.SimpleHTTPRequestHandler):
 
 
 def serve_public():
-    handler = functools.partial(CleanUrlHandler, directory=str(PUBLIC))
+    handler = functools.partial(CleanUrlHandler, directory=str(SOURCE))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
@@ -126,8 +129,8 @@ def local_file(ref: str) -> Path | None:
     if not ref.startswith("/") or ref.startswith("//"):
         return None
     path = ref.split("#", 1)[0].split("?", 1)[0]
-    candidate = (PUBLIC / path.lstrip("/")).resolve()
-    if PUBLIC.resolve() not in candidate.parents or not candidate.is_file():
+    candidate = (SOURCE / path.lstrip("/")).resolve()
+    if SOURCE.resolve() not in candidate.parents or not candidate.is_file():
         return None
     return candidate
 
@@ -229,14 +232,37 @@ def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "version"
 
 
-def git_commit() -> str:
+def git(*args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+
+def describe_source(ref: str | None) -> str:
+    """Short commit id; marks working-tree freezes that include uncommitted edits."""
     try:
-        return subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=REPO_ROOT, capture_output=True, text=True, check=True,
-        ).stdout.strip()
+        if ref:
+            return git("rev-parse", "--short", ref)
+        commit = git("rev-parse", "--short", "HEAD")
+        dirty = [
+            line for line in git("status", "--porcelain", "--", "public").splitlines()
+            if "public/gallery/" not in line
+        ]
+        return f"{commit}+uncommitted" if dirty else commit
     except Exception:
         return ""
+
+
+def export_ref(ref: str, dest: Path) -> Path:
+    """Write public/ as it was at <ref> into dest and return that public/ dir."""
+    try:
+        archive = subprocess.run(
+            ["git", "archive", ref, "public"], cwd=REPO_ROOT, capture_output=True, check=True,
+        ).stdout
+    except subprocess.CalledProcessError as exc:
+        sys.exit(f"git archive {ref} failed: {exc.stderr.decode()[-500:]}")
+    subprocess.run(["tar", "-x", "-C", str(dest)], input=archive, check=True)
+    return dest / "public"
 
 
 # ---------------------------------------------------------------- main
@@ -250,14 +276,25 @@ def main() -> None:
     parser.add_argument("--query", default="", help="Query string, e.g. mock=complete&brief=ready")
     parser.add_argument("--project-name", help="Display name when creating a new project")
     parser.add_argument("--project-description", default="", help="Description for a new project")
-    parser.add_argument("--date", default=dt.date.today().isoformat())
+    parser.add_argument("--ref", help="Freeze the page as it was at this git ref (e.g. main, a1b2c3d) instead of the working tree")
+    parser.add_argument("--date", help="Version date (default: today, or the commit date with --ref)")
     parser.add_argument("--slug", help="Override the version folder slug")
     parser.add_argument("--wait-ms", type=int, default=8000, help="Virtual time for JS to settle")
     args = parser.parse_args()
 
+    global SOURCE
+    with tempfile.TemporaryDirectory() as export_dir:
+        if args.ref:
+            SOURCE = export_ref(args.ref, Path(export_dir))
+            args.date = args.date or git("log", "-1", "--format=%cs", args.ref)
+        args.date = args.date or dt.date.today().isoformat()
+        freeze(args)
+
+
+def freeze(args: argparse.Namespace) -> None:
     page = args.page.lstrip("/")
-    if not (PUBLIC / page).is_file():
-        sys.exit(f"No such page: public/{page}")
+    if not (SOURCE / page).is_file():
+        sys.exit(f"No such page: public/{page}" + (f" at {args.ref}" if args.ref else ""))
 
     version_id = f"{args.date}-{args.slug or slugify(args.label)}"
     out_dir = GALLERY / "projects" / args.project / version_id
@@ -274,7 +311,7 @@ def main() -> None:
         server.shutdown()
 
     out_dir.mkdir(parents=True)
-    commit = git_commit()
+    commit = describe_source(args.ref)
     html = inline_stylesheets(html)
     html = strip_scripts(html)
     html = copy_assets(html, out_dir)
