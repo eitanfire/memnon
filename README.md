@@ -165,6 +165,18 @@ http://127.0.0.1:8000/workflows
 
 ---
 
+## Design Gallery
+
+`public/gallery/` keeps a frozen, write-once copy of every UI version so versions can be flipped through or compared side by side. It deploys with the rest of `public/` and lives at `memnon.app/gallery/` (marked `noindex`, but anyone with the link can open it, so don't freeze anything with real student or interview data).
+
+Freeze a page (rendered in headless Chrome, so `?mock=` / `?brief=` preview states work):
+
+```bash
+python3 scripts/freeze_design.py today.html --project today --label "Brief ready" --query "mock=complete&brief=ready" --note "What changed"
+```
+
+This writes `public/gallery/projects/<project>/<date-slug>/index.html`, copies images into the shared, content-hashed `public/gallery/assets/`, strips all scripts, and appends the version to `public/gallery/manifest.js`. Never edit a frozen version; freeze a new one. Add `--ref main` (or any commit) to freeze a page as it was at that commit, e.g. a "before" version or a past redesign. `python3 scripts/design_gallery_status.py` shows which projects are behind their live page. When to freeze is spelled out in `AGENTS.md`. To preview locally: `python3 -m http.server 5178 --directory public`, then open `http://127.0.0.1:5178/gallery/`.
+
 ## Installation
 
 ### Option A — DMG (recommended for most users)

@@ -1,0 +1,2596 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta name="robots" content="noindex, nofollow" />
+<!-- Frozen from public/today.html?preview=1&mock=complete&brief=ready at commit 28b83e6 on 2026-11-14. Do not edit. -->
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memnon Today</title>
+  <style data-frozen-from="/style.css">
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f8f7f4;
+  color: #1a1a1a;
+  min-height: 100vh;
+}
+
+body.setup-page,
+body.dashboard-page,
+body.landing-page {
+  background:
+    radial-gradient(circle at top left, rgba(245, 224, 187, 0.55), rgba(245, 224, 187, 0) 34%),
+    radial-gradient(circle at top right, rgba(225, 209, 180, 0.36), rgba(225, 209, 180, 0) 28%),
+    linear-gradient(180deg, #f7f1e6 0%, #f6f4ef 42%, #f8f7f4 100%);
+}
+
+nav {
+  background: #fff;
+  border-bottom: 1px solid #e8e6e0;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-brand {
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-mark,
+.inline-mark {
+  display: inline-block;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.brand-mark {
+  width: 48px;
+  height: 48px;
+}
+.inline-mark {
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: middle;
+}
+.nav-right  { display: flex; align-items: center; gap: 12px; font-size: 0.875rem; }
+
+.memnon-lockup { display: inline-flex; align-items: center; gap: 0.32em; font-size: 19px; }
+.memnon-lockup img { height: 1.55em; width: auto; display: block; }
+.memnon-wordmark {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600; color: #5C4327;
+  letter-spacing: -0.012em; line-height: 1;
+}
+
+.container { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+
+.card {
+  background: #fff;
+  border: 1px solid #e8e6e0;
+  border-radius: 12px;
+  padding: 28px;
+  margin-bottom: 20px;
+}
+
+h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 8px; }
+h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 14px; }
+p  { line-height: 1.6; color: #444; }
+
+.muted { color: #888; font-size: 0.875rem; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: 8px;
+  font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; border: none; text-decoration: none;
+  transition: background 0.15s;
+}
+.btn-primary  { background: #2563eb; color: #fff; }
+.btn-primary:hover  { background: #1d4ed8; }
+.btn-outline  { background: transparent; color: #555; border: 1px solid #ddd; }
+.btn-outline:hover  { background: #f3f4f6; }
+.btn-google   { background: #fff; color: #444; border: 1px solid #ddd; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.btn-google:hover   { background: #f8f9fa; }
+.btn-danger  { background: #dc2626; color: #fff; }
+.btn-danger:hover  { background: #b91c1c; }
+
+/* Disabled state was previously invisible -- a disabled button rendered
+   identically to an active one (full color, hover still worked visually),
+   the same "looks wired but isn't" gap across every .btn variant and every
+   JS-driven disabled state on the page (capture submit, daily-brief actions,
+   etc.), not just one button. Uniform opacity (the first fix, 2026-08-08) was
+   itself a contrast failure -- ~2.2:1 for both the disabled-primary and
+   disabled-outline cases against this page's actual card background, under
+   WCAG's 3:1 minimum for UI components. Replaced with explicit disabled
+   colors chosen to clear 4.5:1 against that background. */
+.btn:disabled,
+.btn[disabled] {
+  cursor: not-allowed;
+  pointer-events: none;
+  background: #6b7280;
+  color: #fff;
+  border-color: #6b7280;
+}
+.btn-outline:disabled,
+.btn-outline[disabled] {
+  background: transparent;
+  color: #6b7280;
+  border-color: #d1d5db;
+}
+
+label { display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem; }
+
+input[type="text"], select {
+  width: 100%; padding: 10px 14px;
+  border: 1px solid #ddd; border-radius: 8px;
+  font-size: 0.9rem; background: #fff; color: #1a1a1a;
+}
+input[type="text"]:focus, select:focus { outline: none; border-color: #2563eb; }
+
+.lane-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0; }
+
+.lane-card {
+  border: 2px solid #e8e6e0; border-radius: 10px; padding: 16px;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.lane-card:hover  { border-color: #2563eb; background: #eff6ff; }
+.lane-card.selected { border-color: #2563eb; background: #eff6ff; }
+.lane-card input[type="radio"] { display: none; }
+.lane-card-icon  { font-size: 1.5rem; margin-bottom: 8px; }
+.lane-card-title { font-weight: 600; margin-bottom: 4px; }
+.lane-card-desc  { font-size: 0.8rem; color: #666; line-height: 1.4; }
+
+.step { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #2563eb; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+}
+.step-title { font-weight: 600; margin-bottom: 4px; }
+.step-desc  { font-size: 0.875rem; color: #555; line-height: 1.5; }
+
+.tag {
+  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; background: #eff6ff; color: #2563eb;
+}
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; margin-right: 6px;
+}
+.status-dot.green { background: #22c55e; }
+
+body.setup-page nav,
+body.dashboard-page nav,
+body.landing-page nav {
+  background: rgba(255, 252, 247, 0.88);
+  backdrop-filter: blur(14px);
+  border-bottom-color: rgba(210, 196, 173, 0.55);
+  box-shadow: 0 10px 22px rgba(103, 81, 49, 0.06);
+}
+
+body.setup-page .container,
+body.dashboard-page .container,
+body.landing-page .container {
+  max-width: 980px;
+  padding: 24px 18px 64px;
+}
+
+body.setup-page .card,
+body.dashboard-page .card,
+body.landing-page .card {
+  border-radius: 24px;
+  border: 1px solid rgba(210, 196, 173, 0.76);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 249, 0.98) 0%, rgba(255, 251, 244, 0.96) 100%);
+  box-shadow:
+    0 22px 44px rgba(91, 66, 33, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 28px 24px;
+  border: 1px solid rgba(204, 188, 163, 0.72);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(245, 223, 177, 0.72), rgba(245, 223, 177, 0) 36%),
+    linear-gradient(180deg, rgba(254, 250, 241, 0.98) 0%, rgba(246, 240, 228, 0.96) 100%);
+  box-shadow:
+    0 24px 48px rgba(84, 61, 33, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  margin-bottom: 22px;
+}
+
+.page-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -50px -70px auto;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(205, 174, 126, 0.18), rgba(205, 174, 126, 0));
+  pointer-events: none;
+}
+
+.page-hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #7b6445;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.page-hero-copy {
+  max-width: 54ch;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: #665849;
+}
+
+
+.page-actions {
+  position: sticky;
+  bottom: 14px;
+  z-index: 20;
+  padding: 12px;
+  border: 1px solid rgba(208, 193, 171, 0.7);
+  border-radius: 22px;
+  background: rgba(255, 252, 247, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 16px 32px rgba(85, 62, 31, 0.1);
+}
+
+body.setup-page .btn,
+body.dashboard-page .btn,
+body.landing-page .btn {
+  border-radius: 12px;
+}
+
+body.setup-page .btn-outline,
+body.dashboard-page .btn-outline,
+body.landing-page .btn-outline {
+  border-color: rgba(204, 188, 163, 0.9);
+  color: #5d5448;
+  background: rgba(255, 252, 248, 0.9);
+}
+
+body.setup-page .btn-outline:hover,
+body.dashboard-page .btn-outline:hover,
+body.landing-page .btn-outline:hover {
+  background: #f7f1e6;
+}
+
+.setup-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.setup-page .setup-feature-card {
+  padding-top: 24px;
+}
+
+.setup-page .setup-secondary-card {
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.98) 0%, rgba(252, 248, 241, 0.96) 100%);
+}
+
+.dashboard-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 24px;
+}
+
+.dashboard-hero .welcome-mark-link {
+  justify-self: end;
+}
+
+.dashboard-hero-copy p {
+  margin-top: 4px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #625646;
+}
+
+.dashboard-secondary-card {
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.98) 0%, rgba(250, 246, 238, 0.96) 100%);
+}
+
+@media (max-width: 760px) {
+  body.setup-page .container,
+  body.dashboard-page .container {
+    padding: 20px 16px 86px;
+  }
+
+  .page-hero {
+    padding: 20px 18px;
+    border-radius: 24px;
+  }
+
+  .page-hero-copy {
+    font-size: 0.88rem;
+  }
+
+  .page-actions {
+    bottom: 10px;
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard-hero {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+
+  .dashboard-hero .welcome-mark-link {
+    justify-self: start;
+  }
+}
+
+</style>
+  <style data-frozen-from="/workflows.css">
+body.workflows-page {
+  background: #f6f3ee;
+  color: #181512;
+}
+
+.workflows-shell {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 16px 20px 72px;
+}
+
+/* Today/Core consolidation: the capture surface is structurally secondary to
+   Today's orientation content, not a co-equal panel. A visible section break
+   (background shift + top border) makes that scroll-depth demotion legible
+   instead of the merged page reading as one undifferentiated feed. */
+.workflows-section-secondary {
+  background: #f6f3ee;
+  border-top: 1px solid #e4ded3;
+  margin-top: 8px;
+  padding-top: 40px;
+}
+
+.workflows-header h1 {
+  margin: 0 0 6px;
+  font-size: clamp(2rem, 4vw, 2.4rem);
+  line-height: 1.08;
+}
+
+.workflows-subhead {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 1.1rem;
+}
+
+.workflows-subhead-secondary {
+  margin: 2px 0 0;
+  color: #81766f;
+  font-size: 1.1rem;
+}
+
+.workflows-subhead-tertiary {
+  margin: 10px 0 0;
+}
+
+.workflows-saved-link {
+  color: #5c4037;
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.workflows-saved-link:hover {
+  text-decoration: underline;
+}
+
+.workflows-debug-marker,
+.workflows-debug-state {
+  margin-top: 12px;
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, monospace;
+}
+
+.workflows-debug-marker {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  background: #fff4d6;
+  color: #6b4f00;
+  border: 1px solid #ead59b;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.workflows-debug-state {
+  padding: 10px 12px;
+  background: var(--paper-2);
+  border: 1px solid #ddd4ca;
+  color: #4c453e;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.workflows-shell [hidden] {
+  display: none !important;
+}
+
+.workflows-card {
+  display: grid;
+  gap: 0;
+  margin-top: 26px;
+  background: #fffdfb;
+  border: 1px solid #ddd4ca;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(56, 41, 27, 0.04);
+}
+
+.workflows-capture-surface {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  min-height: 220px;
+  padding: 38px 24px 28px;
+  border-bottom: 1px solid #e7dfd5;
+}
+
+.workflows-record-trigger {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.workflows-record-badge {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.workflows-record-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+.workflows-record-label {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.workflows-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.workflows-mode-link {
+  border: 1px solid #d2c8be;
+  border-radius: 10px;
+  padding: 8px 16px;
+  background: #fff;
+  color: #181512;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workflows-mode-divider {
+  color: #9b8f87;
+  font-size: 1rem;
+}
+
+.workflows-paste-panel {
+  width: min(100%, 460px);
+}
+
+.workflows-file-selection {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #faf6f1;
+  border: 1px solid #ece2d6;
+}
+
+.workflows-file-selection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workflows-file-selection-name,
+.workflows-file-selection-copy {
+  margin: 0;
+}
+
+.workflows-file-selection-name {
+  color: #2f2924;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.workflows-file-selection-copy {
+  color: #6a635d;
+  font-size: 0.9rem;
+}
+
+.workflows-paste-panel textarea,
+.workflows-footer-row input {
+  width: 100%;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  padding: 13px 14px;
+  font: inherit;
+  background: var(--paper-2);
+  color: #181512;
+}
+
+.workflows-paste-panel textarea {
+  resize: vertical;
+  min-height: 116px;
+}
+
+.workflows-footer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 12px;
+}
+
+.workflows-footer-row .btn {
+  min-width: 112px;
+}
+
+.workflows-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.workflows-status {
+  min-height: 1.2rem;
+  padding: 0 14px 10px;
+  color: #7a6f67;
+  font-size: 0.92rem;
+}
+
+.workflows-status.is-error {
+  color: var(--warn);
+}
+
+.workflows-status.is-working {
+  color: #5c4037;
+}
+
+.workflows-auth-prompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 14px 14px;
+  color: #7a6f67;
+  font-size: 0.86rem;
+}
+
+.workflows-auth-copy {
+  margin: 0;
+}
+
+.workflows-auth-link {
+  color: #5c4037;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.workflows-auth-link:hover {
+  text-decoration: underline;
+}
+
+.workflows-result {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.workflows-artifact-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px 22px;
+}
+
+.workflows-artifact-card h2,
+.workflows-artifact-card h3,
+.workflows-artifact-card p {
+  margin: 0;
+}
+
+.workflows-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workflows-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #efe7db;
+  color: #5f483c;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.workflows-status-pill.is-saved {
+  background: #ece7dd;
+  color: var(--ink-2);
+}
+
+.workflows-status-pill.is-ready {
+  background: #ece7ff;
+  color: #514099;
+}
+
+.workflows-status-pill.is-working {
+  background: #f0ebe4;
+  color: #6a5748;
+}
+
+.workflows-status-pill.is-attention {
+  background: #fdeceb;
+  color: #8a2f2f;
+}
+
+.workflows-interpretation {
+  color: #5d6470;
+}
+
+.workflows-metadata-line {
+  color: #7a6f67;
+  font-size: 0.92rem;
+}
+
+.workflows-framing {
+  color: #4f463f;
+}
+
+.workflows-body {
+  display: grid;
+  gap: 14px;
+  color: #111827;
+}
+
+.workflows-section-block {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #faf6f1;
+  border: 1px solid #ece2d6;
+}
+
+.workflows-source-excerpt {
+  display: grid;
+  gap: 3px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid #e4d8c9;
+}
+
+.workflows-source-excerpt p:last-child {
+  margin: 0;
+  color: #7a736a;
+  font-size: 0.88rem;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.workflows-summary {
+  display: grid;
+  gap: 8px;
+  color: #201c17;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.workflows-summary p {
+  margin: 0;
+}
+
+.workflows-summary ul {
+  margin: 0;
+  padding-left: 1.25em;
+  display: grid;
+  gap: 4px;
+}
+
+.workflows-related-thread-block {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8f4ee;
+  border: 1px solid #e8ddd0;
+}
+
+.workflows-related-thread-copy {
+  margin: 0;
+  color: #2f2924;
+}
+
+.workflows-related-thread-confirmed {
+  margin: 0;
+  color: #5b5149;
+  font-size: 0.95rem;
+}
+
+.workflows-feedback-block {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.workflows-contextual-suggestions {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8f4ee;
+  border: 1px solid #e8ddd0;
+}
+
+.workflows-contextual-suggestions-label {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.workflows-contextual-suggestions-list {
+  display: grid;
+  gap: 10px;
+}
+
+.workflows-contextual-suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workflows-contextual-suggestion-copy {
+  margin: 0;
+  color: #2f2924;
+  flex: 1 1 280px;
+}
+
+.workflows-feedback-label {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.workflows-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workflows-feedback-button.is-selected,
+.workflows-feedback-button[aria-pressed="true"] {
+  border-color: #8b7b67;
+  background: #f3ede5;
+  color: #3f352d;
+}
+
+.workflows-feedback-actions--compact {
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.workflows-feedback-actions--compact .workflows-feedback-button {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.workflows-feedback-note-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.workflows-feedback-note-form input {
+  width: 100%;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: var(--paper-2);
+  color: #181512;
+}
+
+.workflows-feedback-note-form--compact {
+  margin-top: 6px;
+}
+
+.workflows-feedback-note-form--compact input {
+  padding: 5px 9px;
+  font-size: 0.82rem;
+}
+
+.workflows-feedback-note-form--compact .btn {
+  padding: 5px 10px;
+  font-size: 0.82rem;
+}
+
+.workflows-related-thread-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workflows-related-thread-escape[hidden] {
+  display: none !important;
+}
+
+.workflows-related-thread-escape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workflows-thread-chooser {
+  display: grid;
+  gap: 8px;
+}
+
+.workflows-thread-option {
+  border: 1px solid #d7cab9;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fffdf9;
+  color: #4d4137;
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.workflows-thread-option:hover {
+  background: #f6efe5;
+}
+
+.workflows-thread-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.workflows-thread-create-form input {
+  width: 100%;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  background: var(--paper-2);
+  color: #181512;
+}
+
+.workflows-section-block h3 {
+  color: var(--ink-2);
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.workflows-source-label {
+  margin: 0;
+  color: #a39a8d;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.workflows-theme-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflows-theme-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f3ede5;
+  color: var(--ink-2);
+  font-size: 0.88rem;
+}
+
+.workflows-saved-results-list {
+  display: grid;
+  gap: 12px;
+}
+
+.workflows-saved-results-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #e4d8c9;
+  border-radius: 16px;
+  background: var(--paper-2);
+}
+
+.workflows-saved-results-item-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.workflows-saved-results-item h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.workflows-dev-data-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f0ece5;
+  color: #8a8072;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.workflows-duplicate-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f4e8d8;
+  color: #9a6b1f;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.workflows-needs-score-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #dcebf4;
+  color: #1f6a94;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.workflows-saved-results-meta {
+  margin: 0;
+  color: #6a635d;
+  font-size: 0.9rem;
+}
+
+.workflows-saved-results-link {
+  color: #5c4037;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.workflows-saved-results-link:hover {
+  text-decoration: underline;
+}
+
+.workflows-empty-state {
+  margin: 0;
+}
+
+.workflows-loading-card {
+  gap: 16px;
+}
+
+.workflows-loading-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.workflows-loading-lines span {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #efe7db 0%, #f8f4ee 50%, #efe7db 100%);
+  background-size: 200% 100%;
+  animation: workflows-pulse 1.6s ease-in-out infinite;
+}
+
+.workflows-loading-lines span:last-child {
+  width: 72%;
+}
+
+@keyframes workflows-pulse {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.workflows-source-panel {
+  border: 1px solid #d6d3d1;
+  border-radius: 12px;
+  background: var(--paper-2);
+  padding: 12px 14px;
+}
+
+.workflows-source-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.workflows-source-panel pre {
+  margin: 12px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  color: #374151;
+}
+
+.workflows-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn-quiet {
+  border: 0;
+  background: transparent;
+  color: #6b5f52;
+  padding-inline: 0;
+}
+
+.btn-quiet:hover {
+  color: #3f352d;
+  background: transparent;
+}
+
+@media (max-width: 640px) {
+  .workflows-shell {
+    padding-inline: 14px;
+  }
+
+  .workflows-footer-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workflows-footer-row .btn {
+    width: 100%;
+  }
+
+  .workflows-auth-prompt {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+</style>
+  <style data-frozen-from="/today-polish.css">
+/* Today polish layer (2026-10-04). Seed: docs/product-notes/today-visual-polish-seed-2026-10-04.md
+   Scoped to body.dashboard-page (Today only). Loaded after style.css and workflows.css.
+   Rules from the burden thread: one warm accent; red only while recording; errors in warm
+   ink with a left rule; papyrus grain behind cards only; nothing new to scan or choose. */
+
+body.dashboard-page {
+  /* The twelve tokens */
+  --paper: #f8f7f4;
+  --paper-2: #fffdfa;
+  --ink: #1f1a15;
+  --ink-2: #5d5750;
+  --ink-3: #7b6546;
+  --rule: #e8e1d5;
+  --accent: #7a5a30;        /* 6.3:1 with white text; 5.9:1 as a focus ring on paper */
+  --accent-ink: #5c4327;    /* wordmark brown */
+  --record: #d73d3a;        /* recording only */
+  --ok: #2f6a45;
+  --warn: #7a3b1c;          /* errors: warm ink, 7.9:1 on paper */
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(60, 40, 20, 0.05), 0 12px 32px rgba(60, 40, 20, 0.07);
+
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  /* Papyrus grain: one tiny inline SVG noise tile, background only. Fixed size so it
+     reads the same at 390px as at 1440px; very low opacity so text contrast holds. */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.26 0 0 0 0 0.15 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E") repeat,
+    radial-gradient(circle at top left, rgba(245, 224, 187, 0.5), rgba(245, 224, 187, 0) 34%),
+    linear-gradient(180deg, #f7f1e6 0%, #f6f4ef 42%, var(--paper) 100%);
+  background-attachment: fixed, scroll, scroll;
+}
+
+/* ---------- Type scale: title, label, body, meta ---------- */
+body.dashboard-page {
+  --fs-title: clamp(2rem, 3vw, 2.75rem);
+  --fs-label: 0.78rem;
+  --fs-body: 0.95rem;
+  --fs-meta: 0.84rem;
+}
+
+body.dashboard-page h1 {
+  color: var(--ink);
+  font-size: var(--fs-title);
+  letter-spacing: -0.02em;
+}
+
+/* ---------- Nav ---------- */
+body.dashboard-page nav {
+  background: rgba(255, 253, 250, 0.82);
+  -webkit-backdrop-filter: saturate(1.2) blur(8px);
+  backdrop-filter: saturate(1.2) blur(8px);
+  border-bottom-color: var(--rule);
+}
+
+/* ---------- Focus: visible on every control, warm ---------- */
+body.dashboard-page :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+body.dashboard-page :is(input[type="text"], select, textarea):focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(122, 90, 48, 0.14);
+}
+
+/* ---------- One accent: the primary button ---------- */
+body.dashboard-page .btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+body.dashboard-page .btn-primary:hover {
+  background: var(--accent-ink);
+}
+
+/* ---------- Capture card ---------- */
+body.dashboard-page .dashboard-capture-card {
+  background: var(--paper-2);
+  border-color: var(--rule);
+  box-shadow: var(--shadow);
+}
+
+/* The record action is the center of the page */
+body.dashboard-page .workflows-record-badge {
+  width: 72px;
+  height: 72px;
+  background: var(--accent);
+  box-shadow: 0 8px 20px rgba(122, 90, 48, 0.28);
+  transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+body.dashboard-page .workflows-record-badge svg {
+  width: 24px;
+  height: 24px;
+}
+
+body.dashboard-page .workflows-record-trigger:hover .workflows-record-badge {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(122, 90, 48, 0.34);
+}
+
+body.dashboard-page .workflows-record-trigger:active .workflows-record-badge {
+  transform: translateY(0) scale(0.97);
+}
+
+body.dashboard-page .workflows-record-label {
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Recording: the only place red appears. The label carries "Recording · 0:12" alongside it. */
+body.dashboard-page .workflows-record-trigger[aria-pressed="true"] .workflows-record-badge {
+  background: var(--record);
+  box-shadow: 0 0 0 6px rgba(215, 61, 58, 0.16), 0 8px 20px rgba(215, 61, 58, 0.28);
+  animation: memnon-recording 1.6s ease-in-out infinite;
+}
+
+@keyframes memnon-recording {
+  0%, 100% { box-shadow: 0 0 0 6px rgba(215, 61, 58, 0.16), 0 8px 20px rgba(215, 61, 58, 0.28); }
+  50% { box-shadow: 0 0 0 11px rgba(215, 61, 58, 0.06), 0 8px 20px rgba(215, 61, 58, 0.28); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Falls back to solid red, never to nothing */
+  body.dashboard-page .workflows-record-trigger[aria-pressed="true"] .workflows-record-badge {
+    animation: none;
+  }
+  body.dashboard-page .workflows-record-badge {
+    transition: none;
+  }
+}
+
+/* Secondary capture paths read as secondary */
+body.dashboard-page :is(#upload-trigger, #show-paste) {
+  border-color: var(--rule);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+}
+
+body.dashboard-page #capture-submit:disabled {
+  background: #6b6156;    /* warm gray; white text 6.0:1 */
+  color: #fff;
+}
+
+/* ---------- Errors: warm ink plus a left rule (shape, not hue) ---------- */
+body.dashboard-page :is(.memnon-error, .workflows-status.is-error, .capture-text-status.is-error, .recording-player-empty.is-error) {
+  color: var(--warn);
+  font-weight: inherit;
+  border-left: 3px solid var(--warn);
+  padding-left: 10px;
+}
+
+body.dashboard-page .workflows-status.is-working {
+  color: var(--ink-2);
+}
+
+/* The upload banner used a blue inline style */
+body.dashboard-page #upload-status {
+  background: #f5efe3 !important;
+  color: var(--accent-ink) !important;
+  border: 1px solid var(--rule);
+}
+
+/* ---------- Quiet rows: one calm list ---------- */
+body.dashboard-page .capture-quiet-rows {
+  border-top-color: var(--rule);
+}
+
+body.dashboard-page .capture-quiet-rows > * + * {
+  margin-top: 10px;
+}
+
+body.dashboard-page .archive-quiet-link,
+body.dashboard-page .daily-brief-link-btn {
+  color: var(--ink-3);
+  text-decoration-color: rgba(123, 101, 70, 0.4);
+  text-underline-offset: 3px;
+}
+
+body.dashboard-page .archive-quiet-link:hover,
+body.dashboard-page .daily-brief-link-btn:hover {
+  color: var(--accent-ink);
+  text-decoration-color: currentColor;
+}
+
+body.dashboard-page .standing-context-line {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+}
+
+body.dashboard-page .standing-context-muted {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+body.dashboard-page .latest-result-details > summary,
+body.dashboard-page .daily-brief-disclosure > summary {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+/* Ready brief's voices line: its own meta-size line under the headline,
+   flush with the row like "How to listen". An indent to the title text
+   costs the 26px that two long names need at 390px. */
+body.dashboard-page .daily-brief-voices {
+  flex: 1 0 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+  white-space: normal; /* .archive-quiet-link is nowrap */
+  margin-top: -4px;
+  font-size: var(--fs-meta);
+}
+
+body.dashboard-page .daily-brief-voices[hidden] {
+  display: none;
+}
+
+/* Admin regenerate stays quiet: never the ready state's primary styling */
+body.dashboard-page #daily-brief-regenerate-btn {
+  background: transparent;
+  color: var(--ink-3);
+  border: 1px dashed var(--rule);
+  font-size: var(--fs-meta);
+}
+
+/* ---------- Recent notes: continuity, not a library ---------- */
+body.dashboard-page #recent-notes-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+body.dashboard-page .note-item {
+  border-color: var(--rule);
+}
+
+body.dashboard-page .note-thread-label {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 640px) {
+  body.dashboard-page nav {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  body.dashboard-page nav .nav-right {
+    gap: 8px;
+    min-width: 0;
+  }
+  /* The signed-in name / "Preview mode" label is what pushed the page sideways */
+  body.dashboard-page #nav-name {
+    display: none;
+  }
+  body.dashboard-page nav .btn {
+    padding: 6px 11px !important;
+  }
+  body.dashboard-page .welcome-mark-label {
+    display: none;
+  }
+  body.dashboard-page .workflows-record-badge {
+    width: 76px;
+    height: 76px;
+  }
+}
+
+/* Errors inside the capture surface keep their own gutter, clear of the card edge */
+body.dashboard-page .workflows-status.is-error {
+  margin-left: 14px;
+  margin-right: 14px;
+}
+
+/* Disabled primary controls: solid warm gray, never faded (contrast holds at 6.0:1) */
+body.dashboard-page .btn-primary:disabled,
+body.dashboard-page .btn-primary[aria-disabled="true"] {
+  background: #6b6156;
+  color: #fff;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+/* Placeholder for always-present slots: final height, no text, no layout jump */
+body.dashboard-page .memnon-placeholder {
+  display: block;
+  min-height: 1.45em;
+  max-width: 420px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #efe8dc 0%, #f6f1e8 50%, #efe8dc 100%);
+  background-size: 200% 100%;
+  animation: memnon-placeholder 1.4s ease-in-out infinite;
+}
+
+@keyframes memnon-placeholder {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.dashboard-page .memnon-placeholder { animation: none; }
+}
+
+</style>
+  <link rel="icon" type="image/svg+xml" href="../../../assets/memnon-icon-mini.2299d077ec.svg">
+  <link rel="icon" type="image/x-icon" href="../../../assets/favicon.9b39b44eac.ico">
+  
+  <meta name="theme-color" content="#f8f7f4">
+  <style>
+    .editorial-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+    .editorial-main {
+      min-width: 0;
+    }
+    .editorial-media {
+      position: relative;
+      overflow: hidden;
+      border-radius: 16px;
+      min-height: 240px;
+      border: 1px solid #e6dccd;
+      background: linear-gradient(180deg, #f7efe1, #e9ddc8);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+    .editorial-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .editorial-media-caption {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 250, 242, 0.9);
+      color: #5f4d37;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      box-shadow: 0 8px 18px rgba(68, 51, 28, 0.12);
+      backdrop-filter: blur(8px);
+    }
+    .editorial-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .editorial-copy {
+      color: #555;
+    }
+    .editorial-copy + .editorial-copy {
+      margin-top: 10px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .capture-archive-stack {
+      display: grid;
+      gap: 14px;
+    }
+    .dashboard-capture-card {
+      display: block;
+      padding: clamp(22px, 3vw, 34px);
+    }
+    .dashboard-capture-intro {
+      max-width: 760px;
+      margin: 0 auto 1.2rem;
+      text-align: center;
+    }
+    .dashboard-capture-title {
+      margin: 0;
+      color: var(--ink);
+      font-size: clamp(2rem, 3vw, 3.2rem);
+      font-weight: 600;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+    }
+    .dashboard-capture-description {
+      margin: 0.8rem auto 0;
+      max-width: 640px;
+      color: #5a5f6a;
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+    .capture-prompt-shell {
+      margin: 0 auto;
+      max-width: 920px;
+      padding: 1rem;
+      border-radius: 26px;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.82),
+        rgba(250, 247, 241, 0.96)
+      );
+      border: 1px solid rgba(184, 146, 88, 0.14);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.78),
+        0 18px 32px rgba(15, 23, 42, 0.08);
+    }
+    .capture-prompt-actions {
+      display: flex;
+      justify-content: center;
+    }
+    .capture-prompt-actions .capture-mode-btn {
+      min-height: 52px;
+      font-size: 0.95rem;
+    }
+    .dashboard-capture-secondary {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .dashboard-capture-secondary > * {
+      min-width: 0;
+    }
+    .summary-tile {
+      border: 1px solid var(--rule);
+      border-radius: 10px;
+      padding: 16px;
+      background: var(--paper-2);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+    .summary-tile.featured {
+      border-color: #d9c39b;
+      background:
+        radial-gradient(circle at top right, rgba(244, 223, 180, 0.35), rgba(244, 223, 180, 0) 42%),
+        linear-gradient(180deg, var(--paper-2) 0%, #f9f3e7 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.72),
+        0 14px 28px rgba(90, 68, 36, 0.08);
+    }
+    .summary-tile-kicker {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #847564;
+      margin-bottom: 8px;
+    }
+    .summary-tile-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .summary-tile-copy {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 12px;
+    }
+    .summary-tile--latest {
+      border-color: #d9c39b;
+      background:
+        radial-gradient(circle at top right, rgba(244, 223, 180, 0.35), rgba(244, 223, 180, 0) 42%),
+        linear-gradient(180deg, var(--paper-2) 0%, #f9f3e7 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.72),
+        0 14px 28px rgba(90, 68, 36, 0.08);
+    }
+    .summary-tile--archive {
+      padding-top: 14px;
+      padding-bottom: 14px;
+    }
+    .summary-tile--daily-brief {
+      margin-top: 14px;
+      border-color: #d9c39b;
+      background:
+        radial-gradient(circle at top right, rgba(233, 213, 171, 0.34), rgba(233, 213, 171, 0) 40%),
+        linear-gradient(180deg, var(--paper-2) 0%, #f8f1e3 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.74),
+        0 14px 28px rgba(90, 68, 36, 0.08);
+    }
+    /* Capture Restore (2026-08-07) / Simplified landing (2026-08-08): Capture
+       is merged into Today's own card boundary -- one container, not a
+       second bordered box underneath. That only works if the container
+       doesn't flatten internal hierarchy: the record control stays the
+       single largest, most dominant element on the page.
+       See docs/product-notes/today-capture-first-restore-2026-08-07.md. */
+    .dashboard-capture-card .workflows-shell {
+      padding: 0;
+    }
+
+    .capture-quiet-rows {
+      display: grid;
+      gap: 10px;
+      max-width: 620px;
+      margin: 22px auto 0;
+      padding-top: 18px;
+      border-top: 1px solid #efe9de;
+    }
+    .capture-quiet-row {
+      margin: 0;
+    }
+    .standing-context {
+      display: grid;
+      gap: 3px;
+    }
+    .standing-context-line {
+      margin: 0;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: #6b5940;
+    }
+    .standing-context-muted {
+      color: #97846a;
+    }
+    .latest-result-details {
+      margin: 0;
+    }
+    .latest-result-details > summary {
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--ink-3);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    /* The native marker was suppressed with nothing replacing it -- on touch
+       devices (no hover) there was zero visual signal these were tappable at
+       all. Rotating chevron gives an explicit affordance in both states. */
+    .latest-result-details > summary::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .latest-result-details[open] > summary::before {
+      transform: rotate(45deg);
+    }
+    .latest-result-details > summary::-webkit-details-marker {
+      display: none;
+    }
+    .latest-result-details[open] > summary {
+      margin-bottom: 10px;
+    }
+    .latest-result-details .recording-player-wrap {
+      padding-top: 4px;
+    }
+    .daily-brief-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.86rem;
+    }
+    .daily-brief-icon {
+      font-size: 1rem;
+    }
+    .daily-brief-title-inline {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #3f2f20;
+    }
+    /* Resets #daily-brief-enable to plain link styling for the "off, has
+       material" state -- paired with .archive-quiet-link for the actual
+       color/underline. Only a .btn in the "ready to hear" state should read
+       as a loud control; every other state is quiet or absent. */
+    .daily-brief-link-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      cursor: pointer;
+    }
+    .daily-brief-disclosure {
+      flex-basis: 100%;
+      margin-top: 8px;
+    }
+    .daily-brief-disclosure > summary {
+      cursor: pointer;
+      font-size: 0.76rem;
+      color: var(--ink-3);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+    }
+    .daily-brief-disclosure > summary::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .daily-brief-disclosure[open] > summary::before {
+      transform: rotate(45deg);
+    }
+    .daily-brief-disclosure > summary::-webkit-details-marker {
+      display: none;
+    }
+    .daily-brief-disclosure[open] > summary {
+      margin-bottom: 8px;
+    }
+    .archive-quiet-link {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--ink-3);
+      text-decoration: underline;
+      white-space: nowrap;
+    }
+    .daily-brief-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) auto;
+      gap: 16px;
+      align-items: start;
+    }
+    .daily-brief-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #3f2f20;
+    }
+    .daily-brief-copy {
+      font-size: 0.82rem;
+      color: #5f5548;
+      line-height: 1.58;
+      margin-bottom: 10px;
+      max-width: 700px;
+    }
+    .daily-brief-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .daily-brief-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      align-items: center;
+    }
+    .daily-brief-action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .daily-brief-url-wrap {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(216, 196, 158, 0.55);
+    }
+    .daily-brief-url-wrap[hidden] {
+      display: none !important;
+    }
+    .daily-brief-url-label {
+      display: block;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7c6a55;
+      margin-bottom: 8px;
+    }
+    .daily-brief-url-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .daily-brief-url-row input {
+      width: 100%;
+      min-width: 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #dbcdb8;
+      background: rgba(255, 252, 246, 0.95);
+      color: #4a3a28;
+      font: inherit;
+      font-size: 0.8rem;
+      box-sizing: border-box;
+    }
+    .daily-brief-url-row input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(184, 146, 88, 0.12);
+    }
+    .daily-brief-help {
+      margin-top: 8px;
+      font-size: 0.76rem;
+      color: #756a5e;
+      line-height: 1.5;
+    }
+    .daily-brief-apple-note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 251, 243, 0.92);
+      border: 1px solid rgba(220, 208, 186, 0.76);
+      font-size: 0.76rem;
+      color: #685a49;
+      line-height: 1.55;
+    }
+    .daily-brief-apple-note[hidden] {
+      display: none !important;
+    }
+    .daily-brief-status {
+      margin-top: 10px;
+      min-height: 1.2em;
+    }
+    .daily-brief-admin {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(216, 196, 158, 0.7);
+    }
+    .daily-brief-admin[hidden] {
+      display: none !important;
+    }
+    .daily-brief-admin-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8a7254;
+    }
+    .daily-brief-admin-copy {
+      font-size: 0.76rem;
+      color: #685a49;
+      line-height: 1.55;
+      margin-bottom: 10px;
+    }
+    .capture-header-copy {
+      min-width: 0;
+      flex: 1;
+    }
+    .capture-header-avatar {
+      flex-shrink: 0;
+      align-self: flex-start;
+      margin-top: 4px;
+    }
+    .capture-header-avatar .welcome-mark-frame {
+      width: 92px;
+      height: 92px;
+      padding: 8px;
+      border-radius: 22px;
+    }
+    .capture-header-avatar .welcome-mark-label {
+      font-size: 0.68rem;
+      margin-top: 4px;
+    }
+    .archive-link-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .archive-inline-note {
+      font-size: 0.79rem;
+      color: #6d6459;
+      line-height: 1.5;
+      margin-top: 10px;
+    }
+    .capture-mode-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .capture-mode-btn {
+      width: 100%;
+      justify-content: center;
+      font-size: 0.85rem;
+      padding: 8px 12px;
+    }
+    .capture-context-toggle {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #e8dece;
+      background: rgba(252, 247, 239, 0.86);
+    }
+    .capture-context-toggle label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .capture-context-toggle input {
+      margin-top: 2px;
+      accent-color: #2d5fe6;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+    .capture-context-toggle-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #4d3f2f;
+      line-height: 1.4;
+    }
+    .capture-context-toggle-copy {
+      font-size: 0.76rem;
+      color: #796d61;
+      line-height: 1.5;
+      margin-top: 2px;
+    }
+    .capture-text-status {
+      font-size: 0.76rem;
+      color: #7b705f;
+      line-height: 1.45;
+      min-height: 1.2em;
+    }
+    .capture-text-status.is-success {
+      color: #2f6a45;
+    }
+    .capture-text-status.is-error {
+      color: var(--warn);
+    }
+    .summary-note {
+      color: #555;
+      margin-bottom: 0;
+      margin-top: 16px;
+    }
+    .recording-player-wrap {
+      margin-top: 0;
+      padding: 14px;
+      border-top: none;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    }
+    .recording-player-wrap:first-of-type {
+      margin-top: 0;
+    }
+    .reflection-read-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #4a3a28;
+      line-height: 1.4;
+    }
+    .reflection-read-summary {
+      font-size: 0.81rem;
+      color: #5c5248;
+      line-height: 1.6;
+    }
+    .reflection-read-insight {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(250, 244, 235, 0.92);
+      border: 1px solid #ece1d2;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: #624f3d;
+    }
+    .reflection-read-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .reflection-read-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.2;
+      background: #f5efe3;
+      color: var(--ink-3);
+      border: 1px solid rgba(206, 188, 161, 0.66);
+    }
+    .recording-player-empty {
+      font-size: 0.78rem;
+      color: #8a857d;
+      line-height: 1.5;
+    }
+    .record-mark {
+      font-size: 1.2rem;
+      line-height: 1;
+      margin-right: 2px;
+    }
+    .welcome-mark-frame {
+      flex-shrink: 0;
+      width: 124px;
+      height: 124px;
+      padding: 10px;
+      border-radius: 28px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 28%, rgba(250, 233, 183, 0.96) 0 15%, rgba(250, 233, 183, 0.34) 16%, rgba(250, 233, 183, 0) 34%),
+        linear-gradient(180deg, #f1dfb7 0%, #e4c992 34%, #cfac73 68%, #a88660 100%);
+      border: 1px solid rgba(184, 147, 101, 0.58);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 249, 230, 0.78),
+        0 14px 28px rgba(93, 71, 42, 0.16);
+    }
+    .welcome-mark-frame.portrait-bg-sound-waves {
+      background:
+        radial-gradient(circle at 50% 28%, rgba(250, 233, 183, 0.96) 0 15%, rgba(250, 233, 183, 0.34) 16%, rgba(250, 233, 183, 0) 34%),
+        linear-gradient(180deg, #f1dfb7 0%, #e4c992 34%, #cfac73 68%, #a88660 100%);
+      border-color: rgba(184, 147, 101, 0.58);
+    }
+    .welcome-mark-frame.portrait-bg-king-memnon {
+      background:
+        linear-gradient(rgba(255, 250, 239, 0.22), rgba(255, 245, 229, 0.22)),
+        center center / cover no-repeat url("../../../assets/sunrise.7e66c16eb5.png");
+      border-color: rgba(191, 144, 86, 0.58);
+    }
+    .welcome-mark-frame.portrait-bg-trebulla {
+      background:
+        linear-gradient(rgba(250, 244, 235, 0.16), rgba(241, 234, 225, 0.16)),
+        center center / cover no-repeat url("../../../assets/starry_night.1349db8704.png");
+      border-color: rgba(80, 101, 153, 0.55);
+    }
+    .welcome-mark-link {
+      display: block;
+      color: inherit;
+      text-decoration: none;
+    }
+    .welcome-mark-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center center;
+      transform: scale(1);
+      transform-origin: center center;
+      display: block;
+      filter: drop-shadow(0 8px 16px rgba(94, 41, 20, 0.16));
+    }
+    .welcome-mark-frame img.is-bust-portrait {
+      object-fit: contain;
+    }
+    .welcome-mark-link:hover .welcome-mark-frame,
+    .welcome-mark-link:focus-visible .welcome-mark-frame {
+      transform: translateY(-1px);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 249, 230, 0.78),
+        0 18px 32px rgba(93, 71, 42, 0.22);
+    }
+    .welcome-mark-link:focus-visible {
+      outline: none;
+    }
+    .welcome-mark-label {
+      margin-top: 6px;
+      text-align: center;
+      font-size: 0.74rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #7c6a55;
+    }
+    .nav-portrait-link {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      color: inherit;
+      text-decoration: none;
+      margin-left: 4px;
+    }
+    .nav-portrait-link .welcome-mark-frame {
+      width: 58px;
+      height: 58px;
+      padding: 5px;
+      border-radius: 16px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 249, 230, 0.7),
+        0 10px 20px rgba(93, 71, 42, 0.14);
+    }
+    .nav-portrait-link .welcome-mark-label {
+      margin-top: 3px;
+      font-size: 0.58rem;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    @media (max-width: 700px) {
+      .editorial-card {
+        grid-template-columns: 1fr;
+      }
+      .editorial-media {
+        order: 2;
+        min-height: 200px;
+      }
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+      .capture-mode-grid {
+        grid-template-columns: 1fr;
+      }
+      .welcome-mark-frame {
+        width: 96px;
+        height: 96px;
+        padding: 8px;
+        border-radius: 22px;
+      }
+      .nav-portrait-link .welcome-mark-frame {
+        width: 44px;
+        height: 44px;
+        padding: 4px;
+        border-radius: 12px;
+      }
+      .nav-portrait-link .welcome-mark-label {
+        display: none;
+      }
+    }
+
+    .note-item {
+      border: 1px solid var(--rule);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      background: linear-gradient(180deg, var(--paper-2) 0%, #fff 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+    }
+    .note-item:last-child { margin-bottom: 0; }
+    .note-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .note-title {
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #2f271d;
+      line-height: 1.35;
+      margin: 0;
+    }
+    .note-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .note-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1;
+      background: #f5efe3;
+      color: var(--ink-3);
+      border: 1px solid rgba(206, 188, 161, 0.66);
+    }
+    .note-summary {
+      font-size: 0.82rem;
+      color: #555;
+      line-height: 1.58;
+      margin-bottom: 8px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    /* Quiet, non-interactive -- metadata on a card already in view, not a
+       call to action (unlike the retired continuity nudge). Shown only
+       when a thread is actually confirmed on the capture. */
+    .note-thread-label {
+      font-size: 0.76rem;
+      color: #8a7d6d;
+      line-height: 1.4;
+    }
+    .influenced-line {
+      font-size: 0.79rem;
+      color: #6d6459;
+      line-height: 1.45;
+    }
+    .influenced-line strong {
+      color: #51402f;
+      font-weight: 600;
+    }
+    .note-response-line {
+      margin-top: 8px;
+      font-size: 0.79rem;
+      color: #5f5448;
+      line-height: 1.5;
+      padding-top: 8px;
+      border-top: 1px solid #f1eee8;
+    }
+    .note-response-line strong {
+      color: #4a3a28;
+      font-weight: 600;
+    }
+    .influenced-by {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #f0eeec;
+    }
+    .influenced-toggle {
+      cursor: pointer;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--ink-3);
+      list-style: none;
+      user-select: none;
+    }
+    .influenced-toggle::-webkit-details-marker {
+      display: none;
+    }
+    .influenced-toggle::before {
+      content: "▸";
+      display: inline-block;
+      margin-right: 6px;
+      transition: transform 0.18s ease;
+    }
+    .influenced-by[open] .influenced-toggle::before {
+      transform: rotate(90deg);
+    }
+    .influenced-item {
+      display: flex; flex-direction: column; gap: 2px;
+      background: #fafafa; border: 1px solid #ebebeb; border-radius: 6px;
+      padding: 8px 12px; margin-top: 8px; font-size: 0.8rem;
+    }
+    .influenced-source { font-weight: 600; color: #333; }
+    .influenced-excerpt { font-style: italic; color: #666; font-size: 0.77rem; margin-top: 2px; }
+    .influenced-because { color: var(--accent); font-size: 0.77rem; margin-top: 2px; }
+    .context-pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .context-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      line-height: 1.2;
+      background: #f5efe3;
+      color: var(--ink-3);
+      border: 1px solid rgba(206, 188, 161, 0.66);
+    }
+    .context-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 15px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #fff7eb 0%, #f7ead4 100%);
+      border: 1px solid rgba(201, 168, 76, 0.45);
+      color: #5a4424;
+      box-shadow: 0 10px 22px rgba(93, 71, 42, 0.08);
+    }
+    .context-cta:hover,
+    .context-cta:focus-visible {
+      background: linear-gradient(180deg, #fffaf1 0%, #f8ecd9 100%);
+      border-color: rgba(201, 168, 76, 0.62);
+      color: #4a3518;
+      transform: translateY(-1px);
+    }
+    .btn.is-disabled,
+    .btn[aria-disabled="true"] {
+      opacity: 0.58;
+      cursor: default;
+      pointer-events: none;
+      box-shadow: none;
+    }
+    @media (max-width: 980px) {
+      .dashboard-capture-secondary {
+        grid-template-columns: 1fr;
+      }
+      .daily-brief-layout {
+        grid-template-columns: 1fr;
+      }
+      .daily-brief-actions {
+        justify-content: flex-start;
+      }
+    }
+    @media (max-width: 640px) {
+      .dashboard-capture-card {
+        padding: 20px 16px;
+      }
+      .dashboard-capture-title {
+        font-size: clamp(1.7rem, 8vw, 2.35rem);
+      }
+      .dashboard-capture-description {
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+      .capture-prompt-shell {
+        padding: 0.85rem;
+        border-radius: 22px;
+      }
+      .capture-prompt-actions,
+      .capture-mode-grid {
+        grid-template-columns: 1fr;
+      }
+      .daily-brief-url-row {
+        grid-template-columns: 1fr;
+      }
+      /* Deliberate stack, not an accidental flex-wrap: below 640px the
+         icon+headline row and the control (whichever state it's in) each
+         get their own line instead of the control dropping into a partial
+         wrap wherever the headline's length happens to end. */
+      .daily-brief-line {
+        align-items: flex-start;
+      }
+      #daily-brief-enable {
+        flex: 1 0 100%;
+      }
+    }
+  </style>
+</head>
+<body class="dashboard-page">
+  <nav>
+    <div class="memnon-lockup nav-brand">
+      <img src="../../../assets/memnon-icon.063bf373c4.svg" alt="">
+      <span class="memnon-wordmark">memnon</span>
+    </div>
+    <div class="nav-right">
+      <a id="research-link" class="btn btn-outline" href="#" data-live-href="/research" style="padding:6px 14px; font-size:0.8rem;">
+        Research
+      </a>
+      <span id="nav-name" class="muted">Preview mode</span>
+      <button id="signout-btn" class="btn btn-outline" style="padding:6px 14px; font-size:0.8rem;">
+        Sign out
+      </button>
+      <a id="welcome-mark-link" class="welcome-mark-link nav-portrait-link" href="#" data-live-href="/setup#dashboard-portrait" aria-label="Tune reflection portrait">
+        <div class="welcome-mark-frame portrait-bg-king-memnon">
+          <img id="welcome-mark-image" src="../../../assets/corporate_memphis_king_memnon_looking_down.21dfca8026.png" alt="Dashboard portrait" class="is-bust-portrait" style="object-fit: contain; object-position: center bottom; transform: translateY(10%) scale(1.18); transform-origin: center bottom;">
+        </div>
+        <div class="welcome-mark-label">Portrait</div>
+      </a>
+    </div>
+  </nav>
+
+  <div class="container app-shell dashboard-shell">
+
+    <div id="upload-status" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:8px; background:#eff6ff; color:#1d4ed8; font-size:0.875rem;"></div>
+
+    <div class="card dashboard-primary-card dashboard-capture-card">
+      <div class="dashboard-capture-intro">
+        <h1 class="dashboard-capture-title">Today</h1>
+      </div>
+
+      <!-- Capture Restore (2026-08-07): merged into Today's own card boundary
+           rather than a separately-bordered section -- the spec's "clearly
+           secondary, not co-equal weight" requirement is now carried by
+           internal hierarchy (record control dominant, everything else below
+           reads as quiet supporting text), not by a hard visual break. See
+           docs/product-notes/today-capture-first-restore-2026-08-07.md. -->
+      <!-- Simplified landing layout (2026-08-08): Capture's own heading/subhead
+           and the continuity nudge are retired -- Today is the page's one
+           heading, the record control is the first thing after it. Latest
+           result and Daily Brief still exist, relocated to the footer below
+           the divider along with View saved results / Context settings. See
+           docs/product-notes/today-capture-first-restore-2026-08-07.md. -->
+      <main id="workflows-app" class="workflows-shell" aria-label="Capture">
+        <header class="workflows-header">
+          <div id="workflows-build-marker" class="workflows-debug-marker" hidden=""></div>
+          <pre id="workflows-debug-state" class="workflows-debug-state" hidden=""></pre>
+        </header>
+
+        <form id="capture-form" class="workflows-card" aria-busy="false" aria-hidden="false">
+        <section id="capture-surface" class="workflows-capture-surface">
+          <button id="record-trigger" type="button" class="workflows-record-trigger" aria-pressed="false">
+            <span class="workflows-record-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="4" width="6" height="11" rx="3"></rect>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
+                <path d="M12 17v3"></path>
+                <path d="M9 20h6"></path>
+              </svg>
+            </span>
+            <span class="workflows-record-label">Record now</span>
+          </button>
+
+          <div class="workflows-mode-row" aria-label="Other capture options">
+            <button type="button" id="upload-trigger" class="workflows-mode-link">Upload a file</button>
+            <span class="workflows-mode-divider" aria-hidden="true">·</span>
+            <button type="button" id="show-paste" class="workflows-mode-link">Paste text</button>
+          </div>
+
+          <input id="capture-file" name="capture-file" type="file" accept=".txt,.md,text/plain,text/markdown" class="workflows-visually-hidden">
+
+          <div id="file-selection-state" class="workflows-file-selection" hidden="">
+            <div class="workflows-file-selection-row">
+              <p id="file-selection-name" class="workflows-file-selection-name"></p>
+              <button type="button" id="clear-upload" class="btn btn-quiet">Clear</button>
+            </div>
+            <p id="file-selection-copy" class="workflows-file-selection-copy"></p>
+          </div>
+
+          <div id="paste-panel" class="workflows-paste-panel" hidden="">
+            <label class="workflows-visually-hidden" for="capture-text">Paste text</label>
+            <textarea id="capture-text" name="capture-text" rows="5" placeholder="Paste a product thought, professional reflection, or note you want to shape."></textarea>
+          </div>
+        </section>
+
+        <div class="workflows-footer-row">
+          <label class="workflows-visually-hidden" for="capture-context">Anything this should keep in mind?</label>
+          <input id="capture-context" name="capture-context" type="text" placeholder="Anything this should keep in mind? (optional)">
+          <button id="capture-submit" type="submit" class="btn btn-primary" disabled="">Continue and sign in to save</button>
+        </div>
+
+        <div id="workflows-status" class="workflows-status" aria-live="polite" role="status"></div>
+
+        <div id="workflows-auth-prompt" class="workflows-auth-prompt">
+          <p class="workflows-auth-copy">Draft now, sign in to save.</p>
+          <a id="workflows-signin" class="workflows-auth-link" href="https://api-4hth6oktaa-uc.a.run.app/auth/start?return_to=http%3A%2F%2Flocalhost%3A60288%2Ftoday.html%3Fpreview%3D1%26mock%3Dcomplete%26brief%3Dready">
+            Sign in with Google
+          </a>
+        </div>
+      </form>
+
+      <section id="result-view" class="workflows-result" hidden="" inert="" aria-hidden="true" style="display: none;">
+        <article id="loading-card" class="card workflows-artifact-card workflows-loading-card" hidden=""></article>
+        <article id="primary-artifact-card" class="card workflows-artifact-card" hidden=""></article>
+        <article id="saved-note-card" class="card workflows-artifact-card" hidden=""></article>
+        <details id="source-text-panel" class="workflows-source-panel" hidden="">
+          <summary>View source text</summary>
+          <pre id="source-text-content"></pre>
+        </details>
+      </section>
+    </main>
+
+    <!-- Simplified landing layout (2026-08-08): footer below the divider --
+         saved results / settings links, then Latest result and Daily Brief,
+         both unboxed and collapsed by default, same treatment as before. -->
+    <div class="capture-quiet-rows">
+      <p id="workflows-saved-link-row" class="capture-quiet-row" hidden="" style="display: none;">
+        <a id="workflows-saved-link" class="archive-quiet-link" href="#" data-live-href="/today/saved">View saved results</a>
+      </p>
+      <!-- Standing context as state, not a link label (controller brief,
+           2026-09-12). Today previously exposed only a "Context settings"
+           link, so a user could not tell what standing context the app was
+           holding. The static default is the signed-out copy so the block
+           reads correctly with no JS and never sits on a loading string. -->
+      <div id="standing-context" class="capture-quiet-row standing-context">
+        <p id="standing-context-active" class="standing-context-line">Shaping your saved results: professional lane, complete reflection.</p>
+        <p id="standing-context-stored" class="standing-context-line standing-context-muted">Also saved, used elsewhere in Memnon: subjects, grade levels, state standards, school, preferred name, chosen guides.</p>
+        <a id="today-context-settings" class="archive-quiet-link" href="#" data-live-href="/setup">Context settings →</a>
+      </div>
+
+      <details class="latest-result-details">
+        <summary>Latest result</summary>
+        <div class="recording-player-wrap">
+          <div id="reflection-read-content" class="recording-player-empty">
+        <div class="reflection-read-title">June 9, 2026 — Holding structure and presence together</div>
+        <div class="reflection-read-summary">You were trying to hold clarity and warmth at the same time. The practical challenge was not just what to say, but how to stay present while doing it. The reflection sees both the instructional decision and the inner steadiness it asked of you.</div>
+        <div class="reflection-read-insight">The stronger move may be structure without hardening.</div>
+        <div class="reflection-read-actions"><span class="reflection-read-pill">Name the expectation earlier</span><span class="reflection-read-pill">Keep your tone calm and direct</span></div>
+      </div>
+        </div>
+      </details>
+
+      <div class="daily-brief-line" id="daily-brief-card">
+        <span class="daily-brief-icon" aria-hidden="true">🎧</span>
+        <span class="daily-brief-title-inline" id="daily-brief-title">Holding structure and presence</span>
+        <button id="daily-brief-enable" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;" aria-disabled="false" data-action="listen">Listen now</button>
+        <!-- Which voices shaped the ready brief, read from what the generator
+             used (latest_episode.guide_voices_used), never from the selection.
+             The line is also the way to the selection surface. -->
+        <a id="daily-brief-voices" class="daily-brief-voices archive-quiet-link" href="#" data-live-href="/setup#guiding-voices" aria-label="Shaped by Julian of Norwich and Thich Nhat Hanh. Choose voices in setup.">Shaped by Julian of Norwich and Thich Nhat Hanh.</a>
+        <details class="daily-brief-disclosure">
+          <summary>How to listen</summary>
+          <div class="daily-brief-copy" id="daily-brief-body-copy">Today's brief is ready in your private podcast feed.</div>
+          <div class="daily-brief-meta" id="daily-brief-meta">Published at 11:31 AM</div>
+          <div id="daily-brief-url-wrap" class="daily-brief-url-wrap">
+            <label class="daily-brief-url-label" for="daily-brief-url">Private feed URL</label>
+            <div class="daily-brief-url-row">
+              <input id="daily-brief-url" type="text" readonly="" value="">
+              <button id="daily-brief-copy-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Copy feed link
+              </button>
+            </div>
+            <div class="daily-brief-action-row">
+              <button id="daily-brief-overcast-btn" class="btn btn-primary" type="button" style="padding:8px 14px; font-size:0.8rem;" hidden="">
+                Subscribe in Overcast
+              </button>
+              <button id="daily-brief-share-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Share feed link
+              </button>
+            </div>
+            <div class="daily-brief-help" id="daily-brief-help">Copy the feed link into Apple Podcasts or another podcast app. <strong>Subscribe in Overcast</strong> is available when you open this page on your iPhone or iPad.</div>
+            <div id="daily-brief-apple-note" class="daily-brief-apple-note">
+              <strong>Apple Podcasts:</strong> open <strong>Library</strong>, tap <strong>…</strong>, choose <strong>Add a Show by URL</strong>, then paste this private feed link.
+            </div>
+          </div>
+          <div id="daily-brief-status" class="capture-text-status daily-brief-status" aria-live="polite"></div>
+          <div id="daily-brief-admin-wrap" class="daily-brief-admin" hidden="">
+            <span class="daily-brief-admin-label">Admin tools</span>
+            <div id="daily-brief-admin-copy" class="daily-brief-admin-copy"></div>
+            <div class="daily-brief-action-row">
+              <button id="daily-brief-regenerate-btn" class="btn btn-outline" type="button" style="padding:8px 14px; font-size:0.8rem;">
+                Regenerate today's brief
+              </button>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+    </div>
+
+    <!-- Recent Notes -->
+    <div class="card dashboard-secondary-card" id="recent-notes-card" style="display:none;">
+      <div class="editorial-header" style="margin-bottom:10px;">
+        <div>
+          <h2 style="margin-bottom:6px;">Recent notes</h2>
+          <p class="muted" style="margin:0;">A short record of your recent captures.</p>
+        </div>
+      </div>
+      <div id="recent-notes-list" style="margin-top:14px;"></div>
+    </div>
+
+    <!-- iPhone share target instructions — commented out until iOS PWA share target is reliable
+    <div class="card">
+      <h2>📱 Capture from iPhone</h2>
+      <div id="share-status" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:8px; background:#eff6ff; color:#1d4ed8; font-size:0.875rem;"></div>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Record in Voice Memos</div>
+          <div class="step-desc">Screen can lock. Action button works as normal.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Add Memnon to your home screen</div>
+          <div class="step-desc">
+            In Safari tap Share → <strong>Add to Home Screen</strong>. Only needed once.
+          </div>
+        </div>
+      </div>
+      <div class="step" style="margin-bottom:0;">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Share directly to Memnon</div>
+          <div class="step-desc">
+            Tap the recording → share icon → <strong>Memnon</strong>.
+            Your note is processed automatically — no Drive navigation needed.
+          </div>
+        </div>
+      </div>
+    </div>
+    -->
+
+  </div>
+
+  
+
+  
+
+
+</body></html>
