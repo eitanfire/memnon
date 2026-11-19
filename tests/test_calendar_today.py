@@ -289,13 +289,31 @@ class CalendarTodayTests(unittest.TestCase):
         self.assertIn(self.main.CALENDAR_READONLY_SCOPE, self.main._requested_google_scopes(include_calendar=True))
         self.assertNotIn(self.main.TASKS_READONLY_SCOPE, self.main._requested_google_scopes(include_calendar=True))
 
-    def test_narrower_reauth_keeps_calendar_grant(self):
-        existing = {"token": "old", "refresh_token": "r1", "scopes": [self.main.CALENDAR_READONLY_SCOPE, "openid"]}
-        new = {"token": "new", "scopes": ["openid"], "client_id": "c"}
+    def test_new_grant_with_refresh_token_replaces_stored_token(self):
+        """The stored scopes must be exactly what the refresh token can refresh.
+        A fresh grant (incremental auth folds earlier scopes in) replaces the
+        old token outright rather than claiming scopes it was never given."""
+        existing = {"token": "old", "refresh_token": "r1", "scopes": [self.main.TASKS_READONLY_SCOPE, "openid"]}
+        new = {"token": "new", "refresh_token": "r2", "scopes": [self.main.CALENDAR_READONLY_SCOPE, "openid"], "client_id": "c"}
         merged = self.main._merge_google_token(existing, new)
-        self.assertIn(self.main.CALENDAR_READONLY_SCOPE, merged["scopes"])
+        self.assertEqual(merged["token"], "new")
+        self.assertEqual(merged["refresh_token"], "r2")
+        self.assertEqual(merged["scopes"], [self.main.CALENDAR_READONLY_SCOPE, "openid"])
+        self.assertNotIn(self.main.TASKS_READONLY_SCOPE, merged["scopes"])
+
+    def test_grant_without_refresh_token_keeps_existing_refresh_token_and_scopes(self):
+        existing = {"token": "old", "refresh_token": "r1", "scopes": [self.main.TASKS_READONLY_SCOPE, "openid"]}
+        new = {"token": "new", "scopes": [self.main.CALENDAR_READONLY_SCOPE, "openid"], "client_id": "c"}
+        merged = self.main._merge_google_token(existing, new)
+        self.assertEqual(merged["token"], "new")
         self.assertEqual(merged["refresh_token"], "r1")
         self.assertEqual(merged["client_id"], "c")
+        self.assertIn(self.main.TASKS_READONLY_SCOPE, merged["scopes"])
+        self.assertIn(self.main.CALENDAR_READONLY_SCOPE, merged["scopes"])
+
+    def test_first_grant_is_stored_as_is(self):
+        new = {"token": "new", "refresh_token": "r2", "scopes": ["openid"]}
+        self.assertIs(self.main._merge_google_token(None, new), new)
 
     def test_user_calendar_connected_reads_token_scopes_or_flag(self):
         self.assertTrue(self.main._user_calendar_connected({"google_drive_token": {"scopes": [self.main.CALENDAR_READONLY_SCOPE]}}))

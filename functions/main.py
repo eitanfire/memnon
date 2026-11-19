@@ -1475,27 +1475,29 @@ def _scopes_from_token_data(token_data: dict | None) -> set[str]:
 
 
 def _merge_google_token(existing_token: dict | None, new_token: dict) -> dict:
-    """Preserve broader existing grants when a narrower re-auth returns later."""
+    """Keep the stored token refreshable.
+
+    A token's scopes must be exactly what its refresh token was granted:
+    Google rejects a refresh that asks for more (invalid_scope), which
+    takes Drive, Tasks and Calendar down together. So a new grant that
+    carries its own refresh token replaces the stored one outright; the
+    sign-in asks for include_granted_scopes, so Google folds earlier
+    grants into it. Only when Google re-issues no refresh token do we keep
+    the existing one, and then the existing scopes are the ones it can
+    refresh, plus whatever the new access token was just granted."""
     if not existing_token:
+        return new_token
+    if new_token.get("refresh_token"):
         return new_token
 
     existing_scopes = _scopes_from_token_data(existing_token)
     new_scopes = _scopes_from_token_data(new_token)
-
-    if existing_token.get("refresh_token") and not new_token.get("refresh_token"):
-        new_token["refresh_token"] = existing_token["refresh_token"]
-
-    if any(scope in existing_scopes and scope not in new_scopes for scope in OPTIONAL_GOOGLE_SCOPES):
-        merged = dict(existing_token)
-        merged["scopes"] = sorted(existing_scopes | new_scopes)
-        for key in ("client_id", "client_secret", "token_uri", "refresh_token"):
-            if new_token.get(key):
-                merged[key] = new_token[key]
-        return merged
-
+    merged = dict(new_token)
+    if existing_token.get("refresh_token"):
+        merged["refresh_token"] = existing_token["refresh_token"]
     if existing_scopes or new_scopes:
-        new_token["scopes"] = sorted(existing_scopes | new_scopes)
-    return new_token
+        merged["scopes"] = sorted(existing_scopes | new_scopes)
+    return merged
 
 
 def _drive_creds(uid: str) -> Credentials | None:
@@ -3316,6 +3318,10 @@ def auth_start():
             "redirect_uri":           REDIRECT_URI,
             "response_type":          "code",
             "scope":                  " ".join(_requested_google_scopes(include_tasks, include_calendar)),
+            # Incremental auth: the new grant (and its refresh token) keeps
+            # every scope the user granted before, so connecting Calendar
+            # never drops Tasks.
+            "include_granted_scopes": "true",
             "access_type":            "offline",
             "state":                  state,
             "code_challenge":         code_challenge,
