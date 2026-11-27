@@ -402,7 +402,8 @@ class DailyFeedSliceTests(unittest.TestCase):
         )
         self.assertIn("WISDOM VOICES", prompt)
         self.assertIn("All real living is meeting.", prompt)
-        self.assertIn("ground reflective_grounding in one of them", prompt)
+        self.assertIn("weaving its teaching into the listener's own situation", prompt)
+        self.assertIn("No standalone quotations", prompt)
 
     GUIDE_PASSAGES = [
         {"source_id": "ag_1", "guide_id": "al_ghazali", "author": "Al-Ghazali", "work": "", "ref": "", "text": "Know yourself."},
@@ -807,7 +808,8 @@ class DailyFeedSliceTests(unittest.TestCase):
             patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
             patch.object(self.main, "_daily_feed_episode_ref", return_value=episode_ref),
             patch.object(self.main, "_load_recent_feed_notes", return_value=[
-                {"title": "Old reflection", "summary": "Stale", "insight": "Old", "created_at": "2026-06-01T10:00:00Z"}
+                # Older than the 7-day "recent" window, inside the 21-day cap.
+                {"title": "Old reflection", "summary": "Stale", "insight": "Old", "created_at": "2026-06-12T10:00:00Z"}
             ]),
             patch.object(self.main, "_load_latest_daily_feed_episode", return_value={"episode_type": "standard"}),
             patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-06-24.mp3"),

@@ -208,6 +208,18 @@ DEFAULT_DAILY_FEED_TIMEZONE = "America/Denver"
 DEFAULT_DAILY_FEED_PUBLISH_HOUR = 4
 DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT = 4
 DEFAULT_DAILY_FEED_STANDARD_LOOKBACK_DAYS = 7
+# Notes older than this are never offered; older material reaches the brief
+# only through the context pack.
+DAILY_FEED_NOTE_MAX_AGE_DAYS = 21
+# A note may lead the brief at most this many times in the trailing window.
+DAILY_FEED_THREAD_LEAD_LIMIT = 2
+DAILY_FEED_THREAD_WINDOW_DAYS = 7
+# A wisdom passage spoken in this window is not offered again.
+DAILY_FEED_VOICE_REPEAT_DAYS = 30
+DAILY_FEED_VOICE_HISTORY_FIELD = "daily_feed_voice_history"
+DAILY_FEED_CONTEXT_PACK_MAX_AGE_DAYS = 3
+DAILY_FEED_CONTEXT_PACK_MAX_CHARS = 14000
+DAILY_FEED_ANCHOR_SOURCES = ("recent_note", "context_pack_therapy", "context_pack_other", "tasks", "calendar", "day")
 DAILY_FEED_AUDIO_PREFIX = "daily-feed"
 DAILY_FEED_ROUTE_BASE = f"{API_BASE}/feed"
 FOUNDER_METRICS_EMAILS = {
@@ -2326,6 +2338,168 @@ def _daily_feed_present_day_anchor(local_now: datetime) -> str:
     return f"Today is {local_now.strftime('%A, %B')} {_ordinal_day(local_now.day)}."
 
 
+def _daily_feed_fresh_notes(notes: list[dict], today: date) -> tuple[list[dict], int]:
+    """Drop notes older than DAILY_FEED_NOTE_MAX_AGE_DAYS. Undated notes stay:
+    their age is unknown, not old. Returns (kept, dropped_count)."""
+    cutoff = today - timedelta(days=DAILY_FEED_NOTE_MAX_AGE_DAYS)
+    kept = []
+    for note in notes:
+        note_dt = _coerce_datetime(note.get("created_at") or note.get("date"))
+        if note_dt and note_dt.date() < cutoff:
+            continue
+        kept.append(note)
+    return kept, len(notes) - len(kept)
+
+
+def _daily_feed_thread_key(note: dict) -> str:
+    """Stable key for 'the same thread' across days."""
+    bridge = _safe_string(note.get("bridge_capture_id"))
+    if bridge:
+        return f"bridge:{bridge}"
+    doc_id = _safe_string(note.get("_id"))
+    if doc_id:
+        return f"doc:{doc_id}"
+    return "title:" + _safe_string(note.get("title")).lower()
+
+
+def _daily_feed_note_ref(index: int) -> str:
+    return f"N{index + 1}"
+
+
+def _load_prior_daily_feed_episodes(uid: str, today: date, days: int = DAILY_FEED_THREAD_WINDOW_DAYS) -> list[dict]:
+    """Published episodes from the `days` before today, newest first. Read-only."""
+    docs = (
+        _get_db()
+        .collection("users")
+        .document(uid)
+        .collection("daily_feed_episodes")
+        .order_by("date_key", direction=firestore.Query.DESCENDING)
+        .limit(days + 3)
+        .stream()
+    )
+    earliest = (today - timedelta(days=days)).isoformat()
+    episodes = []
+    for doc in docs:
+        payload = doc.to_dict() or {}
+        date_key = _safe_string(payload.get("date_key") or doc.id)
+        if earliest <= date_key < today.isoformat():
+            payload["date_key"] = date_key
+            episodes.append(payload)
+    episodes.sort(key=lambda e: e["date_key"], reverse=True)
+    return episodes
+
+
+def _daily_feed_capped_threads(prior_episodes: list[dict]) -> dict[str, int]:
+    """Thread keys that already led DAILY_FEED_THREAD_LEAD_LIMIT times in the window."""
+    counts: dict[str, int] = {}
+    for episode in prior_episodes:
+        key = _safe_string((episode.get("generation_meta") or {}).get("lead_thread_key"))
+        if key:
+            counts[key] = counts.get(key, 0) + 1
+    return {key: count for key, count in counts.items() if count >= DAILY_FEED_THREAD_LEAD_LIMIT}
+
+
+def _normalize_daily_feed_theme(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", "", _safe_string(text).lower())).strip()
+
+
+def _daily_feed_title_theme(title: str) -> str:
+    """The theme half of 'November 27 — Theme', normalised for comparison."""
+    text = _safe_string(title)
+    for separator in (" — ", " – ", " - ", ": "):
+        if separator in text:
+            text = text.split(separator, 1)[1]
+            break
+    return _normalize_daily_feed_theme(text)
+
+
+def _clip_daily_feed_theme(text: str, limit: int = 64) -> str:
+    text = re.sub(r"\s+", " ", _safe_string(text)).strip().rstrip(".!?,;:")
+    if len(text) > limit:
+        text = text[:limit].rsplit(" ", 1)[0].rstrip(".!?,;:")
+    return text[:1].upper() + text[1:]
+
+
+def _daily_feed_recent_voice_ids(user_data: dict, today: date) -> set[str]:
+    """source_ids spoken in the DAILY_FEED_VOICE_REPEAT_DAYS before today."""
+    earliest = (today - timedelta(days=DAILY_FEED_VOICE_REPEAT_DAYS)).isoformat()
+    ids = set()
+    for entry in user_data.get(DAILY_FEED_VOICE_HISTORY_FIELD) or []:
+        if not isinstance(entry, dict):
+            continue
+        day = _safe_string(entry.get("date"))
+        if earliest <= day < today.isoformat() and _safe_string(entry.get("source_id")):
+            ids.add(entry["source_id"])
+    return ids
+
+
+def _daily_feed_updated_voice_history(history: list, voices_used: list[dict], today: date) -> list[dict]:
+    """Replace today's entries with this episode's voices; keep 60 days."""
+    earliest = (today - timedelta(days=DAILY_FEED_VOICE_REPEAT_DAYS * 2)).isoformat()
+    kept = [
+        entry for entry in (history or [])
+        if isinstance(entry, dict)
+        and earliest <= _safe_string(entry.get("date")) < today.isoformat()
+    ]
+    for voice in voices_used or []:
+        for source_id in voice.get("source_ids") or []:
+            kept.append({"source_id": source_id, "guide_id": voice.get("guide_id", ""), "date": today.isoformat()})
+    return kept
+
+
+_PROPER_TERM = re.compile(r"\b(?:[A-Z]{2,}|[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)\b")
+_COMMON_CAPITALIZED = {
+    "the", "this", "that", "these", "today", "you", "your", "and", "but", "for", "with", "what", "when",
+    "while", "each", "every", "may", "remember", "consider", "take", "keep", "let", "good", "morning",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "january", "february", "march", "april", "june", "july", "august", "september", "october",
+    "november", "december", "summary", "title", "date", "insight", "themes", "recent", "open", "therapy",
+}
+
+
+def _daily_feed_context_pack_terms_used(script_text: str, pack_markdown: str, other_context: str) -> list[str]:
+    """Proper names that appear only in the context pack and also in the
+    script. The model's own context_pack_used claim proved unreliable."""
+    other = other_context.lower()
+    terms = set()
+    for match in _PROPER_TERM.findall(pack_markdown or ""):
+        for term in {match, match.split()[0]}:
+            key = term.lower()
+            if key in _COMMON_CAPITALIZED or key in other:
+                continue
+            terms.add(term)
+    script = script_text or ""
+    return sorted(t for t in terms if re.search(rf"\b{re.escape(t)}\b", script))
+
+
+def _load_context_pack(uid: str, now_utc: datetime) -> tuple[dict | None, str]:
+    """users/{uid}/context_pack/current, read-only. Returns (pack, omission_reason)."""
+    doc = _get_db().collection("users").document(uid).collection("context_pack").document("current").get()
+    if not doc.exists:
+        return None, "not_built"
+    payload = doc.to_dict() or {}
+    markdown = _safe_string(payload.get("markdown"))
+    if not markdown:
+        return None, "empty"
+    generated_at = _coerce_datetime(payload.get("generated_at"))
+    if generated_at is not None:
+        if generated_at.tzinfo is None:
+            generated_at = generated_at.replace(tzinfo=timezone.utc)
+        if now_utc - generated_at > timedelta(days=DAILY_FEED_CONTEXT_PACK_MAX_AGE_DAYS):
+            return None, "stale"
+    if len(markdown) > DAILY_FEED_CONTEXT_PACK_MAX_CHARS:
+        markdown = markdown[:DAILY_FEED_CONTEXT_PACK_MAX_CHARS].rsplit("\n", 1)[0] + "\n…"
+    sources = payload.get("sources") if isinstance(payload.get("sources"), list) else []
+    return {
+        "markdown": markdown,
+        "generated_at": generated_at.isoformat() if generated_at else "",
+        "source_ids": [
+            _safe_string(s.get("id")) for s in sources
+            if isinstance(s, dict) and not _safe_string(s.get("omitted"))
+        ],
+    }, ""
+
+
 def _build_daily_feed_prompt(
     user_data: dict,
     notes: list[dict],
@@ -2335,10 +2509,14 @@ def _build_daily_feed_prompt(
     guide_passages: list[dict] | None = None,
     overview_tasks: list[dict] | None = None,
     calendar_events: list[dict] | None = None,
+    context_pack: dict | None = None,
+    prior_episode: dict | None = None,
+    capped_thread_keys: set[str] | None = None,
 ) -> str:
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
     spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
     style = _normalize_reflection_style(user_data.get("reflection_style"))
+    capped_thread_keys = capped_thread_keys or set()
     subjects = _safe_string(user_data.get("subjects"))
     grades = ", ".join(_safe_string_list(user_data.get("grade_levels"), limit=6))
     context_parts = []
@@ -2350,9 +2528,21 @@ def _build_daily_feed_prompt(
     if school_name:
         context_parts.append(f"school: {school_name}")
     context_line = "; ".join(context_parts) or "teacher context not specified"
-    notes_block = "\n\n---\n\n".join(_build_feed_note_brief(note) for note in notes[:DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT]) or "No reflections available."
+    offered_notes = notes[:DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT]
+    note_entries = []
+    for index, note in enumerate(offered_notes):
+        entry = f"[{_daily_feed_note_ref(index)}]\n{_build_feed_note_brief(note)}"
+        if _daily_feed_thread_key(note) in capped_thread_keys:
+            entry += (
+                f"\n(Background only: this thread already led the brief {DAILY_FEED_THREAD_LEAD_LIMIT} times "
+                f"in the last {DAILY_FEED_THREAD_WINDOW_DAYS} days. Do not lead with it, title it, or anchor on it.)"
+            )
+        note_entries.append(entry)
+    notes_block = "\n\n---\n\n".join(note_entries) or "No reflections available."
     day_anchor = _daily_feed_present_day_anchor(local_now)
-    continuity_anchor = _daily_feed_continuity_anchor(notes)
+    continuity_anchor = _daily_feed_continuity_anchor(
+        [note for note in notes if _daily_feed_thread_key(note) not in capped_thread_keys]
+    )
     recent_reflection_available = _daily_feed_has_recent_reflection(notes, local_now)
     if recent_reflection_available:
         reflection_heading = "Recent reflection context:"
@@ -2389,16 +2579,55 @@ def _build_daily_feed_prompt(
         )
     guides_block = ""
     if guide_passages:
-        passage_lines = [
-            f'[{p["source_id"]}] {p["author"]} ({p["work"]}, {p["ref"]}):\n"{p["text"]}"'
-            for p in guide_passages
-        ]
+        passage_lines = []
+        for p in guide_passages:
+            name = _safe_string(p.get("spoken_name")) or p["author"]
+            also = f"{p['author']}; " if name != p["author"] else ""
+            passage_lines.append(f'[{p["source_id"]}] {name} ({also}{p["work"]}, {p["ref"]}):\n"{p["text"]}"')
         guides_block = (
             "--- WISDOM VOICES THE LISTENER HAS CHOSEN ---\n"
-            "These passages were selected because they relate to the recent reflections.\n\n"
+            "These passages were selected because they relate to the recent reflections. "
+            "Each voice is shown first by the name to speak aloud.\n\n"
             + "\n\n".join(passage_lines)
             + "\n\n"
         )
+
+    context_pack_block = ""
+    context_pack_rules = ""
+    if context_pack and _safe_string(context_pack.get("markdown")):
+        context_pack_block = (
+            "--- CONTEXT PACK: THE LISTENER'S OWN SECOND BRAIN (background, not news) ---\n"
+            + _safe_string(context_pack["markdown"])
+            + "\n\n"
+        )
+        prior_meta = (prior_episode or {}).get("generation_meta") or {}
+        therapy_blocked = _safe_string(prior_meta.get("anchor_source")) == "context_pack_therapy"
+        context_pack_rules = (
+            "- The context pack is backdrop. Recent reflections lead when there are any; use the pack to know what is "
+            "current in the listener's life and to choose what matters. Lead with the pack only when no recent reflection fits.\n"
+            "- Therapy themes from the pack may be named plainly, in your own words. Never quote session notes or the "
+            "therapist verbatim.\n"
+            "- Use the people and household section to get names and relationships right. An event in one person's "
+            "life never moves to another person or another family.\n"
+            + (
+                "- Therapy material anchored yesterday's brief. Today it may shape tone, but it must not be the title, "
+                "the continuity anchor, or the lead thread.\n"
+                if therapy_blocked else ""
+            )
+            + "- Set context_pack_used to true whenever the script draws on anything that appears in the context pack "
+            "and not in the reflections above; otherwise false.\n"
+        )
+
+    prior_rules = ""
+    if prior_episode:
+        prior_title = _safe_string(prior_episode.get("title"))
+        prior_anchor = _safe_string((prior_episode.get("script_meta") or {}).get("continuity_anchor"))
+        lines = []
+        if prior_title:
+            lines.append(f'- The previous brief was titled "{prior_title}". Do not reuse its theme in the title.')
+        if prior_anchor:
+            lines.append(f'- The previous brief\'s continuity anchor was "{prior_anchor}". Do not use it again today.')
+        prior_rules = "\n".join(lines) + ("\n" if lines else "")
 
     tasks_block = ""
     if overview_tasks:
@@ -2470,6 +2699,8 @@ def _build_daily_feed_prompt(
             "- If a task is clearly tied to an appointment, today_overview may say so in a few words.\n"
         )
 
+    anchor_source_options = ", ".join(DAILY_FEED_ANCHOR_SOURCES)
+
     return f"""You are writing a private daily audio briefing for {preferred_name}.
 
 This is for spoken audio. The tone should be warm, grounded, specific, and restrained.
@@ -2480,7 +2711,7 @@ Person context: display name {preferred_name}; spoken name "{spoken_name}"; {con
 Present-day anchor available: {day_anchor}
 Continuity anchor candidate: {continuity_anchor or "none"}
 
-{weather_block}{tasks_block}{calendar_block}{guides_block}{reflection_heading}
+{weather_block}{tasks_block}{calendar_block}{guides_block}{context_pack_block}{reflection_heading}
 {notes_block}
 
 Return strict JSON only with this schema:
@@ -2489,6 +2720,9 @@ Return strict JSON only with this schema:
   "description": "One sentence describing what shaped today's briefing.",
   "time_anchor": "The present-day anchor actually used.",
   "continuity_anchor": "The cross-time continuity anchor actually used.",
+  "lead_note": "ref (N1, N2, ...) of the reflection practical_briefing leads with; empty string if none",
+  "anchor_source": "one of {anchor_source_options}: where the title and continuity anchor come from",
+  "context_pack_used": "true or false: does any part of the script draw on the context pack?",
   "voices_used": ["source_id of each wisdom-voice passage the script actually draws on; [] if none"],{tasks_schema}
   "segments": {{
     {segment_requirements}
@@ -2510,9 +2744,12 @@ Rules:
 - Keep meditative_close concise; it is the seed of a future optional meditative-only feed.
 - If there is too little specific material, be sparse rather than repetitive.
 - Never repeat a sentence or phrase from one segment in another.
-- If wisdom voices are provided, ground reflective_grounding in one of them: name the author, quote or closely paraphrase a short line, and connect it honestly to the reflections. Do not force a connection, and use at most two voices in the whole episode.
-- voices_used must list exactly the passages the script draws on, by the source_id shown in brackets. Offered is not used: leave out any passage the script does not quote, paraphrase, or name.
-{quiet_rules}{tasks_rules}{calendar_rules}"""
+- The reflections and captures describe the listener's own life and household. Speak about them in the second person ("you", "your daughter", "your family"). Never retell them as a third party's story or as something that happened to another family.
+- Every reflection above is from the last {DAILY_FEED_NOTE_MAX_AGE_DAYS} days. A dated event in them that falls before today is over: never preview it as upcoming, and speak of it in the past tense if at all.
+- If wisdom voices are provided, let one inform reflective_grounding by weaving its teaching into the listener's own situation. No standalone quotations: say the idea in your own words, with at most one short phrase in the source's own words. Attribute it inline by the name shown first (for example "as the Rambam teaches, ..."). Never write "X once said", "in the words of", or a quotation set apart from the sentence. Do not force a connection, and use at most two voices in the whole episode.
+- voices_used must list exactly the passages the script draws on, by the source_id shown in brackets. Offered is not used: leave out any passage the script does not draw on.
+- lead_note is the ref of the reflection practical_briefing leads with. Never lead with a reflection marked background only.
+{prior_rules}{context_pack_rules}{quiet_rules}{tasks_rules}{calendar_rules}"""
 
 
 def _build_opening_weather_rewrite_prompt(
@@ -2586,11 +2823,14 @@ def _build_daily_feed_generation_meta(
     calendar_offered: int = 0,
     calendar_applied: bool = False,
     calendar_omission_reason: str = "",
+    continuity: dict | None = None,
 ) -> dict:
     weather_context = weather_context or {}
     weather_diagnostics = weather_diagnostics or {}
     tasks_used = tasks_used or []
+    continuity = continuity or {}
     return {
+        **continuity,
         "tasks_overview": {
             "offered": tasks_offered,
             "applied": tasks_applied,
@@ -2711,8 +2951,16 @@ def _build_deterministic_daily_feed_result(
     voices_used = []
     passage = (guide_passages or [None])[0]
     if passage and _safe_string(passage.get("text")):
+        # No standalone quotation: name the teaching inline by its spoken
+        # name and its theme, tied to the listener's own thread.
         voices_used.append(passage["source_id"])
-        reflective_parts.append(f"{passage['author']} offers a way to hold this: “{_sentence(passage['text'], 260)}”")
+        voice_name = _safe_string(passage.get("spoken_name")) or _safe_string(passage.get("author"))
+        topics = [t.replace("_", " ") for t in _safe_string_list(passage.get("tags"), limit=2)]
+        teaching = f"teaching on {' and '.join(topics)}" if topics else "teaching"
+        if latest_title:
+            reflective_parts.append(f"What you are carrying from {latest_title} sits close to {voice_name}'s {teaching}.")
+        else:
+            reflective_parts.append(f"Today, keep {voice_name}'s {teaching} close.")
     if latest_summary and latest_summary not in used_lines:
         reflective_parts.append(_sentence(latest_summary, 300))
         used_lines.add(latest_summary)
@@ -2801,6 +3049,31 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
     # anchor still give the brief something real to say, and older reflections
     # are offered as background rather than as "recent".
     notes = _load_recent_feed_notes(uid)
+    today = local_now.date()
+    # Stale notes are never offered; anything older reaches the brief only
+    # through the context pack.
+    notes, notes_dropped_stale = _daily_feed_fresh_notes(notes, today)
+
+    # The briefs just before today, for no-repeat rules. Read-only, fail-silent.
+    try:
+        prior_episodes = _load_prior_daily_feed_episodes(uid, today)
+    except Exception as exc:
+        print(f"[{uid}] Prior daily feed episodes unavailable: {exc}")
+        prior_episodes = []
+    prior_episode = prior_episodes[0] if prior_episodes else None
+    capped_threads = _daily_feed_capped_threads(prior_episodes)
+    # A thread that already led twice this week goes to the back for the fallback too.
+    notes = (
+        [n for n in notes if _daily_feed_thread_key(n) not in capped_threads]
+        + [n for n in notes if _daily_feed_thread_key(n) in capped_threads]
+    )
+
+    # The local vault digest. Read-only; any failure omits it silently.
+    try:
+        context_pack, context_pack_omission_reason = _load_context_pack(uid, now_utc)
+    except Exception as exc:
+        print(f"[{uid}] Context pack unavailable: {exc}")
+        context_pack, context_pack_omission_reason = None, "read_error"
 
     weather_context = None
     weather_diagnostics = {
@@ -2825,10 +3098,12 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
     recent_notes_available = _daily_feed_has_recent_reflection(notes, local_now)
 
     episode_type = "standard"
+    recent_voice_ids = _daily_feed_recent_voice_ids(user_data, today)
     try:
         guide_passages = daily_feed_passages(
             user_data,
             " ".join(_build_feed_note_brief(note) for note in notes),
+            exclude_source_ids=recent_voice_ids,
         )
     except Exception as exc:
         print(f"[{uid}] Daily feed guide passages unavailable: {exc}")
@@ -2870,6 +3145,80 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         if not script_text:
             raise RuntimeError("Daily feed script is empty")
         title = _safe_string(result.get("title")) or f"{_format_natural_date(episode_id)} — Daily Memnon briefing"
+        prior_title = _safe_string((prior_episode or {}).get("title"))
+        prior_anchor = _safe_string(((prior_episode or {}).get("script_meta") or {}).get("continuity_anchor"))
+        prior_theme = _daily_feed_title_theme(prior_title)
+        title_repeat_prevented = False
+        if prior_theme and _daily_feed_title_theme(title) == prior_theme:
+            # Never two days running under the same theme. Keep the episode's
+            # own date wording and swap only the theme.
+            date_part = title.split(" — ", 1)[0] if " — " in title else _format_natural_date(episode_id)
+            for candidate in (
+                continuity_anchor,
+                _safe_string((overview_tasks or [{}])[0].get("title")),
+                _safe_string((calendar_events or [{}])[0].get("title")),
+                "A day of its own",
+            ):
+                candidate = _clip_daily_feed_theme(candidate)
+                if candidate and _normalize_daily_feed_theme(candidate) != prior_theme:
+                    title = f"{date_part} — {candidate}"
+                    title_repeat_prevented = True
+                    break
+
+        offered_notes = notes[:DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT]
+        if selected_type == "fallback":
+            lead_note = notes[0] if notes else None
+        else:
+            lead_ref = _safe_string(result.get("lead_note")).upper()
+            lead_index = int(lead_ref[1:]) - 1 if re.fullmatch(r"N\d+", lead_ref) else -1
+            lead_note = offered_notes[lead_index] if 0 <= lead_index < len(offered_notes) else None
+        anchor_source = _safe_string(result.get("anchor_source"))
+        if anchor_source not in DAILY_FEED_ANCHOR_SOURCES:
+            anchor_source = ("recent_note" if lead_note else "") if selected_type == "fallback" else ""
+        prior_anchor_source = _safe_string(((prior_episode or {}).get("generation_meta") or {}).get("anchor_source"))
+        context_pack_claimed = result.get("context_pack_used") is True or _safe_string(result.get("context_pack_used")).lower() == "true"
+        context_pack_terms: list[str] = []
+        if context_pack and selected_type != "fallback":
+            other_context = " ".join(
+                [_build_feed_note_brief(note) for note in notes]
+                + [f"{p.get('author', '')} {p.get('spoken_name', '')} {p.get('work', '')} {p.get('text', '')}" for p in guide_passages]
+                + [_safe_string(t.get("title")) for t in overview_tasks]
+                + [f"{_safe_string(e.get('title'))} {_safe_string(e.get('location'))}" for e in calendar_events]
+                + [_safe_string(user_data.get("preferred_name")), _safe_string(user_data.get("spoken_name")),
+                   _safe_string(user_data.get("name")), _safe_string(user_data.get("school_name"))]
+            )
+            context_pack_terms = _daily_feed_context_pack_terms_used(script_text, context_pack["markdown"], other_context)
+        context_pack_applied = bool(context_pack) and selected_type != "fallback" and (context_pack_claimed or bool(context_pack_terms))
+        if not context_pack:
+            context_pack_reason = context_pack_omission_reason
+        elif selected_type == "fallback":
+            context_pack_reason = "fallback"
+        else:
+            context_pack_reason = "" if context_pack_applied else "not_used"
+        continuity_meta = {
+            "prior_date_key": _safe_string((prior_episode or {}).get("date_key")),
+            "prior_title": prior_title[:120],
+            "prior_continuity_anchor": prior_anchor[:240],
+            "title_repeat_prevented": title_repeat_prevented,
+            "anchor_repeated": bool(prior_anchor) and continuity_anchor.strip().lower() == prior_anchor.strip().lower(),
+            "anchor_source": anchor_source,
+            "therapy_anchor_repeated": anchor_source == "context_pack_therapy" and prior_anchor_source == "context_pack_therapy",
+            "lead_thread_key": _daily_feed_thread_key(lead_note) if lead_note else "",
+            "lead_thread_title": _safe_string((lead_note or {}).get("title"))[:120],
+            "lead_thread_over_cap": bool(lead_note) and _daily_feed_thread_key(lead_note) in capped_threads,
+            "threads_capped": sorted(capped_threads),
+            "notes_dropped_stale": notes_dropped_stale,
+            "voices_excluded_recent": len(recent_voice_ids),
+            "context_pack": {
+                "offered": bool(context_pack),
+                "applied": context_pack_applied,
+                "claimed_by_model": context_pack_claimed,
+                "terms_detected": context_pack_terms[:12],
+                "omission_reason": context_pack_reason,
+                "generated_at": _safe_string((context_pack or {}).get("generated_at")),
+                "sources": list((context_pack or {}).get("source_ids") or []),
+            },
+        }
         description = _safe_string(result.get("description")) or "A grounded daily briefing from Memnon."
         voice = _normalize_narration_voice(user_data.get("narration_voice"))
         professional_text = _daily_feed_section_text(segments, ["opening", "today_overview", "practical_briefing", "calendar_today"])
@@ -2893,7 +3242,24 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             audio_bytes = synthesize_reflection_bytes(script_text, voice=voice)
         storage_path = _upload_daily_feed_audio(uid, episode_id, audio_bytes)
         duration_seconds = _estimate_audio_duration_seconds(script_text)
-        guide_voices_used = _daily_feed_voices_used(result, guide_passages, user_data)
+        # The model under-reports voices it drew on; a voice named in the
+        # script counts as used, so rotation memory never misses it.
+        claimed_voice_ids = [
+            _safe_string(item) for item in (result.get("voices_used") if isinstance(result.get("voices_used"), list) else [])
+        ]
+        claimed_guides = {p.get("guide_id") for p in guide_passages if p.get("source_id") in claimed_voice_ids}
+        voices_detected_by_name = []
+        for passage in guide_passages:
+            if passage.get("guide_id") in claimed_guides:
+                continue
+            names = {_safe_string(passage.get("spoken_name")), _safe_string(passage.get("author"))} - {""}
+            if any(re.search(rf"(?<!\w){re.escape(name)}(?!\w)", script_text, re.I) for name in names):
+                voices_detected_by_name.append(passage["source_id"])
+                claimed_guides.add(passage.get("guide_id"))
+        guide_voices_used = _daily_feed_voices_used(
+            {**result, "voices_used": claimed_voice_ids + voices_detected_by_name}, guide_passages, user_data
+        )
+        continuity_meta["voices_detected_by_name"] = voices_detected_by_name
         episode_payload = {
             "date_key": episode_id,
             "published_at": firestore.SERVER_TIMESTAMP,
@@ -2908,6 +3274,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
                 (["reflection_history"] if notes else [])
                 + (["tasks"] if "today_overview" in segments_used else [])
                 + (["calendar"] if "calendar_today" in segments_used else [])
+                + (["context_pack"] if context_pack_applied else [])
                 + (["guides"] if guide_voices_used else [])
                 + (["weather"] if weather_applied else [])
             ),
@@ -2939,10 +3306,14 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
                 calendar_offered=len(calendar_events),
                 calendar_applied="calendar_today" in segments_used,
                 calendar_omission_reason=calendar_omission_reason,
+                continuity=continuity_meta,
             ),
         }
         _daily_feed_episode_ref(uid, episode_id).set(episode_payload, merge=True)
         _get_db().collection("users").document(uid).set({
+            DAILY_FEED_VOICE_HISTORY_FIELD: _daily_feed_updated_voice_history(
+                user_data.get(DAILY_FEED_VOICE_HISTORY_FIELD), guide_voices_used, today
+            ),
             "daily_feed_last_generated_for": episode_id,
             "daily_feed_last_generated_at": firestore.SERVER_TIMESTAMP,
             "daily_feed_last_published_episode_id": episode_id,
@@ -2988,6 +3359,9 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             guide_passages=guide_passages,
             overview_tasks=overview_tasks,
             calendar_events=calendar_events,
+            context_pack=context_pack,
+            prior_episode=prior_episode,
+            capped_thread_keys=set(capped_threads),
         )
         result = _summarize(
             prompt,

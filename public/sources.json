@@ -48,6 +48,7 @@
 
     "marcus_aurelius": {
       "label": "Marcus Aurelius",
+      "spoken_name": "Marcus Aurelius",
       "tradition": "stoicism",
       "work": "Meditations",
       "dates": "121–180 CE",
@@ -101,6 +102,7 @@
 
     "epictetus": {
       "label": "Epictetus",
+      "spoken_name": "Epictetus",
       "tradition": "stoicism",
       "work": "Enchiridion & Discourses",
       "dates": "c. 50–135 CE",
@@ -136,6 +138,7 @@
 
     "seneca": {
       "label": "Seneca",
+      "spoken_name": "Seneca",
       "tradition": "stoicism",
       "work": "Letters to Lucilius & Essays",
       "dates": "c. 4 BCE–65 CE",
@@ -171,6 +174,7 @@
 
     "thich_nhat_hanh": {
       "label": "Thich Nhat Hanh",
+      "spoken_name": "Thầy",
       "tradition": "buddhism",
       "work": "Various",
       "dates": "1926–2022",
@@ -206,6 +210,7 @@
 
     "dhammapada": {
       "label": "Dhammapada",
+      "spoken_name": "Dhammapada",
       "tradition": "buddhism",
       "work": "Dhammapada",
       "dates": "c. 3rd century BCE",
@@ -241,6 +246,7 @@
 
     "pema_chodron": {
       "label": "Pema Chödrön",
+      "spoken_name": "Pema Chödrön",
       "tradition": "buddhism",
       "work": "Various",
       "dates": "1936–",
@@ -270,6 +276,7 @@
 
     "shunryu_suzuki": {
       "label": "Shunryu Suzuki",
+      "spoken_name": "Shunryu Suzuki",
       "tradition": "buddhism",
       "work": "Zen Mind, Beginner's Mind",
       "dates": "1904–1971",
@@ -293,6 +300,7 @@
 
     "thomas_merton": {
       "label": "Thomas Merton",
+      "spoken_name": "Thomas Merton",
       "tradition": "christianity",
       "work": "Various",
       "dates": "1915–1968",
@@ -322,6 +330,7 @@
 
     "julian_of_norwich": {
       "label": "Julian of Norwich",
+      "spoken_name": "Julian of Norwich",
       "tradition": "christianity",
       "work": "Revelations of Divine Love",
       "dates": "c. 1342–1416",
@@ -351,6 +360,7 @@
 
     "meister_eckhart": {
       "label": "Meister Eckhart",
+      "spoken_name": "Meister Eckhart",
       "tradition": "christianity",
       "work": "Sermons & Treatises",
       "dates": "c. 1260–1328",
@@ -374,6 +384,7 @@
 
     "rumi": {
       "label": "Rumi",
+      "spoken_name": "Mawlana",
       "tradition": "islam",
       "work": "Masnavi & Divan-i-Shams",
       "dates": "1207–1273",
@@ -415,6 +426,7 @@
 
     "al_ghazali": {
       "label": "Al-Ghazali",
+      "spoken_name": "Al-Ghazali",
       "tradition": "islam",
       "work": "Ihya Ulum al-Din (Revival of Religious Sciences)",
       "dates": "1058–1111",
@@ -444,6 +456,7 @@
 
     "pirkei_avot": {
       "label": "Pirkei Avot",
+      "spoken_name": "Pirkei Avot",
       "tradition": "judaism",
       "work": "Pirkei Avot (Ethics of the Fathers)",
       "dates": "c. 3rd century CE",
@@ -479,6 +492,7 @@
 
     "martin_buber": {
       "label": "Martin Buber",
+      "spoken_name": "Martin Buber",
       "tradition": "judaism",
       "work": "I and Thou & Tales of the Hasidim",
       "dates": "1878–1965",
@@ -502,29 +516,25 @@
 
     "maimonides": {
       "label": "Maimonides",
+      "spoken_name": "the Rambam",
       "tradition": "judaism",
-      "work": "Mishneh Torah & Guide for the Perplexed",
+      "work": "Mishneh Torah",
       "dates": "1138–1204",
       "public_domain": true,
       "bio": "Medieval Sephardic Jewish philosopher and Torah scholar. His synthesis of Aristotelian philosophy and Jewish law shaped centuries of thought.",
       "passages": [
         {
           "id": "mai_1",
-          "ref": "Mishneh Torah, Laws of Character Development",
+          "ref": "Hilchot Teshuvah 3:4",
           "text": "A person should always see himself as equally balanced between merit and guilt, and the world as equally balanced between merit and guilt. If he performs one mitzvah, he tips his balance and that of the entire world to the side of merit.",
           "tags": ["responsibility", "action", "consequence", "purpose", "ethics"]
-        },
-        {
-          "id": "mai_2",
-          "ref": "Guide for the Perplexed, III:51",
-          "text": "The highest form of wisdom is knowing the limits of one's knowledge.",
-          "tags": ["humility", "wisdom", "honesty", "self_awareness", "learning"]
         }
       ]
     },
 
     "lao_tzu": {
       "label": "Lao Tzu",
+      "spoken_name": "Laozi",
       "tradition": "taoism",
       "work": "Tao Te Ching",
       "dates": "c. 6th century BCE",
@@ -566,6 +576,7 @@
 
     "zhuangzi": {
       "label": "Zhuangzi",
+      "spoken_name": "Zhuangzi",
       "tradition": "taoism",
       "work": "Zhuangzi",
       "dates": "c. 369–286 BCE",
@@ -595,6 +606,7 @@
 
     "viktor_frankl": {
       "label": "Viktor Frankl",
+      "spoken_name": "Viktor Frankl",
       "tradition": "secular",
       "work": "Man's Search for Meaning",
       "dates": "1905–1997",
@@ -630,6 +642,7 @@
 
     "james_baldwin": {
       "label": "James Baldwin",
+      "spoken_name": "James Baldwin",
       "tradition": "secular",
       "work": "Various Essays",
       "dates": "1924–1987",
@@ -659,6 +672,7 @@
 
     "simone_weil": {
       "label": "Simone Weil",
+      "spoken_name": "Simone Weil",
       "tradition": "secular",
       "work": "Various",
       "dates": "1909–1943",
@@ -694,6 +708,7 @@
 
     "john_dewey": {
       "label": "John Dewey",
+      "spoken_name": "John Dewey",
       "tradition": "education",
       "work": "Democracy and Education; Experience and Education",
       "dates": "1859–1952",
@@ -701,28 +716,17 @@
       "bio": "American philosopher and educator whose work linked democracy, inquiry, experience, and the purposes of schooling.",
       "passages": [
         {
-          "id": "jd_1",
-          "ref": "Experience and Education",
-          "text": "We do not learn from experience... we learn from reflecting on experience.",
-          "tags": ["reflection", "experience", "teaching", "learning", "growth"]
-        },
-        {
           "id": "jd_2",
           "ref": "Democracy and Education",
           "text": "Education is not preparation for life; education is life itself.",
           "tags": ["education", "purpose", "vocation", "presence", "meaning"]
-        },
-        {
-          "id": "jd_3",
-          "ref": "Democracy and Education",
-          "text": "If we teach today's students as we taught yesterday's, we rob them of tomorrow.",
-          "tags": ["teaching", "adaptation", "students", "future", "growth"]
         }
       ]
     },
 
     "parker_palmer": {
       "label": "Parker Palmer",
+      "spoken_name": "Parker Palmer",
       "tradition": "education",
       "work": "The Courage to Teach",
       "dates": "1939–",
@@ -746,6 +750,7 @@
 
     "paulo_freire": {
       "label": "Paulo Freire",
+      "spoken_name": "Paulo Freire",
       "tradition": "education",
       "work": "Pedagogy of the Oppressed; Teachers as Cultural Workers",
       "dates": "1921–1997",
@@ -769,6 +774,7 @@
 
     "howard_thurman": {
       "label": "Howard Thurman",
+      "spoken_name": "Howard Thurman",
       "tradition": "education",
       "work": "Meditations of the Heart; Various",
       "dates": "1899–1981",
@@ -792,6 +798,7 @@
 
     "bell_hooks": {
       "label": "bell hooks",
+      "spoken_name": "bell hooks",
       "tradition": "education",
       "work": "Various",
       "dates": "1952–2021",
@@ -809,12 +816,6 @@
           "ref": "All About Love",
           "text": "To begin by always thinking of love as an action rather than a feeling is one way in which anyone using the word in this manner automatically assumes accountability and responsibility.",
           "tags": ["love", "action", "responsibility", "relationship", "practice"]
-        },
-        {
-          "id": "bh_3",
-          "ref": "Teaching Community",
-          "text": "Caring for myself is not self-indulgence, it is self-preservation, and that is an act of political warfare.",
-          "tags": ["self_care", "sustainability", "wellbeing", "justice", "resilience"]
         }
       ]
     }
