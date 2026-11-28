@@ -52,7 +52,14 @@ from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection_bytes, synthesize_reflection_mp3
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status
-from lanes import daily_feed_passages, extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
+from lanes import (
+    daily_feed_passages,
+    extract_themes,
+    professional_prompt,
+    reflect_prompt,
+    same_teaching_ids,
+    teaching_practical_prompt,
+)
 from weather_context import clear_weather_cache_fields, load_weather_context
 from capture_tokens import (
     bearer_token as _bearer_token,
@@ -2443,7 +2450,8 @@ def _clip_daily_feed_theme(text: str, limit: int = 64) -> str:
 
 
 def _daily_feed_recent_voice_ids(user_data: dict, today: date) -> set[str]:
-    """source_ids spoken in the DAILY_FEED_VOICE_REPEAT_DAYS before today."""
+    """source_ids spoken in the DAILY_FEED_VOICE_REPEAT_DAYS before today,
+    plus any passage that carries the same teaching (same_as)."""
     earliest = (today - timedelta(days=DAILY_FEED_VOICE_REPEAT_DAYS)).isoformat()
     ids = set()
     for entry in user_data.get(DAILY_FEED_VOICE_HISTORY_FIELD) or []:
@@ -2452,7 +2460,7 @@ def _daily_feed_recent_voice_ids(user_data: dict, today: date) -> set[str]:
         day = _safe_string(entry.get("date"))
         if earliest <= day < today.isoformat() and _safe_string(entry.get("source_id")):
             ids.add(entry["source_id"])
-    return ids
+    return same_teaching_ids(ids)
 
 
 def _daily_feed_updated_voice_history(history: list, voices_used: list[dict], today: date) -> list[dict]:
@@ -2605,11 +2613,16 @@ def _build_daily_feed_prompt(
         for p in guide_passages:
             name = _safe_string(p.get("spoken_name")) or p["author"]
             also = f"{p['author']}; " if name != p["author"] else ""
-            passage_lines.append(f'[{p["source_id"]}] {name} ({also}{p["work"]}, {p["ref"]}):\n"{p["text"]}"')
+            line = f'[{p["source_id"]}] {name} ({also}{p["work"]}, {p["ref"]}):\n{p["text"]}'
+            if _safe_string(p.get("verbatim")):
+                line += f'\nThe one phrase you may use in the source\'s own words: "{p["verbatim"]}"'
+            passage_lines.append(line)
         guides_block = (
             "--- WISDOM VOICES THE LISTENER HAS CHOSEN ---\n"
-            "These passages were selected because they relate to the recent reflections. "
-            "Each voice is shown first by the name to speak aloud.\n\n"
+            "These teachings were selected because they relate to the recent reflections. "
+            "Each voice is shown first by the name to speak aloud. The teaching is already in plain words; "
+            "carry it in your own. Where a phrase in the source's own words is offered, it is the only wording "
+            "you may use.\n\n"
             + "\n\n".join(passage_lines)
             + "\n\n"
         )

@@ -63,10 +63,25 @@ USER = {
 }
 
 
+def _rotation_library():
+    """The Rambam with one passage, as before the library merge, so the
+    rotation tests below do not depend on the size of the live library."""
+    guides = json.loads((FUNCTIONS_DIR / "sources.json").read_text())["guides"]
+    maimonides = dict(guides["maimonides"])
+    maimonides["passages"] = [p for p in maimonides["passages"] if p["id"] == "mai_t16"]
+    return {**guides, "maimonides": maimonides}
+
+
 class BriefContinuityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.main = load_main_module()
+
+    def setUp(self):
+        import lanes
+        guides_patch = patch.dict(lanes.SOURCES, {"guides": _rotation_library()})
+        guides_patch.start()
+        self.addCleanup(guides_patch.stop)
 
     def _generate_unpatched_pack(self):
         """Like _generate, but leaves _load_context_pack to the caller's patch."""
@@ -138,12 +153,12 @@ class BriefContinuityTests(unittest.TestCase):
         user = {
             **USER,
             "daily_feed_voice_history": [
-                {"source_id": "mai_1", "guide_id": "maimonides", "date": "2026-11-26"},
+                {"source_id": "mai_t16", "guide_id": "maimonides", "date": "2026-11-26"},
             ],
         }
         episode, prompts, _ = self._generate(user_data=user)
-        self.assertNotIn("[mai_1]", prompts[0])
-        self.assertNotIn("mai_1", [p["source_id"] for p in episode["guide_passages_offered"]])
+        self.assertNotIn("[mai_t16]", prompts[0])
+        self.assertNotIn("mai_t16", [p["source_id"] for p in episode["guide_passages_offered"]])
         # Its only voice is spent, so nothing is offered, and that is fine.
         self.assertNotIn("WISDOM VOICES", prompts[0])
         self.assertEqual(episode["episode_type"], "standard")
@@ -152,33 +167,33 @@ class BriefContinuityTests(unittest.TestCase):
         user = {
             **USER,
             "daily_feed_voice_history": [
-                {"source_id": "mai_1", "guide_id": "maimonides", "date": "2026-10-27"},
+                {"source_id": "mai_t16", "guide_id": "maimonides", "date": "2026-10-27"},
             ],
         }
         _, prompts, _ = self._generate(user_data=user)
-        self.assertIn("[mai_1]", prompts[0])
+        self.assertIn("[mai_t16]", prompts[0])
 
     def test_primary_voice_guarantee_yields_to_another_voice_when_spent(self):
         selected = self.main.daily_feed_passages(
             {"reflect_config": {"selected_guides": ["maimonides", "pirkei_avot"]}},
             "responsibility",
-            exclude_source_ids={"mai_1"},
+            exclude_source_ids={"mai_t16"},
         )
         self.assertTrue(selected)
-        self.assertNotIn("mai_1", [p["source_id"] for p in selected])
+        self.assertNotIn("mai_t16", [p["source_id"] for p in selected])
         self.assertTrue(all(p["guide_id"] == "pirkei_avot" for p in selected))
 
     def test_voices_used_are_written_to_history(self):
         user = {**USER, "daily_feed_voice_history": [
-            {"source_id": "pa_2_4", "guide_id": "pirkei_avot", "date": "2026-11-20"},
+            {"source_id": "pa_t12", "guide_id": "pirkei_avot", "date": "2026-11-20"},
             {"source_id": "lt_8", "guide_id": "lao_tzu", "date": "2026-08-01"},  # past 60 days: dropped
         ]}
-        model = {**MODEL_RESULT, "voices_used": ["mai_1"]}
+        model = {**MODEL_RESULT, "voices_used": ["mai_t16"]}
         episode, _, user_ref = self._generate(user_data=user, model_result=model)
-        self.assertEqual(episode["guide_voices_used"][0]["source_ids"], ["mai_1"])
+        self.assertEqual(episode["guide_voices_used"][0]["source_ids"], ["mai_t16"])
         history = user_ref.data["daily_feed_voice_history"]
-        self.assertIn({"source_id": "mai_1", "guide_id": "maimonides", "date": "2026-11-27"}, history)
-        self.assertIn({"source_id": "pa_2_4", "guide_id": "pirkei_avot", "date": "2026-11-20"}, history)
+        self.assertIn({"source_id": "mai_t16", "guide_id": "maimonides", "date": "2026-11-27"}, history)
+        self.assertIn({"source_id": "pa_t12", "guide_id": "pirkei_avot", "date": "2026-11-20"}, history)
         self.assertNotIn("lt_8", [h["source_id"] for h in history])
 
     def test_a_voice_named_in_the_script_is_recorded_even_if_the_model_omits_it(self):
@@ -187,15 +202,15 @@ class BriefContinuityTests(unittest.TestCase):
             "reflective_grounding": "As the Rambam teaches, one act can tip the balance.",
         }}
         episode, _, user_ref = self._generate(model_result=model)
-        self.assertEqual(episode["guide_voices_used"][0]["source_ids"], ["mai_1"])
-        self.assertEqual(episode["generation_meta"]["voices_detected_by_name"], ["mai_1"])
-        self.assertIn("mai_1", [h["source_id"] for h in user_ref.data["daily_feed_voice_history"]])
+        self.assertEqual(episode["guide_voices_used"][0]["source_ids"], ["mai_t16"])
+        self.assertEqual(episode["generation_meta"]["voices_detected_by_name"], ["mai_t16"])
+        self.assertIn("mai_t16", [h["source_id"] for h in user_ref.data["daily_feed_voice_history"]])
 
     # ── (b) Spoken names, (c) weave, (f) library fixes ───────────────────────
 
     def test_spoken_name_appears_in_the_prompt(self):
         _, prompts, _ = self._generate()
-        self.assertIn("[mai_1] the Rambam (Maimonides; Mishneh Torah, Hilchot Teshuvah 3:4)", prompts[0])
+        self.assertRegex(prompts[0], r"\[mai_t16\] the Rambam \(Maimonides; [^)]*Hilchot Teshuvah 3:4\)")
         self.assertIn('as the Rambam teaches', prompts[0])
         self.assertIn("No standalone quotations", prompts[0])
         self.assertNotIn("quote or closely paraphrase", prompts[0])
@@ -211,7 +226,9 @@ class BriefContinuityTests(unittest.TestCase):
             self.assertEqual(guides["lao_tzu"]["spoken_name"], "Laozi")
             ids = {p["id"] for g in guides.values() for p in g["passages"]}
             self.assertFalse(ids & {"mai_2", "jd_1", "jd_3", "bh_3"}, path)
-            self.assertEqual(guides["maimonides"]["passages"][0]["ref"], "Hilchot Teshuvah 3:4")
+            balance = next(p for p in guides["maimonides"]["passages"] if p["id"] == "mai_t16")
+            self.assertEqual(balance["ref"], "Mishneh Torah, Hilchot Teshuvah 3:4")
+            self.assertIn("mai_1", balance["same_as"])
 
     def test_fallback_weaves_the_voice_by_spoken_name_without_a_quotation(self):
         episode, _, _ = self._generate(summarize_error=RuntimeError("model down"))
