@@ -3132,11 +3132,69 @@ def _summarize(
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
-        raw = json.loads(resp.read())["choices"][0]["message"]["content"].strip()
-    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-    raw = re.sub(r"\s*```$", "", raw)
-    return json.loads(raw)
+    def _request() -> tuple[str, str]:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            choice = json.loads(resp.read())["choices"][0]
+        return (choice.get("message") or {}).get("content") or "", choice.get("finish_reason") or ""
+
+    raw, finish_reason = _request()
+    try:
+        return _parse_model_json(raw)
+    except json.JSONDecodeError as exc:
+        if not json_mode:
+            raise
+        # Log the shape of the failure, never the content: briefs carry the
+        # user's own reflections.
+        print(f"Model JSON unparseable (finish_reason={finish_reason or 'unknown'}, "
+              f"chars={len(raw)}, error={exc.msg} at {exc.pos}); retrying once")
+    raw, finish_reason = _request()
+    return _parse_model_json(raw)
+
+
+def _close_unbalanced_json(text: str) -> str:
+    """Append the closers a JSON object is missing at its end, or return it unchanged.
+
+    Only repairs a document that ends outside a string with brackets still
+    open, the failure seen in production on 2026-11-17 and 11-18: the model
+    closed "segments" and dropped the final "}". Anything else is left for
+    json.loads to reject.
+    """
+    stack = []
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append("}" if char == "{" else "]")
+        elif char in "}]":
+            if not stack or stack[-1] != char:
+                return text
+            stack.pop()
+    if in_string or not stack:
+        return text
+    return text.rstrip().rstrip(",") + "".join(reversed(stack))
+
+
+def _parse_model_json(raw: str) -> dict:
+    text = (raw or "").strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        repaired = _close_unbalanced_json(text)
+        if repaired == text:
+            raise
+        return json.loads(repaired)
 
 
 def _build_history_source_text(
