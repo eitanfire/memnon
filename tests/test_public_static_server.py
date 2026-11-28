@@ -115,6 +115,11 @@ class PublicStaticServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"<title>Making the most of your EAP sessions", body)
 
+    def test_connect_route_serves_connect_html(self):
+        status, _headers, body = self.request("GET", "/connect")
+        self.assertEqual(status, 200)
+        self.assertIn(b"<title>Add Memnon to Claude</title>", body)
+
     def test_retired_dashboard_route_does_not_rewrite(self):
         status, _headers, _body = self.request("GET", "/dashboard")
         self.assertEqual(status, 404)

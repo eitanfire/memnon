@@ -24,6 +24,7 @@ def rewrite_public_path(raw_path: str) -> str:
         "/setup": "/setup.html",
         "/privacy": "/privacy.html",
         "/terms": "/terms.html",
+        "/connect": "/connect.html",
     }
     destination = static_routes.get(path.rstrip("/") or "/")
     # Firebase cleanUrls: /eap/<slug> serves public/eap/<slug>.html.

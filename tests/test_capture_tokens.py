@@ -280,15 +280,19 @@ class CaptureTokenTests(unittest.TestCase):
         differing = [r for r in results if r[2] != r[3]]
         self.assertEqual(differing, [("POST", "/workflows/captures", 401, 400)])
         # Every route that needs a signed-in user answers the token with 401.
-        # The rest are public (OAuth, private feed URLs keyed by their own token).
+        # The rest are public (OAuth, private feed URLs keyed by their own token,
+        # and the connector's MCP endpoint, whose Phase 1 tools are public).
         not_401 = sorted({(r[0], r[1]) for r in results if r[3] != 401})
         self.assertEqual(not_401, [
+            ("DELETE", "/mcp"),
             ("GET", "/auth/callback"),
             ("GET", "/auth/start"),
             ("GET", "/feed/<token>.xml"),
             ("GET", "/feed/<token>/<episode_id>.mp3"),
             ("GET", "/feed/<token>/library.xml"),
             ("GET", "/feed/<token>/library/<episode_id>.mp3"),
+            ("GET", "/mcp"),
+            ("POST", "/mcp"),
             ("POST", "/workflows/captures"),
         ])
         self.assertGreaterEqual(len(results), 41)

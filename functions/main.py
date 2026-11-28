@@ -52,6 +52,7 @@ from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 
 from audio_generation import synthesize_daily_brief_bytes, synthesize_reflection_bytes, synthesize_reflection_mp3
 from hf_inference import EMBEDDING_MODEL, EMBEDDING_PROVIDER, embed_text, embed_text_details, embedding_runtime_status
+import connector
 from lanes import daily_feed_passages, extract_themes, professional_prompt, reflect_prompt, teaching_practical_prompt
 from weather_context import clear_weather_cache_fields, load_weather_context
 from capture_tokens import (
@@ -4912,6 +4913,21 @@ def get_hf_status():
         },
         "coverage": _summarize_note_embedding_coverage(uid),
     })
+
+
+@flask_app.route("/mcp", methods=["GET", "POST", "DELETE"])
+def mcp_endpoint():
+    """Remote MCP server (Streamable HTTP, stateless). Phase 1: public,
+    read-only tools only, so no token is read."""
+    status, payload = connector.handle_http(request.method, request.get_data())
+    if payload is None:
+        response = flask_app.response_class(status=status)
+    else:
+        response = jsonify(payload)
+        response.status_code = status
+    if status == 405:
+        response.headers["Allow"] = "POST"
+    return response
 
 
 # ── Cloud Functions ────────────────────────────────────────────────────────────
