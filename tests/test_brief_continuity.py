@@ -88,6 +88,8 @@ class BriefContinuityTests(unittest.TestCase):
         context_pack=(None, "not_built"),
         summarize_error=None,
         patch_passages=None,
+        _keep_notes_patch=False,
+        _keep_calendar_patch=False,
     ):
         user_ref = FakeUserRef(dict(user_data or USER))
         prompts = []
@@ -103,16 +105,18 @@ class BriefContinuityTests(unittest.TestCase):
             patch.dict(self.main.os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False),
             patch.object(self.main, "_get_db", return_value=FakeDB(user_ref)),
             patch.object(self.main, "_daily_feed_episode_ref", return_value=EpisodeRef()),
-            patch.object(self.main, "_load_recent_feed_notes", return_value=[RECENT_NOTE] if notes is None else notes),
             patch.object(self.main, "_load_prior_daily_feed_episodes", return_value=prior_episodes or []),
             patch.object(self.main, "_load_overview_tasks", return_value=([], "not_connected")),
-            patch.object(self.main, "_load_calendar_events", return_value=([], "not_connected")),
             patch.object(self.main, "_upload_daily_feed_audio", return_value="daily-feed/user123/2026-11-27.mp3"),
             patch.object(self.main, "synthesize_daily_brief_bytes", return_value=(b"audio", {"used_music_beds": False})),
             patch.object(self.main, "_summarize", side_effect=fake_summarize),
             patch.object(self.main, "load_weather_context", return_value=(None, {}, {"available": False}), create=True),
             patch.object(self.main, "_log_usage_event"),
         ]
+        if not _keep_notes_patch:
+            patches.append(patch.object(self.main, "_load_recent_feed_notes", return_value=[RECENT_NOTE] if notes is None else notes))
+        if not _keep_calendar_patch:
+            patches.append(patch.object(self.main, "_load_calendar_events", return_value=([], "not_connected")))
         if self._pack_patch_enabled:
             patches.append(patch.object(self.main, "_load_context_pack", return_value=context_pack))
         if patch_passages is not None:
@@ -255,6 +259,45 @@ class BriefContinuityTests(unittest.TestCase):
         episode, prompts, _ = self._generate(prior_episodes=prior)
         self.assertNotIn("Background only", prompts[0])
         self.assertEqual(episode["generation_meta"]["lead_thread_key"], "doc:note-recent")
+
+    def test_more_notes_are_fetched_than_offered_so_a_capped_thread_is_replaced(self):
+        fresh = [
+            {"_id": f"n{i}", "title": f"Fresh note {i}", "summary": f"Summary {i}.",
+             "created_at": f"2026-11-2{6 - i}T12:00:00Z"}
+            for i in range(5)
+        ]
+        prior = [
+            {"date_key": "2026-11-26", "generation_meta": {"lead_thread_key": "doc:n0"}},
+            {"date_key": "2026-11-25", "generation_meta": {"lead_thread_key": "doc:n0"}},
+        ]
+        with patch.object(self.main, "_load_recent_feed_notes", return_value=fresh) as load:
+            _, prompts, _ = self._generate(prior_episodes=prior, notes=None, _keep_notes_patch=True)
+        self.assertEqual(load.call_args.kwargs["limit"], self.main.DAILY_FEED_NOTE_FETCH_LIMIT)
+        self.assertGreater(self.main.DAILY_FEED_NOTE_FETCH_LIMIT, self.main.DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT)
+        for i in range(1, 5):
+            self.assertIn(f"Fresh note {i}", prompts[0])  # the 5th note fills the capped thread's slot
+        self.assertNotIn("Fresh note 0", prompts[0])
+
+    def test_calendar_people_are_offered_with_their_event(self):
+        events = [{
+            "id": "e1", "title": "Coffee", "start": "2026-11-27T09:00:00-07:00", "end": "", "all_day": False,
+            "location": "", "calendar": "", "people": ["Dave Smith", "Krista"],
+        }]
+        with patch.object(self.main, "_load_calendar_events", return_value=(events, "")):
+            episode, prompts, _ = self._generate(_keep_calendar_patch=True)
+        self.assertIn("Coffee — with Dave Smith, Krista", prompts[0])
+        self.assertIn("are the people the listener meets today", prompts[0])
+        self.assertEqual(episode["generation_meta"]["calendar_people_offered"], 2)
+
+    def test_calendar_people_skip_self_resources_declined_and_bare_emails(self):
+        people = self.main._calendar_event_people({"attendees": [
+            {"email": "me@x.org", "displayName": "Eitan", "self": True},
+            {"email": "room@x.org", "displayName": "Room 214", "resource": True},
+            {"email": "no@x.org", "displayName": "Declined Person", "responseStatus": "declined"},
+            {"email": "bare@x.org"},
+            {"email": "dave@x.org", "displayName": "Dave"},
+        ]})
+        self.assertEqual(people, ["Dave"])
 
     # ── (e) Point of view ────────────────────────────────────────────────────
 

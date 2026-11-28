@@ -207,6 +207,8 @@ HUGGING_FACE_API_KEY = os.environ.get("HUGGING_FACE_API_KEY", "")
 DEFAULT_DAILY_FEED_TIMEZONE = "America/Denver"
 DEFAULT_DAILY_FEED_PUBLISH_HOUR = 4
 DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT = 4
+# Fetch more than are offered, so stale or capped notes don't leave gaps.
+DAILY_FEED_NOTE_FETCH_LIMIT = 8
 DEFAULT_DAILY_FEED_STANDARD_LOOKBACK_DAYS = 7
 # Notes older than this are never offered; older material reaches the brief
 # only through the context pack.
@@ -1828,7 +1830,27 @@ def _normalize_calendar_event(item: dict, tz: ZoneInfo, today: date) -> dict | N
         "all_day": all_day,
         "location": _safe_string(item.get("location"))[:120],
         "calendar": _safe_string(item.get("_calendar_name")),
+        "people": _calendar_event_people(item),
     }
+
+
+def _calendar_event_people(item: dict, limit: int = 6) -> list[str]:
+    """Display names of the other people on an event. The calendar is the
+    listener's own, so it is a trusted source for who they meet. No email
+    addresses: a name that cannot be spoken is left out."""
+    people = []
+    for attendee in item.get("attendees") or []:
+        if not isinstance(attendee, dict) or attendee.get("self") or attendee.get("resource"):
+            continue
+        if attendee.get("responseStatus") == "declined":
+            continue
+        name = _safe_string(attendee.get("displayName"))
+        if not name or "@" in name or name in people:
+            continue
+        people.append(name[:60])
+        if len(people) >= limit:
+            break
+    return people
 
 
 def _spoken_clock(value: datetime) -> str:
@@ -2648,6 +2670,8 @@ def _build_daily_feed_prompt(
             line = f"[{_calendar_event_ref(index)}] {_spoken_event_time(event)} — {event['title']}"
             if event.get("location"):
                 line += f" (at {event['location']})"
+            if event.get("people"):
+                line += " — with " + ", ".join(event["people"])
             event_lines.append(line)
         calendar_block = (
             "--- TODAY'S CALENDAR (in start order; times are the listener's local time) ---\n"
@@ -2697,6 +2721,8 @@ def _build_daily_feed_prompt(
             "Name what comes first, where two things sit close together, and anything that needs preparation. "
             "Do not invent appointments, and do not restate the calendar in any other segment.\n"
             "- If a task is clearly tied to an appointment, today_overview may say so in a few words.\n"
+            "- The names after \"with\" are the people the listener meets today. Use them to know who is who; "
+            "never move one person's matters onto another.\n"
         )
 
     anchor_source_options = ", ".join(DAILY_FEED_ANCHOR_SOURCES)
@@ -3048,7 +3074,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
     # A quiet stretch is not a reason to skip the day: tasks and the present-day
     # anchor still give the brief something real to say, and older reflections
     # are offered as background rather than as "recent".
-    notes = _load_recent_feed_notes(uid)
+    notes = _load_recent_feed_notes(uid, limit=DAILY_FEED_NOTE_FETCH_LIMIT)
     today = local_now.date()
     # Stale notes are never offered; anything older reaches the brief only
     # through the context pack.
@@ -3208,6 +3234,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "lead_thread_over_cap": bool(lead_note) and _daily_feed_thread_key(lead_note) in capped_threads,
             "threads_capped": sorted(capped_threads),
             "notes_dropped_stale": notes_dropped_stale,
+            "calendar_people_offered": sum(len(e.get("people") or []) for e in calendar_events),
             "voices_excluded_recent": len(recent_voice_ids),
             "context_pack": {
                 "offered": bool(context_pack),
