@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Add Memnon to Claude</title>
+  <meta name="description" content="Add Memnon to Claude as a custom connector. Ask Claude about your Colorado school district's employee assistance program." />
+  <link rel="canonical" href="https://memnon.app/connect" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <style>
+    .crisis { background:#fff4e5; border:1px solid #f0c27b; border-radius:8px; padding:10px 14px; margin-bottom:24px; }
+    .url { display:block; font-family:ui-monospace, Menlo, monospace; background:#f5f3ef; border-radius:6px; padding:10px 12px; margin:8px 0; overflow-wrap:anywhere; user-select:all; }
+    main ol li { margin-bottom:10px; line-height:1.6; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/" class="nav-brand" style="text-decoration:none;"><img class="brand-mark" src="/nav-logo.png" alt="" /> Memnon</a>
+  </nav>
+
+  <main class="container" style="max-width:680px;">
+    <p class="crisis">In crisis? Call or text <a href="tel:988">988</a> (Suicide &amp; Crisis Lifeline, 24/7).</p>
+
+    <h1>Add Memnon to Claude</h1>
+    <p>Memnon works as a connector in Claude. Today it does one thing: ask Claude about your school district's employee assistance program and it answers from the <a href="/eap">Colorado EAP directory</a>, with the provider, free sessions, phone number, how to log in and when it was last checked. No account or sign-in needed.</p>
+
+    <section class="card">
+      <h2>Set it up</h2>
+      <ol>
+        <li>In Claude, open <strong>Customize</strong>, then <strong>Connectors</strong>.</li>
+        <li>Choose <strong>Add custom connector</strong>.</li>
+        <li>Name it <strong>Memnon</strong> and paste this URL:
+          <code class="url">https://memnon.app/api/mcp</code>
+        </li>
+        <li>Choose <strong>Add</strong>. No sign-in is needed.</li>
+      </ol>
+      <p class="muted">If you don't see Add custom connector, your Claude plan or your workspace admin may not allow custom connectors yet.</p>
+    </section>
+
+    <section class="card">
+      <h2>Try asking</h2>
+      <ul>
+        <li>"How many free counseling sessions do St. Vrain teachers get?"</li>
+        <li>"What's the EAP phone number for Boulder Valley?"</li>
+        <li>"I teach in Thornton. Who runs my EAP?"</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>What Memnon can see</h2>
+      <p>Only the public EAP directory. The connector can't read or change anything of yours, and it does not keep what you ask.</p>
+    </section>
+
+    <p class="muted"><a href="/eap/guide">Making the most of your EAP sessions</a> · <a href="/privacy">Privacy</a></p>
+  </main>
+</body>
+</html>

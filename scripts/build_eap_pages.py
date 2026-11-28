@@ -6,7 +6,8 @@ Usage:
 
 Reads data/eap/colorado-districts.json (the source of truth) and writes
 public/eap/index.html, public/eap/<slug>.html for each district where
-has_eap is not null, and public/sitemap.xml. Standard library only.
+has_eap is not null, and public/sitemap.xml, then copies the data to
+functions/eap/ for the connector. Standard library only.
 
 Rules the pages keep:
 - Low-confidence entries say "ask HR" and never guess.
@@ -19,7 +20,7 @@ from __future__ import annotations
 
 import html
 import json
-import re
+import shutil
 import sys
 from datetime import date
 from pathlib import Path
@@ -29,57 +30,31 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "eap" / "colorado-districts.json"
 PUBLIC = ROOT / "public"
 SITE = "https://memnon.app"
+sys.path.insert(0, str(ROOT / "functions"))
+from eap_directory import (  # noqa: E402
+    ASK_HR,
+    LOGIN_IN_GUIDE,
+    REFERENCE_SLUGS,
+    SECRET,
+    DataError,
+    confirmed,
+    facts,
+    guide_url,
+    has_page,
+    load,
+    login,
+    _sentence,
+)
+from eap_directory import DATA as FUNCTIONS_DATA  # noqa: E402
 
-# Reference entries are not districts: no page of their own, a note on the index.
-REFERENCE_SLUGS = {"colorado-state-c-seap"}
 # Static pages listed in the sitemap alongside the generated ones.
-STATIC_PATHS = ["/eap/guide", "/privacy", "/terms"]
+STATIC_PATHS = ["/eap/guide", "/connect", "/privacy", "/terms"]
 
-ASK_HR = "We could not confirm this district's EAP from a public source; ask HR."
-LOGIN_IN_GUIDE = "Login details are in your district's benefits guide"
 CRISIS = 'In crisis? Call or text <a href="tel:988">988</a> (Suicide &amp; Crisis Lifeline, 24/7).'
 CONNECT_LINE = (
     'Memnon can carry what you learn in sessions into a short daily brief. '
     '<a href="/connect">Set it up</a>.'
 )
-_SECRET = re.compile(r"\b(user\s*name|password)\b", re.IGNORECASE)
-
-
-class DataError(ValueError):
-    pass
-
-
-def load(path: Path = DATA) -> list[dict]:
-    entries = json.loads(path.read_text())
-    for entry in entries:
-        name = entry.get("slug") or entry.get("district_name") or "entry"
-        if not entry.get("official_source_urls"):
-            raise DataError(f"{name}: official_source_urls is required")
-        if not entry.get("slug") or not entry.get("last_verified"):
-            raise DataError(f"{name}: slug and last_verified are required")
-    return entries
-
-
-def confirmed(entry: dict) -> bool:
-    return entry.get("has_eap") is True and entry.get("confidence") in ("high", "medium")
-
-
-def has_page(entry: dict) -> bool:
-    return entry.get("has_eap") is not None and entry["slug"] not in REFERENCE_SLUGS
-
-
-def guide_url(entry: dict) -> str:
-    urls = entry["official_source_urls"]
-    return next((u for u in urls if u.lower().endswith(".pdf")), urls[0])
-
-
-def login(entry: dict) -> tuple[str, bool]:
-    """web_access without usernames or passwords. Returns (text, redacted)."""
-    text = entry.get("web_access") or ""
-    without_asides = re.sub(r"\s*\([^)]*\)", lambda m: "" if _SECRET.search(m.group()) else m.group(), text)
-    parts = [p.strip() for p in re.split(r",\s*", without_asides) if p.strip()]
-    kept = [p for p in parts if not _SECRET.search(p)]
-    return ", ".join(kept), bool(_SECRET.search(text))
 
 
 def nice_date(iso: str) -> str:
@@ -93,38 +68,6 @@ def source_label(url: str) -> str:
     return label + (" (PDF)" if parsed.path.lower().endswith(".pdf") else "")
 
 
-def _sentence(text: str) -> str:
-    text = text.strip()
-    return text if text.rstrip("'\"’”)").endswith((".", "!", "?")) else text + "."
-
-
-def facts(entry: dict) -> dict:
-    """Plain-text answers shared by the page and its FAQPage JSON-LD."""
-    name = entry["district_name"]
-    if not confirmed(entry):
-        return {"answer": ASK_HR, "sessions": "", "contact": ""}
-    login_text, redacted = login(entry)
-    sessions = _sentence(f"Sessions: {entry['sessions']}") if entry.get("sessions") else \
-        "Sessions: the district does not publish a limit; ask when you call."
-    phone = _sentence(f"Phone: {entry['phone']}") if entry.get("phone") else \
-        "Phone: the district does not publish one; ask HR."
-    log_in = ""
-    if login_text:
-        log_in = _sentence(f"Log in: {login_text}")
-    if redacted:
-        log_in += f" {LOGIN_IN_GUIDE}."
-    answer = " ".join(filter(None, [
-        f"Yes. {name} has an employee assistance program.",
-        _sentence(f"Provider: {entry['provider']}") if entry.get("provider") else "",
-        sessions,
-        phone,
-        log_in.strip(),
-    ]))
-    return {
-        "answer": answer,
-        "sessions": sessions.removeprefix("Sessions: "),
-        "contact": " ".join(filter(None, [phone, log_in.strip()])),
-    }
 
 
 def faq_jsonld(entry: dict) -> str:
@@ -299,7 +242,7 @@ def build(data_path: Path = DATA, public_dir: Path = PUBLIC) -> list[Path]:
     (public_dir / "sitemap.xml").write_text(render_sitemap(entries))
     written += [out / "index.html", public_dir / "sitemap.xml"]
     for path in written:
-        if _SECRET.search(path.read_text()):
+        if SECRET.search(path.read_text()):
             raise DataError(f"{path.name}: a username or password reached the page")
     return written
 
@@ -310,7 +253,9 @@ def main() -> None:
     except DataError as exc:
         print(f"✗  {exc}", file=sys.stderr)
         sys.exit(1)
-    print(f"✓  wrote {len(written)} files to public/eap and public/sitemap.xml")
+    FUNCTIONS_DATA.parent.mkdir(exist_ok=True)
+    shutil.copyfile(DATA, FUNCTIONS_DATA)
+    print(f"✓  wrote {len(written)} files to public/eap and public/sitemap.xml; copied data to functions/eap/")
 
 
 if __name__ == "__main__":
