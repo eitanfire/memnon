@@ -102,6 +102,19 @@ class PublicStaticServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b'id="workflows-app"', body)
 
+    def test_eap_district_route_serves_its_page_not_index(self):
+        status, _headers, body = self.request("GET", "/eap/st-vrain-valley")
+        self.assertEqual(status, 200)
+        self.assertIn(b"<title>St. Vrain Valley School District RE-1J EAP", body)
+
+    def test_eap_index_and_guide_routes(self):
+        status, _headers, body = self.request("GET", "/eap")
+        self.assertEqual(status, 200)
+        self.assertIn(b"<title>Colorado school district EAPs", body)
+        status, _headers, body = self.request("GET", "/eap/guide")
+        self.assertEqual(status, 200)
+        self.assertIn(b"<title>Making the most of your EAP sessions", body)
+
     def test_retired_dashboard_route_does_not_rewrite(self):
         status, _headers, _body = self.request("GET", "/dashboard")
         self.assertEqual(status, 404)

@@ -1,0 +1,587 @@
+[
+  {
+    "district_name": "St. Vrain Valley School District RE-1J",
+    "short_name": "SVVSD",
+    "slug": "st-vrain-valley",
+    "city": "Longmont",
+    "has_eap": true,
+    "provider": "ComPsych (GuidanceResources)",
+    "sessions": "up to 6 free face-to-face visits per episode",
+    "session_basis_conflict": "District EAP page and 2026 New Hire Benefits Guide say 'per episode'; the 2024-2025 Classified Employees' Handbook (sec. 3.3) says 'Employees are offered six free visits per year.'",
+    "phone": "855-699-6908 (24/7)",
+    "web_access": "www.guidanceresources.com, Company Web ID: SVVSD",
+    "who_is_covered": "Employees and eligible family members; counseling available to all members of the household",
+    "other_services": [
+      "chat with an expert / app",
+      "guided online resources",
+      "personalized assessment plan (mental, emotional, physical, social, financial, legal)",
+      "child care, aging parent, financial and pet-care referrals",
+      "discounted rates or referrals"
+    ],
+    "extra_benefits": "Employees covered on the district Basic Life Plan (The Hartford) get Ability Assist Counseling (also run by ComPsych): up to 3 face-to-face emotional or work-life sessions per occurrence, per year. 1-800-964-3577, Web ID HLF902, Company Name ABILI. Guide says use the district EAP first.",
+    "official_source_urls": [
+      "https://www.svvsd.org/departments/human-resources/benefits/employee-assistance-program/",
+      "https://svvsd.org/wp-content/uploads/2026/05/2026-Benefits-Enrollment-Guide_New-Hires.pdf",
+      "https://www.svvsd.org/wp-content/uploads/2025/05/2024-2025-Classified-Employee-Handbook.pdf"
+    ],
+    "source_quote": "there's never a cost to you when you contact an EAP counselor; the district pays the full cost for up to 6 visits per episode.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "Ability Assist wording ('per occurrence, per year') is from the 2026 New Hire Benefits Guide; the district EAP page lists the same access details without naming Ability Assist."
+  },
+  {
+    "district_name": "Boulder Valley School District RE-2",
+    "short_name": "BVSD",
+    "slug": "boulder-valley",
+    "city": "Boulder",
+    "has_eap": true,
+    "provider": "ComPsych (GuidanceResources)",
+    "sessions": "up to eight (8) free in-person or virtual sessions with a counselor per event, per year, per individual",
+    "session_basis_conflict": null,
+    "phone": "866-519-8359",
+    "web_access": "www.guidanceresources.com (no company Web ID published in the guide)",
+    "who_is_covered": "Employees and household members; eligible (benefits-eligible, generally 0.5 FTE+) employees are automatically enrolled, paid 100% by BVSD",
+    "other_services": [
+      "unlimited toll-free phone access",
+      "online resources",
+      "help with relationships, substance use, child and eldercare, grief and loss, legal and financial issues"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://drive.google.com/file/d/1tF3UbM5nB7FrF2XHwYt734OQKVOT3joC/view?usp=sharing",
+      "https://www.bvsd.org/departments/human-resources/benefits",
+      "https://resources.finalsite.net/images/v1748371666/bvsdorg/e5ai48xnmp2mcbnibleo/2025-2026-BenefitsGuide.pdf"
+    ],
+    "source_quote": "Up to eight (8) free in-person or virtual sessions with a counselor per event, per year, per individual",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "Source is the 2026-27 Benefits Guide (July 1, 2026 - June 30, 2027) linked from the BVSD benefits page (hosted on Google Drive). The GuidanceResources Web ID is not in the guide; confirm with benefits@bvsd.org."
+  },
+  {
+    "district_name": "Thompson School District R2-J",
+    "short_name": "TSD",
+    "slug": "thompson",
+    "city": "Loveland",
+    "has_eap": true,
+    "provider": "AllOne Health",
+    "sessions": "six counseling sessions per year, per incident",
+    "session_basis_conflict": "District staff page: 'six counseling sessions per year, per incident'. 2026-27 CEBT Benefit Guide: '6 free counseling sessions per year for CEBT members and dependents under 26' (no per-incident wording).",
+    "phone": "970-242-9536 or 877-679-1100 (toll-free)",
+    "web_access": "www.allonehealth.com/portal, Company Code: cebt",
+    "who_is_covered": "All APT, Licensed and Classified employees and their dependents; dependents need not be on the district medical plan (per district staff page)",
+    "other_services": [
+      "life coaching",
+      "financial consultation",
+      "legal consultation",
+      "work-life resources and referrals",
+      "personal assistant service",
+      "24/7 member portal"
+    ],
+    "extra_benefits": "The 2026-27 CEBT guide also lists an EAP through The Standard (group life and disability carrier): (888) 293-6948, workhealthlife.com/Standard3.",
+    "official_source_urls": [
+      "https://staff.tsd.org/hr/benefits/employee-assistance-plan",
+      "https://www.cebt.org/files/8ed4a6f7f/Thompson+School+District+R-2J+CEBT+Benefit+Guide+2026-2027+%281%29.pdf"
+    ],
+    "source_quote": "Individuals can access six counseling sessions per year, per incident.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "Older district pages still name The Standard EAP (staff.tsd.org local-resources) and Triad EAP (thompsonschools.org, uses the same phone numbers as AllOne Health). The current staff HR page names AllOne Health."
+  },
+  {
+    "district_name": "Poudre School District R-1",
+    "short_name": "PSD",
+    "slug": "poudre",
+    "city": "Fort Collins",
+    "has_eap": true,
+    "provider": "Employee Assistance Services (EAS), run by the district (in-house program)",
+    "sessions": "five sessions per problem, per plan year",
+    "session_basis_conflict": null,
+    "phone": "970-488-4925; 24/7 crisis response at 970-488-4925, ext. 1",
+    "web_access": "eas@psdschools.org; https://www.psdschools.org/eas",
+    "who_is_covered": "PSD employees and eligible household family members; PSD health insurance not required. Temporary employees, substitutes, and varied-hour employees without a pay assignment are not eligible.",
+    "other_services": [
+      "problem-solving and mental health/substance use counseling",
+      "telehealth (Microsoft Teams) or in-person",
+      "24/7 crisis response",
+      "administers PSD Mental Health/Substance Use benefit plan and care coordination"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.psdschools.org/careers/working-psd/employee-assistance-services-eas",
+      "https://www.psdschools.org/careers/why-work-at-psd/employee-assistance-services/eas-frequently-asked-questions",
+      "https://resources.finalsite.net/images/v1787605956/psdschoolsorg9/fxahvnjcmpvmdwptpbe0/BenefitsBooklet2026-20271.pdf"
+    ],
+    "source_quote": "Each individual is offered five sessions per problem, per plan year.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "2026-27 Benefits Booklet (Aug 1, 2026 - Jul 31, 2027) says 'up to five visits per problem per plan year'. Not an outside EAP vendor. District pages list two office addresses (Eastbrook Dr. and McClelland Dr.); confirm before visiting in person."
+  },
+  {
+    "district_name": "Adams 12 Five Star Schools",
+    "short_name": "Adams 12",
+    "slug": "adams-12-five-star",
+    "city": "Thornton",
+    "has_eap": true,
+    "provider": "ComPsych (GuidanceResources)",
+    "sessions": null,
+    "session_basis_conflict": null,
+    "phone": "855-890-3209 (TRS: dial 711), 24/7",
+    "web_access": "guidanceresources.com, Web ID: ADAMS 12; GuidanceNow app",
+    "who_is_covered": "All employees and their household members, regardless of benefits eligibility or hours worked",
+    "other_services": [
+      "confidential emotional support",
+      "work and lifestyle support (child, elder, pet care, relocation)",
+      "legal guidance with free consultation and discounted representation",
+      "financial resources",
+      "WellthSource financial wellness / online will",
+      "digital self-care tools",
+      "wellness coaching"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://resources.finalsite.net/images/v1769644072/adams12org/adams12org/adams12org/adams12org/hemu9xsqprfkrr9ycij6/BenefitBooklet_2026.pdf",
+      "https://www.adams12.org/our-district/human-resources/benefits-overview"
+    ],
+    "source_quote": "The district provides an employee assistance program (EAP) to all Adams 12 Five Star Schools employees and their household members at no charge, regardless of benefits eligibility.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "Session count not published. The same 2026 booklet's contact table still lists Resources For Living (866.252.4468) for the EAP, which conflicts with the ComPsych EAP page; the ComPsych page appears current. Confirm with hr-benefits@adams12.org."
+  },
+  {
+    "district_name": "Westminster Public Schools",
+    "short_name": "WPS",
+    "slug": "westminster",
+    "city": "Westminster",
+    "has_eap": true,
+    "provider": "Resources For Living",
+    "sessions": "up to five free face-to-face visits per person, per issue, per year",
+    "session_basis_conflict": null,
+    "phone": "866-252-4468",
+    "web_access": "resourcesforliving.com (also MyLifeValues.com), Username: Westminster, Password: eap",
+    "who_is_covered": "Employees and their household",
+    "other_services": [
+      "24/7 online and telephonic counseling",
+      "child and elder care referrals",
+      "legal and financial guidance",
+      "tools and self-assessments",
+      "free online will",
+      "identity theft consultation",
+      "mediation services"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.wps.org/departments/human-resources/benefits-information",
+      "https://www.wps.org/fs/resource-manager/view/42133951-a138-4688-81ca-7d463308c261",
+      "https://www.wps.org/fs/resource-manager/view/1091bfa7-ffe3-4212-b344-fdefac663055"
+    ],
+    "source_quote": "up to five free face-to-face visits per person, per issue, per year with a licensed counselor.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "From the 2027 Benefits Guide (Jan 1 - Dec 31, 2027) linked from wps.org. Login credentials are printed in the district's public guide and EAP overview."
+  },
+  {
+    "district_name": "Weld County School District RE-1",
+    "short_name": "Weld RE-1",
+    "slug": "weld-re-1",
+    "city": "Gilcrest",
+    "has_eap": true,
+    "provider": "Depends on enrollment: Anthem EAP (Anthem medical members), Kaiser EAP (Kaiser members), Equitable EAP (employees in district-provided life insurance)",
+    "sessions": null,
+    "session_basis_conflict": null,
+    "phone": null,
+    "web_access": null,
+    "who_is_covered": "District page: 'all employees and their families'. 2026-27 guide ties each EAP to the carrier the employee is enrolled with.",
+    "other_services": [
+      "stress",
+      "mental health",
+      "legal advice",
+      "financial guidance",
+      "child and elder care",
+      "addictions",
+      "nutrition",
+      "physical health"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://wcsdre1.org/en-US/human-resources-f0e36b4e/staff-benefits-df0d058e",
+      "https://drive.google.com/file/d/1aHY3gYuX7jm2VQc97vysfS5_pdineXCw/view?usp=sharing"
+    ],
+    "source_quote": "The Employee Assistance Program is provided by Anthem for people enrolled with Anthem, Kaiser is providing an EAP for people enrolled in KP and Equitable (life insurance carrier) is providing an EAP for every employee enrolled",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "Source: 2026-27 Annual Open Enrollment Guide (July 1, 2026 - June 30, 2027) linked from the district benefits page. No phone, code, or session limits published; ask HR (970-350-4201). District page says all employees must enroll in Equitable life insurance, so the Equitable EAP likely reaches every employee, but confirm."
+  },
+  {
+    "district_name": "Weld RE-5J School District (Johnstown-Milliken)",
+    "short_name": "Weld RE-5J",
+    "slug": "weld-re-5j-johnstown-milliken",
+    "city": "Milliken",
+    "has_eap": true,
+    "provider": "AllOne Health (through CEBT)",
+    "sessions": "6 free counseling sessions per year",
+    "session_basis_conflict": null,
+    "phone": "(970) 242-9536 or (877) 679-1100",
+    "web_access": "allonehealth.com/portal (Member Portal > Sign Up), Company Code: CEBT",
+    "who_is_covered": "CEBT members and dependents under 26",
+    "other_services": [
+      "6 free life coaching sessions",
+      "legal review",
+      "financial counseling"
+    ],
+    "extra_benefits": "Separate Modern Health mental health benefit for members and dependents ages 6+ enrolled in a medical plan: 8 therapy and 8 coaching sessions per year (my.modernhealth.com, company name CEBT).",
+    "official_source_urls": [
+      "https://www.weldre5j.org/departments/human-resources",
+      "https://www.weldre5j.org/fs/resource-manager/view/7a54a484-0f85-47e9-b96e-e2271136a83a"
+    ],
+    "source_quote": "The Allone Health EAP offers 6 free counseling sessions per year for CEBT members and dependents under 26, covering issues like divorce, parenting, grief, and conflict.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "From the Weld County School District Re-5J CEBT Benefit Guide 2026-2027 (scanned PDF read page by page). Unclear whether staff who waive CEBT coverage are covered; the guide's value-added page header says perks exclude Kaiser members. HR contact: Annette Miller, (970) 587-6051."
+  },
+  {
+    "district_name": "Weld RE-4 School District (Windsor-Severance)",
+    "short_name": "Weld RE-4",
+    "slug": "weld-re-4-windsor-severance",
+    "city": "Windsor",
+    "has_eap": true,
+    "provider": "AllOne Health (through CEBT)",
+    "sessions": "6 free counseling sessions per year",
+    "session_basis_conflict": null,
+    "phone": "(970) 242-9536 or (877) 679-1100",
+    "web_access": "allonehealth.com/portal, Company Code: CEBT",
+    "who_is_covered": "CEBT members and dependents under 26",
+    "other_services": [
+      "6 free life coaching sessions",
+      "legal review",
+      "financial counseling"
+    ],
+    "extra_benefits": "Modern Health: 8 therapy and 8 coaching sessions per year for members and dependents ages 6+ enrolled in a medical plan.",
+    "official_source_urls": [
+      "https://weldre4.org/en-US/benefits",
+      "https://www.cebt.org/files/39e80ff1e/Weld+County+School+District+Re-4+CEBT+Benefit+Guide+2026-2027.pdf"
+    ],
+    "source_quote": "The Allone Health EAP offers 6 free counseling sessions per year for CEBT members and dependents under 26",
+    "last_verified": "2026-11-27",
+    "confidence": "medium",
+    "notes": "District page confirms an EAP and CEBT as benefits provider but names no vendor; vendor details come from the district-named 2026-27 guide hosted on cebt.org. Confirm with Payroll and Benefits Manager (970-686-8000 x8865)."
+  },
+  {
+    "district_name": "Greeley-Evans School District 6",
+    "short_name": "D6",
+    "slug": "greeley-evans",
+    "city": "Greeley",
+    "has_eap": true,
+    "provider": "SupportLinc (CuraLinc Healthcare), new provider as of July 1, 2026",
+    "sessions": "8 face-to-face or virtual visits per issue per plan year",
+    "session_basis_conflict": null,
+    "phone": "1-888-881-LINC (5462), 24/7",
+    "web_access": "mysupportlinc.com, group code: greeleyschools",
+    "who_is_covered": "All employees regardless of district insurance, their household members, and dependent children up to 26 whether or not they live at home",
+    "other_services": [
+      "24/7 in-the-moment support",
+      "coaching (emotional fitness, healthy habits, resilience)",
+      "financial and legal consultations",
+      "child/elder care, pet care, home and auto referrals",
+      "text coaching, anonymous groups, self-guided digital therapy"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.greeleyschools.org/departments/worksite-wellness/employee-assistance-program-eap"
+    ],
+    "source_quote": "SupportLinc is our NEW provider as of July 1, 2026. ... You have 8 face-to-face or virtual visits per issue per plan year.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "Several older D6 pages still describe Resources for Living (Aetna). Those are out of date as of July 1, 2026."
+  },
+  {
+    "district_name": "School District 27J",
+    "short_name": "27J",
+    "slug": "27j-brighton",
+    "city": "Brighton",
+    "has_eap": true,
+    "provider": "Resources For Living",
+    "sessions": "up to 5 counseling sessions per issue each year",
+    "session_basis_conflict": null,
+    "phone": "1-866-252-4468, TTY: 711",
+    "web_access": "Resourcesforliving.com, Username: SD27J, Password: eap",
+    "who_is_covered": "Employees and all members of the household, including dependent children up to 26 whether or not they live at home",
+    "other_services": [
+      "24/7 in-the-moment emotional well-being support",
+      "face-to-face or televideo counseling"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://resources.finalsite.net/images/v1714768949/sd27jorg/ponao4ujpslfq1f94ajt/EmployeeBenefitsandWellnessGuide-27JSchools.pdf",
+      "https://www.sd27j.org/departments/human-resources/benefits"
+    ],
+    "source_quote": "You can access up to 5 counseling sessions per issue each year. You can also call us 24 hours a day for in-the-moment emotional well-being support.",
+    "last_verified": "2026-11-27",
+    "confidence": "medium",
+    "notes": "Details come from the 2024-25 Employee Benefits and Wellness Guide. The 2026-27 benefits page lists an EAP but gives no vendor, so the vendor may have changed. Confirm with 27J HR."
+  },
+  {
+    "district_name": "Estes Park School District R-3",
+    "short_name": "Estes Park R-3",
+    "slug": "estes-park",
+    "city": "Estes Park",
+    "has_eap": null,
+    "provider": null,
+    "sessions": null,
+    "session_basis_conflict": null,
+    "phone": null,
+    "web_access": null,
+    "who_is_covered": null,
+    "other_services": [],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.estesschools.org/services-supports/human-resources"
+    ],
+    "source_quote": "Full time staff receive a benefits package that includes: Health insurance, term life insurance",
+    "last_verified": "2026-11-27",
+    "confidence": "low",
+    "notes": "No EAP found on public district pages; no public benefits guide found. Health or life carriers often include an EAP, but none is confirmed. Ask district HR."
+  },
+  {
+    "district_name": "Jeffco Public Schools (Jefferson County R-1)",
+    "short_name": "Jeffco",
+    "slug": "jeffco",
+    "city": "Golden",
+    "has_eap": true,
+    "provider": "Jeffco Public Schools Employee Assistance Program (district-run; EAP staff provide assessment, brief therapy and referral)",
+    "sessions": null,
+    "session_basis_conflict": null,
+    "phone": "303-982-0377",
+    "web_access": "EAP page under Human Resources > Total Rewards on the #TeamJeffco intranet (employee login)",
+    "who_is_covered": "All Jeffco Public Schools employees at no cost; assessment and brief therapy also for family members",
+    "other_services": [
+      "confidential in-person assessment and brief solution-focused therapy",
+      "short-term counseling for work problems (harassment, burnout, conflict)",
+      "referrals to school, community and health plan resources",
+      "administers #TeamJeffco Cares hardship fund applications"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.jeffcopublicschools.org/careers/employee-benefits",
+      "https://www.jeffcopublicschools.org/fs/resource-manager/view/059bfc75-29d8-4926-8236-6f9fecb5dc92"
+    ],
+    "source_quote": "The employee assistance program (EAP) is available to all Jeffco Public Schools employees AT NO COST.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "From the 2026-27 Full-Time District Benefits Enrollment Guide. Session limits are not published publicly. Confirm with the EAP (303-982-0377)."
+  },
+  {
+    "district_name": "Denver Public Schools",
+    "short_name": "DPS",
+    "slug": "denver",
+    "city": "Denver",
+    "has_eap": true,
+    "provider": "ComPsych (GuidanceResources), unverified",
+    "sessions": null,
+    "session_basis_conflict": null,
+    "phone": null,
+    "web_access": null,
+    "who_is_covered": null,
+    "other_services": [],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "http://thecommons.dpsk12.org/eap"
+    ],
+    "source_quote": null,
+    "last_verified": "2026-11-27",
+    "confidence": "low",
+    "notes": "DPS's EAP page is on the login-only intranet (The Commons). Search-index snippets of that page mention ComPsych, a hotline, a company ID and '5 sessions', but none of this could be checked on a public page, so phone, code and sessions are left null. The 2026-27 DPS Open Enrollment Guide is on Issuu, and its text could not be read. Confirm with HR Connect / Benefits."
+  },
+  {
+    "district_name": "Cherry Creek School District 5",
+    "short_name": "CCSD",
+    "slug": "cherry-creek",
+    "city": "Greenwood Village",
+    "has_eap": true,
+    "provider": "Mines & Associates",
+    "sessions": "Up to six free and confidential counseling sessions (in-person or virtual) per life situation, per contract year (7/1 - 6/30)",
+    "session_basis_conflict": null,
+    "phone": "1-800-873-7138 (Mon-Fri 6:30 a.m.-6 p.m. MT; crisis support 24/7/365); text CCSDEAP to 1-800-873-7138",
+    "web_access": "www.minesandassociates.com, Company Code: ccsdeap",
+    "who_is_covered": "All employees and immediate household family members",
+    "other_services": [
+      "childcare, eldercare and pet care referrals",
+      "free 30-minute legal consult per matter + 25% discount",
+      "four free wellness coaching sessions",
+      "four free parental coaching and/or lactation sessions",
+      "online resource library"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.cherrycreekschools.org/careers/human-resources/benefits",
+      "https://www.cherrycreekschools.org/fs/resource-manager/view/203f172d-ac52-4519-a7d4-3af1b8c069fd"
+    ],
+    "source_quote": "Up to six free and confidential counseling sessions (in-person or virtual) per life situation, per contract year (7/1 – 6/30)",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "From the 2026-2027 Employee Benefits Guide. The 2025-26 guide worded it 'six sessions per person, per issue, per year'."
+  },
+  {
+    "district_name": "Douglas County School District RE-1",
+    "short_name": "DCSD",
+    "slug": "douglas-county",
+    "city": "Castle Rock",
+    "has_eap": true,
+    "provider": "SupportLinc (CuraLinc)",
+    "sessions": "up to eight professional, confidential virtual or face-to-face visits per year, per issue",
+    "session_basis_conflict": null,
+    "phone": "888-881-5462 (1-888-881-LINC)",
+    "web_access": "mysupportlinc.com, Group Code: dcsd (username: personal or DCSD email)",
+    "who_is_covered": "Employees and household members (automatic access)",
+    "other_services": [
+      "budget trackers and wellness self-assessments",
+      "marital/family, stress/anxiety/depression, substance abuse support",
+      "financial guidance",
+      "legal services",
+      "aging parent and child/elder care help"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.dcsdk12.org/about/departments/benefits-staff-wellness/employee-assistance-program",
+      "https://www.dcsdk12.org/fs/resource-manager/view/d619b3ef-8924-40a4-8e1f-b7474ac9fc5a"
+    ],
+    "source_quote": "This program provides up to eight professional, confidential virtual or face-to-face visits. These eight counseling sessions are available per year, per issue",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "From the 2026-27 Benefits Guide. DCSD switched from Resources for Living to SupportLinc on 7/1/2025. The DCSD Employee Guide page still lists the old RFL number (866-486-4334), which is out of date."
+  },
+  {
+    "district_name": "Aurora Public Schools (Adams-Arapahoe 28J)",
+    "short_name": "APS",
+    "slug": "aurora",
+    "city": "Aurora",
+    "has_eap": true,
+    "provider": "ComPsych (GuidanceResources)",
+    "sessions": "5 counseling sessions per issue, per year",
+    "session_basis_conflict": null,
+    "phone": "1-888-324-2631",
+    "web_access": "guidanceresources.com, Web ID: APS (also for GuidanceNow app)",
+    "who_is_covered": "All APS employees and household members",
+    "other_services": [
+      "financial information and resources",
+      "legal guidance",
+      "work-life solutions",
+      "healthcare navigation",
+      "well-being coaching",
+      "digital support"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.aurorak12.org/divisions/human_resources/benefits_info/employee_assistance_program",
+      "https://www.aurorak12.org/divisions/human_resources/benefits_info/contact_information"
+    ],
+    "source_quote": "Each employee and household member has access to 5 counseling sessions per issue, per year.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "Phone conflict: the EAP page lists 1-888-324-2631, while the APS benefits contact page lists 1-888-628-4809 for ComPsych. Confirm which number is current."
+  },
+  {
+    "district_name": "Littleton Public Schools",
+    "short_name": "LPS",
+    "slug": "littleton",
+    "city": "Littleton",
+    "has_eap": true,
+    "provider": "Aetna (link label on district benefits page), unverified",
+    "sessions": null,
+    "session_basis_conflict": null,
+    "phone": null,
+    "web_access": null,
+    "who_is_covered": "Employees, including those under 20 hours/week (per search-index text of district benefits page)",
+    "other_services": [],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.littletonpublicschools.net/o/lps/page/employee-benefits"
+    ],
+    "source_quote": null,
+    "last_verified": "2026-11-27",
+    "confidence": "low",
+    "notes": "The district site blocked automated access, so the page and benefits guide could not be read directly. Provider and eligibility come from search-index snippets of the official page only. Confirm with LPS HR benefits."
+  },
+  {
+    "district_name": "Mapleton Public Schools",
+    "short_name": "Mapleton",
+    "slug": "mapleton",
+    "city": "Thornton",
+    "has_eap": true,
+    "provider": "AllOne Health (through CEBT)",
+    "sessions": "6 free counseling sessions per year",
+    "session_basis_conflict": null,
+    "phone": "(877) 679-1100 or (970) 242-9536",
+    "web_access": "www.allonehealth.com/portal, Company Code: cebt",
+    "who_is_covered": "CEBT members and dependents under 26",
+    "other_services": [
+      "6 free life coaching sessions",
+      "legal review",
+      "financial counseling"
+    ],
+    "extra_benefits": "The Standard (group life and disability) EAP: (888) 293-6948, workhealthlife.com/Standard3. Modern Health: 8 therapy + 8 coaching sessions per year for members/dependents 6+ on a medical plan.",
+    "official_source_urls": [
+      "https://resources.finalsite.net/images/v1777493323/mapletonus/iheuvy0lzj7ryfuw4psl/revisedMapletonPublicSchoolsCEBTBenefitGuide2026.pdf"
+    ],
+    "source_quote": "The Allone Health EAP offers 6 free counseling sessions per year for CEBT members and dependents under 26, covering issues like divorce, parenting, grief, and conflict.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "From the Mapleton CEBT Benefit Guide, plans effective July 1, 2026 - June 30, 2027 (district-hosted)."
+  },
+  {
+    "district_name": "Adams County School District 14",
+    "short_name": "Adams 14",
+    "slug": "adams-14",
+    "city": "Commerce City",
+    "has_eap": true,
+    "provider": "Lincoln Financial EmployeeConnect (services provided by ComPsych)",
+    "sessions": "up to five sessions with a counselor per person, per issue, per year",
+    "session_basis_conflict": null,
+    "phone": "888-628-4824",
+    "web_access": "GuidanceResources.com, Username: LFGSupport, Password: LFGSupport1; GuidanceNow app",
+    "who_is_covered": "Employees and their dependents",
+    "other_services": [
+      "24/7 support",
+      "legal consultation (free 30-minute consult per issue, 25% off)",
+      "financial guidance",
+      "child/elder care, moving, college planning referrals",
+      "online articles and tools"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://www.adams14.org/employment/benefits",
+      "https://www.adams14.org/fs/resource-manager/view/24b0934d-e0da-4b5a-bef3-1bf17a3c168e",
+      "https://drive.google.com/file/d/1wBs6NPCKC5WpbcyPzSU4grD7rgK4wJmZ/view?usp=sharing"
+    ],
+    "source_quote": "In-person help for short-term issues (up to five sessions with a counselor per person, per issue, per year)",
+    "last_verified": "2026-11-27",
+    "confidence": "medium",
+    "notes": "From the 2024-2025 Benefits Guide and a 2022 Lincoln flyer linked from the district benefits page. This EAP comes with the Lincoln Financial life/disability coverage. CEBT also hosts a 'CEBT Life - Adams 14' file, so the carrier and EAP may have changed. Confirm with Adams 14 HR."
+  },
+  {
+    "district_name": "Colorado State Employee Assistance Program (C-SEAP), reference entry",
+    "short_name": "C-SEAP",
+    "slug": "colorado-state-c-seap",
+    "city": "Denver",
+    "has_eap": true,
+    "provider": "State of Colorado, Department of Personnel & Administration (C-SEAP)",
+    "sessions": "8 counseling sessions per rolling year",
+    "session_basis_conflict": null,
+    "phone": "303-866-4314 (main; urgent response 24/7)",
+    "web_access": "https://cseap.colorado.gov/",
+    "who_is_covered": "State of Colorado employees (executive, legislative, judicial branches), many public higher-education employees, some temporary state employees, state board members and legislators. NOT for most K-12 school district staff, who are district employees.",
+    "other_services": [
+      "counseling (individual; couple/family with the state employee)",
+      "mediation",
+      "webinars"
+    ],
+    "extra_benefits": null,
+    "official_source_urls": [
+      "https://cseap.colorado.gov/about/frequently-asked-questions",
+      "https://cseap.colorado.gov/"
+    ],
+    "source_quote": "CSEAP is only able to offer 8 counseling sessions per rolling year to State of Colorado employees.",
+    "last_verified": "2026-11-27",
+    "confidence": "high",
+    "notes": "Reference only. School district employees should use their district EAP. Family members may join couple/family sessions but cannot get individual C-SEAP counseling."
+  }
+]

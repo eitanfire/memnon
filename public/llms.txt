@@ -1,0 +1,23 @@
+# Memnon
+
+> Memnon turns a teacher's voice memos into structured notes and a short private audio brief each morning.
+
+Memnon is a web app for teachers at https://memnon.app. You record a memo in the browser, from the iPhone share sheet, or upload a file. Memnon transcribes it, shapes it with the teaching context and the reflective voices you choose (Pirkei Avot, the Rambam, Buber, Parker Palmer, bell hooks, the Stoics and others), and saves a structured note to your own Google Drive. Each morning it builds a private audio brief from your recent notes, today's calendar and tasks, and one teaching from your chosen voices.
+
+Memnon also has a local, open-source pipeline (whisper.cpp transcription into an Obsidian vault) with an MCP server for Claude: https://github.com/eitanfire/memnon
+
+## Colorado school district EAP directory
+
+A free directory of employee assistance programs (EAPs) for Colorado school district staff: provider, number of free counseling sessions, phone number and how to log in, taken from each district's own pages and benefits guides, with the date each entry was last verified. Where a district's EAP could not be confirmed from a public source, the page says to ask HR rather than guess. No sign-up.
+
+- [All districts](https://memnon.app/eap)
+- [Example: St. Vrain Valley School District](https://memnon.app/eap/st-vrain-valley)
+- [Making the most of your EAP sessions](https://memnon.app/eap/guide)
+
+If someone is in crisis, the right answer is to call or text 988 (Suicide & Crisis Lifeline, 24/7).
+
+## Links
+
+- [Home](https://memnon.app/)
+- [Privacy](https://memnon.app/privacy)
+- [Source code](https://github.com/eitanfire/memnon)
