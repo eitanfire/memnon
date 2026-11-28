@@ -171,6 +171,9 @@ BASE_GOOGLE_SCOPES = [
     "openid",
 ]
 TASKS_READONLY_SCOPE = "https://www.googleapis.com/auth/tasks.readonly"
+CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
+# Grants a user adds after first sign-in. A later, narrower re-auth must not drop them.
+OPTIONAL_GOOGLE_SCOPES = (TASKS_READONLY_SCOPE, CALENDAR_READONLY_SCOPE)
 API_BASE = "https://api-4hth6oktaa-uc.a.run.app"
 REDIRECT_URI = f"{API_BASE}/auth/callback"
 FRONTEND_URL = "https://memnon.app"
@@ -1451,10 +1454,12 @@ def _summarize_research(requester_uid: str) -> dict:
     }
 
 
-def _requested_google_scopes(include_tasks: bool = False) -> list[str]:
+def _requested_google_scopes(include_tasks: bool = False, include_calendar: bool = False) -> list[str]:
     scopes = list(BASE_GOOGLE_SCOPES)
     if include_tasks:
         scopes.append(TASKS_READONLY_SCOPE)
+    if include_calendar:
+        scopes.append(CALENDAR_READONLY_SCOPE)
     return scopes
 
 
@@ -1470,27 +1475,29 @@ def _scopes_from_token_data(token_data: dict | None) -> set[str]:
 
 
 def _merge_google_token(existing_token: dict | None, new_token: dict) -> dict:
-    """Preserve broader existing grants when a narrower re-auth returns later."""
+    """Keep the stored token refreshable.
+
+    A token's scopes must be exactly what its refresh token was granted:
+    Google rejects a refresh that asks for more (invalid_scope), which
+    takes Drive, Tasks and Calendar down together. So a new grant that
+    carries its own refresh token replaces the stored one outright; the
+    sign-in asks for include_granted_scopes, so Google folds earlier
+    grants into it. Only when Google re-issues no refresh token do we keep
+    the existing one, and then the existing scopes are the ones it can
+    refresh, plus whatever the new access token was just granted."""
     if not existing_token:
+        return new_token
+    if new_token.get("refresh_token"):
         return new_token
 
     existing_scopes = _scopes_from_token_data(existing_token)
     new_scopes = _scopes_from_token_data(new_token)
-
-    if existing_token.get("refresh_token") and not new_token.get("refresh_token"):
-        new_token["refresh_token"] = existing_token["refresh_token"]
-
-    if TASKS_READONLY_SCOPE in existing_scopes and TASKS_READONLY_SCOPE not in new_scopes:
-        merged = dict(existing_token)
-        merged["scopes"] = sorted(existing_scopes | new_scopes)
-        for key in ("client_id", "client_secret", "token_uri", "refresh_token"):
-            if new_token.get(key):
-                merged[key] = new_token[key]
-        return merged
-
+    merged = dict(new_token)
+    if existing_token.get("refresh_token"):
+        merged["refresh_token"] = existing_token["refresh_token"]
     if existing_scopes or new_scopes:
-        new_token["scopes"] = sorted(existing_scopes | new_scopes)
-    return new_token
+        merged["scopes"] = sorted(existing_scopes | new_scopes)
+    return merged
 
 
 def _drive_creds(uid: str) -> Credentials | None:
@@ -1554,6 +1561,20 @@ def _user_tasks_connected(user_data: dict | None) -> bool:
     if TASKS_READONLY_SCOPE in token_scopes:
         return True
     return bool((user_data or {}).get("google_tasks_connected"))
+
+
+def _calendar_service_for_user(uid: str):
+    creds = _drive_creds(uid)
+    if not creds:
+        return None
+    return build("calendar", "v3", credentials=creds, cache_discovery=False)
+
+
+def _user_calendar_connected(user_data: dict | None) -> bool:
+    token_scopes = _scopes_from_token_data((user_data or {}).get("google_drive_token"))
+    if CALENDAR_READONLY_SCOPE in token_scopes:
+        return True
+    return bool((user_data or {}).get("google_calendar_connected"))
 
 
 def _normalize_task_item(item: dict) -> dict:
@@ -1736,6 +1757,170 @@ def _build_deterministic_today_overview(tasks: list[dict], today: date) -> tuple
     return " ".join(sentences), refs, drop_ref
 
 
+CALENDAR_TODAY_MAX_EVENTS = 12
+
+
+def _parse_event_edge(raw: dict | None, tz: ZoneInfo) -> tuple[datetime | None, bool]:
+    """A Google event edge is either {"dateTime": ...} or, for all-day events,
+    {"date": "YYYY-MM-DD"}. Returns (local datetime, is_all_day)."""
+    raw = raw or {}
+    date_time = _safe_string(raw.get("dateTime"))
+    if date_time:
+        try:
+            parsed = datetime.fromisoformat(date_time.replace("Z", "+00:00"))
+        except ValueError:
+            return None, False
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=tz)
+        return parsed.astimezone(tz), False
+    date_only = _safe_string(raw.get("date"))
+    if date_only:
+        try:
+            return datetime.combine(date.fromisoformat(date_only), datetime.min.time(), tzinfo=tz), True
+        except ValueError:
+            return None, True
+    return None, False
+
+
+def _event_is_declined(item: dict) -> bool:
+    for attendee in item.get("attendees") or []:
+        if isinstance(attendee, dict) and attendee.get("self") and attendee.get("responseStatus") == "declined":
+            return True
+    return False
+
+
+def _normalize_calendar_event(item: dict, tz: ZoneInfo, today: date) -> dict | None:
+    """One event as the brief needs it, or None when it should not be spoken:
+    cancelled, declined, untitled, or not actually on today's date."""
+    if not isinstance(item, dict) or item.get("status") == "cancelled" or _event_is_declined(item):
+        return None
+    title = _safe_string(item.get("summary"))
+    if not _task_title_is_speakable(title):
+        return None
+    start, all_day = _parse_event_edge(item.get("start"), tz)
+    end, _ = _parse_event_edge(item.get("end"), tz)
+    if start is None:
+        return None
+    if all_day:
+        # All-day events end on the day after their last day.
+        last_day = (end.date() - timedelta(days=1)) if end else start.date()
+        if not (start.date() <= today <= last_day):
+            return None
+    elif start.date() != today:
+        return None
+    return {
+        "id": _safe_string(item.get("id")),
+        "title": title,
+        "start": start.isoformat(),
+        "end": end.isoformat() if end else "",
+        "all_day": all_day,
+        "location": _safe_string(item.get("location"))[:120],
+        "calendar": _safe_string(item.get("_calendar_name")),
+    }
+
+
+def _spoken_clock(value: datetime) -> str:
+    hour = value.hour % 12 or 12
+    suffix = "AM" if value.hour < 12 else "PM"
+    if value.minute == 0:
+        return f"{hour} {suffix}"
+    return f"{hour}:{value.minute:02d} {suffix}"
+
+
+def _spoken_event_time(event: dict) -> str:
+    if event.get("all_day"):
+        return "all day"
+    start = datetime.fromisoformat(event["start"])
+    text = _spoken_clock(start)
+    if event.get("end"):
+        end = datetime.fromisoformat(event["end"])
+        if end > start:
+            text += f" to {_spoken_clock(end)}"
+    return text
+
+
+def _calendar_event_ref(index: int) -> str:
+    return f"C{index + 1}"
+
+
+def _load_calendar_events(uid: str, user_data: dict, local_now: datetime) -> tuple[list[dict], str]:
+    """Read today's events from the calendars the user shows in Google
+    Calendar. Read-only. Returns (events in start order, omission_reason);
+    any failure is a silent omission, the way tasks and weather are."""
+    if not _user_calendar_connected(user_data):
+        return [], "not_connected"
+    tz = local_now.tzinfo if isinstance(local_now.tzinfo, ZoneInfo) else ZoneInfo(_safe_timezone_name(user_data.get("daily_feed_timezone")))
+    today = local_now.date()
+    day_start = datetime.combine(today, datetime.min.time(), tzinfo=tz)
+    day_end = day_start + timedelta(days=1)
+    try:
+        service = _calendar_service_for_user(uid)
+        if not service:
+            return [], "no_credentials"
+        calendars = (service.calendarList().list(minAccessRole="reader", maxResults=50).execute() or {}).get("items") or []
+        chosen = [c for c in calendars if isinstance(c, dict) and (c.get("selected") or c.get("primary"))]
+        if not chosen:
+            chosen = [{"id": "primary", "summary": ""}]
+        raw_events: list[dict] = []
+        for calendar in chosen:
+            calendar_id = _safe_string(calendar.get("id")) or "primary"
+            result = service.events().list(
+                calendarId=calendar_id,
+                timeMin=day_start.isoformat(),
+                timeMax=day_end.isoformat(),
+                singleEvents=True,
+                orderBy="startTime",
+                maxResults=50,
+            ).execute() or {}
+            for item in result.get("items") or []:
+                if isinstance(item, dict):
+                    raw_events.append({**item, "_calendar_name": _safe_string(calendar.get("summary"))})
+    except Exception as exc:
+        print(f"[{uid}] Calendar unavailable: {exc}")
+        return [], "api_error"
+    events = []
+    seen: set[tuple[str, str]] = set()
+    for item in raw_events:
+        event = _normalize_calendar_event(item, tz, today)
+        if not event:
+            continue
+        key = (event["title"].lower(), event["start"])
+        if key in seen:
+            continue
+        seen.add(key)
+        events.append(event)
+    events.sort(key=lambda e: (not e["all_day"], e["start"]))
+    if not events:
+        return [], "no_events_today"
+    return events[:CALENDAR_TODAY_MAX_EVENTS], ""
+
+
+def _build_deterministic_calendar_today(events: list[dict]) -> str:
+    """Spoken calendar walk-through without the model: all-day items, then
+    the timed appointments in order, with a note on the first open stretch."""
+    if not events:
+        return ""
+    all_day = [e for e in events if e.get("all_day")]
+    timed = [e for e in events if not e.get("all_day")]
+    sentences = []
+    if all_day:
+        names = ", ".join(e["title"] for e in all_day[:3])
+        sentences.append(f"Running through the whole day: {names}.")
+    if timed:
+        count = len(timed)
+        sentences.append(f"You have {count} appointment{'s' if count != 1 else ''} on the calendar today.")
+        for event in timed[:5]:
+            line = f"At {_spoken_event_time(event)}, {event['title']}"
+            if event.get("location"):
+                line += f", at {event['location']}"
+            sentences.append(line + ".")
+        if count > 5:
+            sentences.append(f"And {count - 5} more after that.")
+    else:
+        sentences.append("No timed appointments today, so the hours are yours to shape.")
+    return " ".join(sentences)
+
+
 def _find_or_create_media_folder(service) -> str:
     return _find_or_create_folder(service, "memnon-media")
 
@@ -1852,54 +2037,6 @@ def _load_latest_daily_feed_episode(uid: str) -> dict | None:
     payload = snap.to_dict() or {}
     payload["id"] = snap.id
     return payload
-
-
-class _DailyFeedSilenceSkip(Exception):
-    """Raised when a quiet day should produce no episode at all (not an error)."""
-
-
-SILENCE_STUB_AUDIO_PATH = Path(__file__).resolve().parent / "assets" / "audio" / "silence-stub.mp3"
-SILENCE_STUB_DURATION_SECONDS = 9
-SILENCE_STUB_TITLE = "No new captures — share a thought today"
-SILENCE_STUB_DESCRIPTION = "Nothing new since your last episode. This is a short, fixed reminder, not a generated briefing."
-
-
-def _publish_silence_stub_episode(uid: str, episode_id: str, force: bool = False) -> dict:
-    audio_bytes = SILENCE_STUB_AUDIO_PATH.read_bytes()
-    storage_path = _upload_daily_feed_audio(uid, episode_id, audio_bytes)
-    episode_payload = {
-        "date_key": episode_id,
-        "published_at": firestore.SERVER_TIMESTAMP,
-        "episode_type": "silence_stub",
-        "title": SILENCE_STUB_TITLE,
-        "description": SILENCE_STUB_DESCRIPTION,
-        "audio_storage_path": storage_path,
-        "audio_size_bytes": len(audio_bytes),
-        "duration_seconds": SILENCE_STUB_DURATION_SECONDS,
-        "segments_used": [],
-        "context_sources_used": [],
-        "script_text": SILENCE_STUB_DESCRIPTION,
-        "script_segments": {},
-        "audio_mix_meta": {"used_music_beds": False, "is_static_stub": True},
-        "script_meta": {"has_time_anchor": False, "has_continuity_anchor": False},
-        "generation_meta": {"generation_mode": "silence_stub"},
-    }
-    _daily_feed_episode_ref(uid, episode_id).set(episode_payload, merge=True)
-    _get_db().collection("users").document(uid).set({
-        "daily_feed_last_generated_for": episode_id,
-        "daily_feed_last_generated_at": firestore.SERVER_TIMESTAMP,
-        "daily_feed_last_published_episode_id": episode_id,
-        "daily_feed_last_error": firestore.DELETE_FIELD,
-        "daily_feed_last_error_at": firestore.DELETE_FIELD,
-    }, merge=True)
-    _log_usage_event(uid, "generated_daily_feed_episode", {
-        "episode_type": "silence_stub",
-        "date_key": episode_id,
-        "forced": force,
-    })
-    saved = _daily_feed_episode_ref(uid, episode_id).get().to_dict() or episode_payload
-    saved["id"] = episode_id
-    return saved
 
 
 def _build_daily_feed_status(uid: str, user_data: dict, now_utc: datetime | None = None) -> dict:
@@ -2197,6 +2334,7 @@ def _build_daily_feed_prompt(
     weather_context: dict | None = None,
     guide_passages: list[dict] | None = None,
     overview_tasks: list[dict] | None = None,
+    calendar_events: list[dict] | None = None,
 ) -> str:
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "teacher").strip()
     spoken_name = (_safe_string(user_data.get("spoken_name")) or preferred_name).strip()
@@ -2212,9 +2350,30 @@ def _build_daily_feed_prompt(
     if school_name:
         context_parts.append(f"school: {school_name}")
     context_line = "; ".join(context_parts) or "teacher context not specified"
-    notes_block = "\n\n---\n\n".join(_build_feed_note_brief(note) for note in notes[:DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT]) or "No recent reflections available."
+    notes_block = "\n\n---\n\n".join(_build_feed_note_brief(note) for note in notes[:DEFAULT_DAILY_FEED_RECENT_NOTE_LIMIT]) or "No reflections available."
     day_anchor = _daily_feed_present_day_anchor(local_now)
     continuity_anchor = _daily_feed_continuity_anchor(notes)
+    recent_reflection_available = _daily_feed_has_recent_reflection(notes, local_now)
+    if recent_reflection_available:
+        reflection_heading = "Recent reflection context:"
+        quiet_rules = ""
+    elif notes:
+        reflection_heading = (
+            f"Reflection context (none captured in the last {DEFAULT_DAILY_FEED_STANDARD_LOOKBACK_DAYS} days; "
+            "these are older):"
+        )
+        quiet_rules = (
+            "- No reflection was captured recently. Do not pretend one was. Build practical_briefing from the "
+            "open tasks, the calendar, and the day itself; draw on the older reflections only where a thread genuinely still applies, "
+            "and say it is from a while back.\n"
+        )
+    else:
+        reflection_heading = "Reflection context:"
+        quiet_rules = (
+            "- There are no reflections at all. Build practical_briefing from the open tasks, the calendar, and the day itself. "
+            "Keep reflective_grounding to one or two honest sentences about the day ahead, and use the present-day "
+            "anchor as the continuity_anchor.\n"
+        )
     weather_block = ""
     weather_is_speakable = bool(weather_context) and (
         "should_surface" not in weather_context
@@ -2253,15 +2412,34 @@ def _build_daily_feed_prompt(
             + "\n\n"
         )
 
+    calendar_block = ""
+    if calendar_events:
+        event_lines = []
+        for index, event in enumerate(calendar_events):
+            line = f"[{_calendar_event_ref(index)}] {_spoken_event_time(event)} — {event['title']}"
+            if event.get("location"):
+                line += f" (at {event['location']})"
+            event_lines.append(line)
+        calendar_block = (
+            "--- TODAY'S CALENDAR (in start order; times are the listener's local time) ---\n"
+            + "\n".join(event_lines)
+            + "\n\n"
+        )
+
     overview_requirement = (
         '"today_overview": "60 to 90 seconds, spoken orientation to the day from the open tasks",\n'
         if overview_tasks else ""
+    )
+    calendar_requirement = (
+        '"calendar_today": "20 to 45 seconds, the shape of today\'s appointments: what comes first, where the day is tight, what needs a moment of preparation",\n'
+        if calendar_events else
+        '"calendar_today": "leave as an empty string; no calendar context was provided",\n'
     )
     segment_requirements = (
         '"opening": "15 to 25 seconds, name the day and orient the listener",\n'
         + overview_requirement +
         '"practical_briefing": "60 to 120 seconds, name what matters most and why",\n'
-        '"calendar_today": "20 to 45 seconds, leave empty string for Phase 1 unless true calendar context exists",\n'
+        + calendar_requirement +
         '"reflective_grounding": "60 to 120 seconds, connect today to a real pattern across time",\n'
         '"meditative_close": "20 to 45 seconds, brief closing line that can later seed a meditative-only feed"'
     )
@@ -2283,6 +2461,14 @@ def _build_daily_feed_prompt(
             "- Do not repeat today_overview content in practical_briefing; practical_briefing stays grounded in the reflections.\n"
             "- tasks_used lists the refs today_overview names; task_drop_suggested is the single ref it says to drop or delegate.\n"
         )
+    calendar_rules = ""
+    if calendar_events:
+        calendar_rules = (
+            "- calendar_today walks through today's appointments in order. Say each time exactly as given. "
+            "Name what comes first, where two things sit close together, and anything that needs preparation. "
+            "Do not invent appointments, and do not restate the calendar in any other segment.\n"
+            "- If a task is clearly tied to an appointment, today_overview may say so in a few words.\n"
+        )
 
     return f"""You are writing a private daily audio briefing for {preferred_name}.
 
@@ -2294,7 +2480,7 @@ Person context: display name {preferred_name}; spoken name "{spoken_name}"; {con
 Present-day anchor available: {day_anchor}
 Continuity anchor candidate: {continuity_anchor or "none"}
 
-{weather_block}{tasks_block}{guides_block}Recent reflection context:
+{weather_block}{tasks_block}{calendar_block}{guides_block}{reflection_heading}
 {notes_block}
 
 Return strict JSON only with this schema:
@@ -2316,8 +2502,8 @@ Rules:
 - Keep each segment within its soft duration budget.
 - Do not produce generic encouragement.
 - The opening must contain a real present-day anchor.
-- The reflective grounding must contain a real continuity anchor drawn from reflection history.
-- For Phase 1, set calendar_today to an empty string unless true calendar context is provided.
+- The reflective grounding must contain a real continuity anchor drawn from reflection history when any exists.
+- Set calendar_today to an empty string unless today's calendar is provided above.
 - Do not create a weather segment.
 - If weather is relevant, treat it only as a short "Outside context" micro-cue near the opening.
 - Do not weave weather into practical_briefing, reflective_grounding, or meditative_close.
@@ -2326,7 +2512,7 @@ Rules:
 - Never repeat a sentence or phrase from one segment in another.
 - If wisdom voices are provided, ground reflective_grounding in one of them: name the author, quote or closely paraphrase a short line, and connect it honestly to the reflections. Do not force a connection, and use at most two voices in the whole episode.
 - voices_used must list exactly the passages the script draws on, by the source_id shown in brackets. Offered is not used: leave out any passage the script does not quote, paraphrase, or name.
-{tasks_rules}"""
+{quiet_rules}{tasks_rules}{calendar_rules}"""
 
 
 def _build_opening_weather_rewrite_prompt(
@@ -2397,6 +2583,9 @@ def _build_daily_feed_generation_meta(
     tasks_omission_reason: str = "",
     tasks_used: list[dict] | None = None,
     task_drop_suggested: dict | None = None,
+    calendar_offered: int = 0,
+    calendar_applied: bool = False,
+    calendar_omission_reason: str = "",
 ) -> dict:
     weather_context = weather_context or {}
     weather_diagnostics = weather_diagnostics or {}
@@ -2411,7 +2600,12 @@ def _build_daily_feed_generation_meta(
         "task_drop_suggested": task_drop_suggested,
         "recent_notes_available": recent_notes_available,
         "generation_mode": generation_mode,
-        "calendar_context_available": False,
+        "calendar_context_available": calendar_offered > 0,
+        "calendar_today": {
+            "offered": calendar_offered,
+            "applied": calendar_applied,
+            "omission_reason": "" if calendar_applied else (calendar_omission_reason or ("not_spoken" if calendar_offered else "")),
+        },
         "weather": {
             "available": bool(weather_context) or _coerce_bool(weather_diagnostics.get("available"), False),
             "applied": weather_applied,
@@ -2454,19 +2648,29 @@ def _build_deterministic_daily_feed_result(
     weather_context: dict | None = None,
     guide_passages: list[dict] | None = None,
     overview_tasks: list[dict] | None = None,
+    calendar_events: list[dict] | None = None,
 ) -> dict:
     latest_note = notes[0] if notes else {}
     preferred_name = (_safe_string(user_data.get("preferred_name")) or _safe_string(user_data.get("name")) or "listener").strip()
-    latest_title = _safe_string(latest_note.get("title")) or "recent reflection"
+    latest_title = _safe_string(latest_note.get("title")) or ("recent reflection" if notes else "")
     latest_summary = _safe_string(latest_note.get("summary"))
     latest_insight = _safe_string(latest_note.get("insight"))
-    continuity_anchor = _daily_feed_continuity_anchor(notes) or latest_title
     time_anchor = _daily_feed_present_day_anchor(local_now)
+    lead_task_title = _safe_string((overview_tasks or [{}])[0].get("title"))
+    lead_event_title = _safe_string((calendar_events or [{}])[0].get("title"))
+    # With no reflections the day still needs an anchor: the lead task, the first appointment, else today itself.
+    continuity_anchor = _daily_feed_continuity_anchor(notes) or latest_title or lead_task_title or lead_event_title or time_anchor
+    theme = latest_title or lead_task_title or lead_event_title or "Today's priorities"
     weather_micro_cue = ""
     if weather_context and _coerce_bool(weather_context.get("should_surface"), False):
         weather_micro_cue = _safe_string(weather_context.get("micro_cue_text"))
 
-    description = f"Grounded in {latest_title or 'your recent reflections'} and oriented to today."
+    if notes:
+        description = f"Grounded in {latest_title} and oriented to today."
+    elif overview_tasks or calendar_events:
+        description = "Oriented to today's open tasks and calendar; no recent reflections to draw on."
+    else:
+        description = "A short orientation to the day; no reflections or open tasks to draw on."
 
     opening_parts = [f"{time_anchor} {preferred_name}, here is your Memnon briefing for the day."]
     if weather_micro_cue:
@@ -2486,10 +2690,20 @@ def _build_deterministic_daily_feed_result(
     # Each source line is spoken once: the latest insight carries the
     # practical briefing, and the grounding draws on something else.
     used_lines: set[str] = set()
-    stance_seed = latest_insight or latest_summary or continuity_anchor
+    stance_seed = latest_insight or latest_summary or (continuity_anchor if notes else "")
     if stance_seed:
         practical_briefing = f"From your latest reflection, {latest_title}: {_sentence(stance_seed)}"
         used_lines.add(stance_seed)
+    elif lead_task_title:
+        practical_briefing = (
+            f"Nothing new has been captured lately, so today is shaped by what is on the list. "
+            f"Keep {lead_task_title} in front of you and let the rest follow."
+        )
+    elif lead_event_title:
+        practical_briefing = (
+            f"Nothing new has been captured lately, so today is shaped by the calendar. "
+            f"Arrive at {lead_event_title} with a clear head and let the rest follow."
+        )
     else:
         practical_briefing = "Keep the pace simple today and protect one important thread."
 
@@ -2512,16 +2726,23 @@ def _build_deterministic_daily_feed_result(
     response_summary = _safe_string(latest_note.get("participant_response_summary") or latest_note.get("participant_response_excerpt"))
     if response_summary:
         reflective_parts.append(f"You also answered back to the reflection in this way: {_sentence(response_summary, 220)}")
+    if not reflective_parts and not notes:
+        reflective_parts.append(
+            "There is no recent reflection to return to, and that is fine. "
+            "Notice what today asks of you, and capture one thought when there is a moment."
+        )
     reflective_grounding = " ".join(reflective_parts)
 
     today_overview, overview_refs, overview_drop_ref = _build_deterministic_today_overview(
         overview_tasks or [], local_now.date()
     )
 
+    calendar_today = _build_deterministic_calendar_today(calendar_events or [])
+
     meditative_close = "Carry one clear intention into the day: stay close to what feels true, and let one next step be enough."
 
     return {
-        "title": f"{_format_natural_date(local_now.date().isoformat())} — {latest_title[:64]}",
+        "title": f"{_format_natural_date(local_now.date().isoformat())} — {theme[:64]}",
         "description": description[:500],
         "time_anchor": time_anchor,
         "continuity_anchor": continuity_anchor[:240],
@@ -2533,7 +2754,7 @@ def _build_deterministic_daily_feed_result(
             "opening": opening,
             "today_overview": today_overview,
             "practical_briefing": practical_briefing,
-            "calendar_today": "",
+            "calendar_today": calendar_today,
             "reflective_grounding": reflective_grounding,
             "meditative_close": meditative_close,
         },
@@ -2576,9 +2797,10 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY not set")
 
+    # A quiet stretch is not a reason to skip the day: tasks and the present-day
+    # anchor still give the brief something real to say, and older reflections
+    # are offered as background rather than as "recent".
     notes = _load_recent_feed_notes(uid)
-    if not notes:
-        raise RuntimeError("No reflections available to generate a daily feed episode")
 
     weather_context = None
     weather_diagnostics = {
@@ -2602,14 +2824,6 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
 
     recent_notes_available = _daily_feed_has_recent_reflection(notes, local_now)
 
-    if not recent_notes_available and not force:
-        latest_episode = _load_latest_daily_feed_episode(uid)
-        if (latest_episode or {}).get("episode_type") == "silence_stub":
-            raise _DailyFeedSilenceSkip(
-                "No new captures since the last stub episode; staying silent today."
-            )
-        return _publish_silence_stub_episode(uid, episode_id, force=force)
-
     episode_type = "standard"
     try:
         guide_passages = daily_feed_passages(
@@ -2628,6 +2842,14 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         print(f"[{uid}] Tasks overview unavailable: {exc}")
         overview_tasks, tasks_omission_reason = [], "unexpected_tasks_exception"
 
+    # Today's appointments for the spoken calendar segment. Same contract as
+    # tasks: read-only, and any failure omits the segment silently.
+    try:
+        calendar_events, calendar_omission_reason = _load_calendar_events(uid, user_data, local_now)
+    except Exception as exc:
+        print(f"[{uid}] Calendar unavailable: {exc}")
+        calendar_events, calendar_omission_reason = [], "unexpected_calendar_exception"
+
     def _save_episode_from_result(result: dict, selected_type: str, weather_applied: bool = False) -> dict:
         time_anchor = _safe_string(result.get("time_anchor"))
         continuity_anchor = _safe_string(result.get("continuity_anchor"))
@@ -2640,6 +2862,9 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
         segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
         if not overview_tasks:
             segments.pop("today_overview", None)
+        if not calendar_events:
+            # Nothing was offered, so anything here is invented.
+            segments.pop("calendar_today", None)
         tasks_used, task_drop_suggested = _overview_tasks_used(result, overview_tasks)
         script_text, segments_used = _assemble_daily_feed_script(segments)
         if not script_text:
@@ -2680,8 +2905,9 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             "duration_seconds": duration_seconds,
             "segments_used": segments_used,
             "context_sources_used": (
-                ["reflection_history"]
+                (["reflection_history"] if notes else [])
                 + (["tasks"] if "today_overview" in segments_used else [])
+                + (["calendar"] if "calendar_today" in segments_used else [])
                 + (["guides"] if guide_voices_used else [])
                 + (["weather"] if weather_applied else [])
             ),
@@ -2710,6 +2936,9 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
                 tasks_omission_reason=tasks_omission_reason,
                 tasks_used=tasks_used,
                 task_drop_suggested=task_drop_suggested,
+                calendar_offered=len(calendar_events),
+                calendar_applied="calendar_today" in segments_used,
+                calendar_omission_reason=calendar_omission_reason,
             ),
         }
         _daily_feed_episode_ref(uid, episode_id).set(episode_payload, merge=True)
@@ -2739,6 +2968,7 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             weather_context=weather_context,
             guide_passages=guide_passages,
             overview_tasks=overview_tasks,
+            calendar_events=calendar_events,
         )
         return _save_episode_from_result(
             result,
@@ -2757,13 +2987,14 @@ def _build_daily_feed_episode(uid: str, user_data: dict, now_utc: datetime | Non
             weather_context=weather_context,
             guide_passages=guide_passages,
             overview_tasks=overview_tasks,
+            calendar_events=calendar_events,
         )
         result = _summarize(
             prompt,
             api_key,
             json_mode=True,
             timeout_seconds=120,
-            max_output_tokens=2600 if overview_tasks else 2000,
+            max_output_tokens=2600 if (overview_tasks or calendar_events) else 2000,
         )
         segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
         original_opening = _safe_string(segments.get("opening"))
@@ -3081,11 +3312,16 @@ def auth_start():
         session["code_verifier"] = code_verifier
 
         include_tasks = request.args.get("include_tasks") == "1"
+        include_calendar = request.args.get("include_calendar") == "1"
         params = {
             "client_id":              cfg["client_id"],
             "redirect_uri":           REDIRECT_URI,
             "response_type":          "code",
-            "scope":                  " ".join(_requested_google_scopes(include_tasks)),
+            "scope":                  " ".join(_requested_google_scopes(include_tasks, include_calendar)),
+            # Incremental auth: the new grant (and its refresh token) keeps
+            # every scope the user granted before, so connecting Calendar
+            # never drops Tasks.
+            "include_granted_scopes": "true",
             "access_type":            "offline",
             "state":                  state,
             "code_challenge":         code_challenge,
@@ -3178,7 +3414,9 @@ def auth_callback():
             existing_user.get("google_drive_token"),
             json.loads(creds.to_json()),
         )
-        tasks_connected = TASKS_READONLY_SCOPE in _scopes_from_token_data(merged_token)
+        granted_scopes = _scopes_from_token_data(merged_token)
+        tasks_connected = TASKS_READONLY_SCOPE in granted_scopes
+        calendar_connected = CALENDAR_READONLY_SCOPE in granted_scopes
 
         # Persist Drive tokens + user info
         _get_db().collection("users").document(uid).set({
@@ -3187,6 +3425,7 @@ def auth_callback():
             "google_drive_token": merged_token,
             "drive_connected": True,
             "google_tasks_connected": tasks_connected,
+            "google_calendar_connected": calendar_connected,
             "active": True,
         }, merge=True)
 
@@ -4184,6 +4423,7 @@ def get_me():
     data.pop("google_drive_token", None)   # never send tokens to frontend
     data["capture_token"] = capture_token_summary(data)
     data["google_tasks_connected"] = _user_tasks_connected(data)
+    data["google_calendar_connected"] = _user_calendar_connected(data)
     data["research_recommendations"] = (_load_research_signals().get("recommendations") or {})
     if data.get("daily_feed_token"):
         data["daily_feed_url"] = _daily_feed_url_for_token(_safe_string(data.get("daily_feed_token")))
@@ -4280,8 +4520,6 @@ def daily_feed_worker(event: scheduler_fn.ScheduledEvent) -> None:
                 "daily_feed_last_attempted_at": firestore.SERVER_TIMESTAMP,
             }, merge=True)
             _build_daily_feed_episode(uid, user_data, now_utc=now_utc)
-        except _DailyFeedSilenceSkip as skip:
-            print(f"Daily feed silent [{uid}]: {skip}")
         except Exception as exc:
             print(f"Daily feed error [{uid}]: {exc}")
             _get_db().collection("users").document(uid).set({
