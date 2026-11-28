@@ -171,6 +171,23 @@ def extract_themes(transcript: str) -> set[str]:
     return themes
 
 
+def same_teaching_ids(source_ids: set[str]) -> set[str]:
+    """source_ids plus every passage that carries the same teaching.
+
+    A passage's same_as lists ids of the same teaching in another source
+    (the Rambam restating Avot) or an older id it replaced, so a voice spoken
+    under either id counts as spoken for rotation."""
+    expanded = set(source_ids)
+    for guide in SOURCES.get("guides", {}).values():
+        for p in guide.get("passages", []):
+            same = set(p.get("same_as") or [])
+            if p.get("id") in source_ids:
+                expanded |= same
+            elif same & source_ids:
+                expanded.add(p["id"])
+    return expanded
+
+
 def score_passage(passage: dict, themes: set[str]) -> int:
     """Score a passage by tag overlap with extracted themes."""
     return len(set(passage.get("tags", [])) & themes)
@@ -236,6 +253,7 @@ def select_passages(
             best_primary = primary_passages[0]  # already sorted by score
             selected.append(best_primary)
             used_ids.add(best_primary["passage"]["id"])
+            used_ids.update(best_primary["passage"].get("same_as") or [])
 
     # Step 2: fill remaining 2 slots from global best (no duplicates)
     for item in all_scored:
@@ -244,6 +262,7 @@ def select_passages(
         if item["passage"]["id"] not in used_ids:
             selected.append(item)
             used_ids.add(item["passage"]["id"])
+            used_ids.update(item["passage"].get("same_as") or [])
 
     return selected
 
@@ -272,7 +291,9 @@ def daily_feed_passages(user: dict, text: str, exclude_source_ids: set[str] | No
     rather than to the shared SOURCES, and never offers a passage in
     exclude_source_ids (the ones spoken recently).
 
-    Returns list of dicts: { source_id, guide_id, author, spoken_name, work, ref, text, tags }
+    Returns list of dicts: { source_id, guide_id, author, spoken_name, work, ref, text, verbatim, tags }
+    `text` is the paraphrased teaching; `verbatim` (may be empty) is the one
+    phrase the script may use in the source's own words.
     """
     reflect_config  = user.get("reflect_config") or {}
     selected_guides = reflect_config.get("selected_guides") or []
@@ -284,9 +305,10 @@ def daily_feed_passages(user: dict, text: str, exclude_source_ids: set[str] | No
         g = item["guide"]
         p = item["passage"]
         passage_text = p["text"]
+        verbatim = p.get("verbatim", "")
         custom_text = custom_passages.get(item["guide_id"])
         if custom_text and g.get("passages") and g["passages"][0].get("id") == p.get("id"):
-            passage_text = custom_text
+            passage_text, verbatim = custom_text, ""
         passages.append({
             "source_id": p["id"],
             "guide_id":  item["guide_id"],
@@ -295,6 +317,7 @@ def daily_feed_passages(user: dict, text: str, exclude_source_ids: set[str] | No
             "work":      g.get("work", ""),
             "ref":       p.get("ref", ""),
             "text":      passage_text,
+            "verbatim":  verbatim,
             "tags":      list(p.get("tags", [])),
         })
     return passages
@@ -331,9 +354,13 @@ def reflect_prompt(transcript: str, user: dict, max_tags: int = 5) -> tuple[str,
     for item in selected:
         g = item["guide"]
         p = item["passage"]
-        passage_lines.append(
-            f'{g["label"]} ({g.get("work","")}, {p.get("ref","")}):\n"{p["text"]}"'
-        )
+        name = g.get("spoken_name") or g["label"]
+        also = f'{g["label"]}; ' if name != g["label"] else ""
+        line = f'[{p["id"]}] {name} ({also}{g.get("work","")}, {p.get("ref","")}):\n{p["text"]}'
+        customized = custom_passages.get(item["guide_id"]) and g["passages"][0].get("id") == p.get("id")
+        if p.get("verbatim") and not customized:
+            line += f'\nThe one phrase you may use in the source\'s own words: "{p["verbatim"]}"'
+        passage_lines.append(line)
     passages_block = "\n\n".join(passage_lines) if passage_lines else "(no voices selected)"
 
     # Voice names for context line
@@ -341,7 +368,7 @@ def reflect_prompt(transcript: str, user: dict, max_tags: int = 5) -> tuple[str,
     for guide_id in selected_guides:
         g = guides_db.get(guide_id)
         if g:
-            voice_names.append(g["label"])
+            voice_names.append(g.get("spoken_name") or g["label"])
     voices_context = ", ".join(voice_names) if voice_names else "no specific voices selected"
 
     # Formative + reflect documents
@@ -375,7 +402,9 @@ Your role is to help them make meaning from their day using the wisdom voices th
 {prompted_by}
 
 The following passages were selected because they relate thematically to what the user shared. \
-Engage with them genuinely — do not force connections that aren't there:
+Engage with them genuinely — do not force connections that aren't there. \
+Say each idea in your own words; where a passage offers one phrase in the source's own words, \
+that phrase is the only wording you may quote:
 
 {passages_block}
 {f'''
