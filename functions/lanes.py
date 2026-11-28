@@ -176,7 +176,11 @@ def score_passage(passage: dict, themes: set[str]) -> int:
     return len(set(passage.get("tags", [])) & themes)
 
 
-def select_passages(selected_guides: list[str], themes: set[str]) -> list[dict]:
+def select_passages(
+    selected_guides: list[str],
+    themes: set[str],
+    exclude_ids: set[str] | None = None,
+) -> list[dict]:
     """
     Select top 3 passages globally with primary guide guarantee.
 
@@ -186,9 +190,14 @@ def select_passages(selected_guides: list[str], themes: set[str]) -> list[dict]:
     3. Fill 2 remaining slots with best overall matches
     4. Deduplicate if primary guide's best already won globally
 
+    Passages in exclude_ids are never offered. The primary-voice guarantee
+    only holds while that voice has an unexcluded passage left, and an empty
+    selection is a valid result.
+
     Returns list of dicts: { guide_id, passage, score }
     """
     guides_db = SOURCES.get("guides", {})
+    exclude_ids = exclude_ids or set()
 
     if not selected_guides:
         return []
@@ -203,6 +212,8 @@ def select_passages(selected_guides: list[str], themes: set[str]) -> list[dict]:
         if not guide:
             continue
         for passage in guide.get("passages", []):
+            if passage.get("id") in exclude_ids:
+                continue
             score = score_passage(passage, themes)
             all_scored.append({
                 "guide_id":  guide_id,
@@ -254,19 +265,20 @@ def build_sources_used(selected: list[dict]) -> list[dict]:
     ]
 
 
-def daily_feed_passages(user: dict, text: str) -> list[dict]:
+def daily_feed_passages(user: dict, text: str, exclude_source_ids: set[str] | None = None) -> list[dict]:
     """
     Select guide passages for the daily feed from the user's chosen voices.
     Same selection as reflect_prompt, but applies custom passages to copies
-    rather than to the shared SOURCES.
+    rather than to the shared SOURCES, and never offers a passage in
+    exclude_source_ids (the ones spoken recently).
 
-    Returns list of dicts: { source_id, guide_id, author, work, ref, text }
+    Returns list of dicts: { source_id, guide_id, author, spoken_name, work, ref, text, tags }
     """
     reflect_config  = user.get("reflect_config") or {}
     selected_guides = reflect_config.get("selected_guides") or []
     custom_passages = reflect_config.get("custom_passages") or {}
 
-    selected = select_passages(selected_guides, extract_themes(text))
+    selected = select_passages(selected_guides, extract_themes(text), exclude_ids=exclude_source_ids)
     passages = []
     for item in selected:
         g = item["guide"]
@@ -279,9 +291,11 @@ def daily_feed_passages(user: dict, text: str) -> list[dict]:
             "source_id": p["id"],
             "guide_id":  item["guide_id"],
             "author":    g["label"],
+            "spoken_name": g.get("spoken_name") or g["label"],
             "work":      g.get("work", ""),
             "ref":       p.get("ref", ""),
             "text":      passage_text,
+            "tags":      list(p.get("tags", [])),
         })
     return passages
 

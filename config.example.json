@@ -65,7 +65,21 @@
     "poll_seconds": 60
   },
 
-  "_comment_lanes": "Optional. Define workflow lanes in config.json (not here). Speak the lane name at the start of a recording to route it. See README for the full schema.",
+  "_comment_context_pack": "Optional. Once a day the watch run builds a bounded digest of the vault and writes it to Firestore users/{uid}/context_pack/current for the daily brief. Uses this Mac's gcloud application-default credentials. People and household come only from sources where you are the speaker. Test with: python3 src/voice_pipeline.py context-pack --config config.json --dry-run",
+  "context_pack": {
+    "enabled": false,
+    "uid": "",
+    "firebase_project": "memnon-app",
+    "vault_dir": "/Users/your-username/Documents/Obsidian/YourVault",
+    "include": ["recent_notes", "action_items", "people_household", "therapy_index", "therapy_sessions"],
+    "therapy_index_path": "Inbox/Voice/therapy-sessions-index.md",
+    "build_after_hour": 3,
+    "max_chars": 12000,
+    "_comment_people_known": "Optional: people named outright; they lead the people-and-household section.",
+    "people_known": [{"name": "", "relationship": "wife", "note": ""}]
+  },
+
+  "_comment_lanes":"Optional. Define workflow lanes in config.json (not here). Speak the lane name at the start of a recording to route it. See README for the full schema.",
 
   "gpt_handoff": {
     "enabled": false,

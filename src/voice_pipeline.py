@@ -2429,12 +2429,35 @@ def process_pending(config: Dict[str, Any]) -> List[ProcessResult]:
     return results
 
 
+def maybe_build_context_pack(config: Dict[str, Any]) -> None:
+    """Once a day, push the vault digest the daily brief reads. Never raises."""
+    try:
+        from context_pack import run_if_due
+
+        run_if_due(config)
+    except Exception as exc:
+        print(f"[context_pack] skipped: {exc}")
+
+
+def command_context_pack(args: argparse.Namespace) -> int:
+    from context_pack import _read_state, _state_path, build_and_upload
+
+    config = load_config(Path(args.config))
+    state = _read_state(_state_path(config))
+    pack = build_and_upload(config, state, dry_run=args.dry_run)
+    if args.dry_run:
+        print(pack["markdown"])
+    print(json.dumps(pack["sources"], indent=2, ensure_ascii=False))
+    return 0
+
+
 def command_watch(args: argparse.Namespace) -> int:
     config = load_config(Path(args.config))
     if args.once:
         results = process_pending(config)
         for item in results:
             print(json.dumps(item.__dict__, ensure_ascii=False))
+        maybe_build_context_pack(config)
         return 0
 
     poll_seconds = int(config.get("poll_seconds", 30))
@@ -2868,6 +2891,14 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser("validate", help="Check config paths and key dependencies.")
     validate_parser.add_argument("--config", required=True, help="Path to config.json")
     validate_parser.set_defaults(func=command_validate)
+
+    pack_parser = subparsers.add_parser(
+        "context-pack",
+        help="Build the daily brief's context pack now (and upload it unless --dry-run).",
+    )
+    pack_parser.add_argument("--config", required=True, help="Path to config.json")
+    pack_parser.add_argument("--dry-run", action="store_true", help="Print the pack; do not upload.")
+    pack_parser.set_defaults(func=command_context_pack)
 
     setup_parser = subparsers.add_parser(
         "setup",
