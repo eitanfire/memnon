@@ -116,6 +116,20 @@ class ContextPackTests(unittest.TestCase):
         cp.build_and_upload(self.config, state, now=NOW, post=fake_post, upload=lambda *a: None)
         self.assertEqual(len(calls), 1)  # unchanged sources: cached
 
+    def test_known_people_lead_and_replace_unnamed_roles(self):
+        lines = cp.merge_known_people(
+            [{"name": "Haley", "relationship": "wife"}, {"name": "Bayla", "relationship": "daughter", "note": "at a Montessori school"}],
+            ["- Richard: the listener's therapist",
+             "- The listener's wife (name not stated in the notes)",
+             "- The listener's daughter (name not stated in the notes); giddy at dinner",
+             "- Haley: the listener's friend"],
+        )
+        self.assertEqual(lines, [
+            "- Haley: the listener's wife",
+            "- Bayla: the listener's daughter; at a Montessori school",
+            "- Richard: the listener's therapist",
+        ])
+
     def test_people_failure_still_ships_the_rest(self):
         def broken_post(*_a, **_k):
             raise RuntimeError("openai down")

@@ -16,9 +16,11 @@ Config (config.json, all keys optional except uid):
       "include": ["therapy_index", "therapy_sessions", "action_items",
                   "recent_notes", "people_household"],
       "build_after_hour": 3,
-      "max_chars": 12000
+      "max_chars": 12000,
+      "people_known": [{"name": "...", "relationship": "wife", "note": ""}]
     }
 
+people_known (optional) names people outright; they lead the section.
 People and household are derived ONLY from sources where the listener is the
 speaker or author (therapy notes, the Growls log, memos where they spoke the
 lane label, typed entries). Ambient multi-speaker recordings never feed it,
@@ -350,6 +352,30 @@ def derive_people(source_text: str, ai: Dict[str, Any], post: Callable[[str, dic
     return lines
 
 
+def merge_known_people(known: List[Dict[str, str]], derived: List[str]) -> List[str]:
+    """People the listener named in config lead; a derived line for the same
+    name, or an unnamed line for the same relationship, is dropped."""
+    lines, names, roles = [], set(), set()
+    for person in known:
+        name = str(person.get("name") or "").strip()
+        relationship = str(person.get("relationship") or "").strip().lower()
+        if not name or not relationship:
+            continue
+        note = str(person.get("note") or "").strip()
+        lines.append(f"- {name}: the listener's {relationship}" + (f"; {note}" if note else ""))
+        names.add(name.lower())
+        roles.add(relationship)
+    for line in derived:
+        match = re.match(r"- (?:(.+?): the listener's (.+?)|The listener's (.+?) \(name not stated)", line)
+        if match:
+            if match.group(1) and match.group(1).lower() in names:
+                continue
+            if match.group(3) and match.group(3).split(";")[0].strip().lower() in roles:
+                continue
+        lines.append(line)
+    return lines
+
+
 def _http_post_json(url: str, payload: dict, headers: dict, timeout: int = 60, method: str = "POST") -> dict:
     request = urllib.request.Request(
         url,
@@ -536,6 +562,7 @@ def build_and_upload(
                 print(f"[context_pack] people and household unavailable: {exc}")
                 people_lines = list(state.get("people_lines") or [])
 
+    people_lines = merge_known_people(cfg.get("people_known") or [], people_lines)
     pack = build_pack(config, now=now, people_lines=people_lines, notes=notes)
     if not dry_run:
         upload(pack, cfg["firebase_project"], cfg["uid"])

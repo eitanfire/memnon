@@ -74,7 +74,9 @@
     "include": ["recent_notes", "action_items", "people_household", "therapy_index", "therapy_sessions"],
     "therapy_index_path": "Inbox/Voice/therapy-sessions-index.md",
     "build_after_hour": 3,
-    "max_chars": 12000
+    "max_chars": 12000,
+    "_comment_people_known": "Optional: people named outright; they lead the people-and-household section.",
+    "people_known": [{"name": "", "relationship": "wife", "note": ""}]
   },
 
   "_comment_lanes":"Optional. Define workflow lanes in config.json (not here). Speak the lane name at the start of a recording to route it. See README for the full schema.",
